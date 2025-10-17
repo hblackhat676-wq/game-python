@@ -24,7 +24,7 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
     ADMIN_PASSWORD_HASH = hashlib.sha256(b"sudohacker").hexdigest()
     session_lock = threading.Lock()
     MAX_FAILED_ATTEMPTS = 3
-    BLOCK_TIME = 300
+    BLOCK_TIME = 0
     blocked_ips = set()
     
     # إضافة: ملف كلمات المرور القابلة للتغيير
