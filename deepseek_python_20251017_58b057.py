@@ -311,7 +311,7 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
         <body>
             <div class="container">
                 <div class="header">
-                    <div class="logo">🔐</div>
+                    <div class="logo">LOGIN</div>
                     <h2>Security Settings <span class="speed-badge">INSTANT</span></h2>
                     <p>Change Authentication Passwords in Real-Time</p>
                 </div>
@@ -319,7 +319,7 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                 <div id="message" class="message"></div>
 
                 <div class="password-form">
-                    <h3>🔑 Change Level 1 Password</h3>
+                    <h3>Change Level 1 Password</h3>
                     <input type="password" id="currentPassword1" placeholder="Current Level 1 Password">
                     <input type="password" id="newPassword1" placeholder="New Level 1 Password">
                     <input type="password" id="confirmPassword1" placeholder="Confirm New Password">
@@ -327,7 +327,7 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                 </div>
 
                 <div class="password-form">
-                    <h3>🛡️ Change Admin Password</h3>
+                    <h3>Change Admin Password</h3>
                     <input type="password" id="currentPassword2" placeholder="Current Admin Password">
                     <input type="password" id="newPassword2" placeholder="New Admin Password">
                     <input type="password" id="confirmPassword2" placeholder="Confirm New Password">
@@ -548,19 +548,19 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
         </head>
         <body>
             <div class="container">
-                <div class="logo">🔒</div>
+                <div class="logo">LOGIN</div>
                 <h2>Enhanced Remote Control <span class="speed-badge">INSTANT</span></h2>
                 <p style="color: #ccc; margin-bottom: 30px;">Secure System Management - Level 1 Authentication</p>
                 
                 <div class="security-notice" id="securityNotice">
-                    ⚠️ Multiple failed attempts detected
+                    Multiple failed attempts detected
                 </div>
                 
                 <input type="password" id="password" placeholder="Enter Level 1 Password" autocomplete="off">
                 <button onclick="login()">Authenticate</button>
                 
                 <div style="margin-top: 20px; font-size: 12px; color: #888;">
-                    🔐 Multi-layer security system active
+                    Multi-layer security system active
                 </div>
             </div>
             <script>
@@ -689,19 +689,19 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
         </head>
         <body>
             <div class="container">
-                <div class="logo">🛡️</div>
+                <div class="logo">LOGIN</div>
                 <h2>Admin Authentication <span class="speed-badge">INSTANT</span></h2>
                 <p style="color: #ccc; margin-bottom: 30px;">Level 2 Security - Administrative Access</p>
                 
                 <div class="security-level">
-                    ⚠️ HIGH SECURITY LEVEL - ADMIN ACCESS REQUIRED
+                    HIGH SECURITY LEVEL - ADMIN ACCESS REQUIRED
                 </div>
                 
                 <input type="password" id="adminPassword" placeholder="Enter Admin Password" autocomplete="off">
                 <button onclick="adminLogin()">Admin Authentication</button>
                 
                 <div style="margin-top: 20px; font-size: 12px; color: #888;">
-                    🚨 Unauthorized access will be logged and blocked
+                    Unauthorized access will be logged and blocked
                 </div>
             </div>
             <script>
@@ -1037,18 +1037,18 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
         </head>
         <body>
             <div class="header">
-                <h2>⚡ INSTANT Remote Control <span class="instant-badge">0ms DELAY</span></h2>
+                <h2>INSTANT Remote Control <span class="instant-badge">0ms DELAY</span></h2>
                 <div>
-                    <button onclick="loadSessions()">🔄 Refresh List</button>
-                    <button onclick="executeAll('sysinfo')">🌐 System Info All</button>
-                    <button class="settings-btn" onclick="openSettings()">⚙️ Security Settings</button>
-                    <button class="warning" onclick="logout()">🚪 Logout</button>
+                    <button onclick="loadSessions()">Refresh List</button>
+                    <button onclick="executeAll('sysinfo')">System Info All</button>
+                    <button class="settings-btn" onclick="openSettings()">Security Settings</button>
+                    <button class="warning" onclick="logout()">Logout</button>
                 </div>
             </div>
             
             <div class="container">
                 <div class="sidebar">
-                    <h3>📡 Connected Clients <span class="speed-indicator">LIVE</span> (<span id="clientsCount">0</span>)</h3>
+                    <h3>Connected Clients <span class="speed-indicator">LIVE</span> (<span id="clientsCount">0</span>)</h3>
                     <div id="sessionsList" style="flex: 1; overflow-y: auto; max-height: 500px;">
                         <div style="text-align: center; color: #666; padding: 20px;">
                             Loading clients...
@@ -1073,52 +1073,52 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                 
                 <div class="main">
                     <div style="background: var(--darker); padding: 20px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.1);">
-                        <h3>🎯 Selected Client: <span id="currentClient" style="color: var(--success); font-weight: bold;">Not Selected</span></h3>
+                        <h3>Selected Client: <span id="currentClient" style="color: var(--success); font-weight: bold;">Not Selected</span></h3>
                         
                         <div class="multi-control">
-                            <strong>⚡ Instant Commands <span class="instant-badge">0ms</span>:</strong>
+                            <strong>Instant Commands <span class="instant-badge">0ms</span>:</strong>
                             <div class="controls-grid">
-                                <button onclick="executeCommand('sysinfo')">🖥️ System Info</button>
-                                <button onclick="executeCommand('whoami')">👤 Current User</button>
-                                <button onclick="executeCommand('ipconfig /all')">🌐 Network Info</button>
-                                <button onclick="executeCommand('dir')">📁 Files List</button>
-                                <button onclick="executeCommand('tasklist')">📊 Active Processes</button>
-                                <button onclick="executeCommand('netstat -an')">🔗 Network Connections</button>
-                                <button onclick="executeCommand('systeminfo')">⚙️ System Details</button>
-                                <button onclick="executeCommand('wmic logicaldisk get size,freespace,caption')">💾 Disk Space</button>
-                                <button onclick="executeCommand('net user')">👥 Users</button>
-                                <button onclick="executeCommand('net localgroup administrators')">🛡️ Administrators</button>
-                                <button onclick="executeCommand('ping google.com')">📶 Connection Test</button>
-                                <button onclick="executeCommand('calc')">🧮 Calculator</button>
-                                <button onclick="executeCommand('notepad')">📝 Notepad</button>
-                                <button onclick="executeCommand('cmd /c start')">💻 New CMD</button>
-                                <button onclick="executeCommand('shutdown /a')">❌ Cancel Shutdown</button>
-                                <button class="danger" onclick="executeCommand('shutdown /s /t 60')">⏰ Shutdown 1m</button>
-                                <button class="danger" onclick="executeCommand('shutdown /r /t 30')">🔄 Restart</button>
-                                <button onclick="executeCommand('powershell Get-Process | Sort-Object CPU -Descending | Select-Object -First 10')">📈 Top Processes</button>
-                                <button onclick="executeCommand('wmic product get name,version')">📦 Installed Software</button>
-                                <button onclick="executeCommand('net start')">🔧 Active Services</button>
-                                <button onclick="executeCommand('schtasks /query /fo LIST')">⏰ Scheduled Tasks</button>
-                                <button onclick="executeCommand('reg query \"HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Run\"')">🚀 Startup Programs</button>
+                                <button onclick="executeCommand('sysinfo')">System Info</button>
+                                <button onclick="executeCommand('whoami')">Current User</button>
+                                <button onclick="executeCommand('ipconfig /all')">Network Info</button>
+                                <button onclick="executeCommand('dir')">Files List</button>
+                                <button onclick="executeCommand('tasklist')">Active Processes</button>
+                                <button onclick="executeCommand('netstat -an')">Network Connections</button>
+                                <button onclick="executeCommand('systeminfo')">System Details</button>
+                                <button onclick="executeCommand('wmic logicaldisk get size,freespace,caption')">Disk Space</button>
+                                <button onclick="executeCommand('net user')">Users</button>
+                                <button onclick="executeCommand('net localgroup administrators')">Administrators</button>
+                                <button onclick="executeCommand('ping google.com')">Connection Test</button>
+                                <button onclick="executeCommand('calc')">Calculator</button>
+                                <button onclick="executeCommand('notepad')">Notepad</button>
+                                <button onclick="executeCommand('cmd /c start')">New CMD</button>
+                                <button onclick="executeCommand('shutdown /a')">Cancel Shutdown</button>
+                                <button class="danger" onclick="executeCommand('shutdown /s /t 60')">Shutdown 1m</button>
+                                <button class="danger" onclick="executeCommand('shutdown /r /t 30')">Restart</button>
+                                <button onclick="executeCommand('powershell Get-Process | Sort-Object CPU -Descending | Select-Object -First 10')">Top Processes</button>
+                                <button onclick="executeCommand('wmic product get name,version')">Installed Software</button>
+                                <button onclick="executeCommand('net start')">Active Services</button>
+                                <button onclick="executeCommand('schtasks /query /fo LIST')">Scheduled Tasks</button>
+                                <button onclick="executeCommand('reg query \"HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Run\"')">Startup Programs</button>
                             </div>
                         </div>
                         
                         <div class="command-input">
-                            <input type="text" id="commandInput" placeholder="💬 Enter custom command (INSTANT 0ms execution)" 
+                            <input type="text" id="commandInput" placeholder="Enter custom command (INSTANT 0ms execution)" 
                                    onkeypress="if(event.key=='Enter') executeCustomCommand()">
-                            <button onclick="executeCustomCommand()">⚡ Execute Command</button>
-                            <button class="success" onclick="executeSelected('commandInput')">🎯 Execute on Selected</button>
+                            <button onclick="executeCustomCommand()">Execute Command</button>
+                            <button class="success" onclick="executeSelected('commandInput')">Execute on Selected</button>
                         </div>
                     </div>
                     
                     <div class="terminal" id="terminal">
-    ⚡ INSTANT REMOTE CONTROL SYSTEM READY - 0ms DELAY
+    INSTANT REMOTE CONTROL SYSTEM READY - 0ms DELAY
     
     • Select a client from the left panel
     • Commands execute INSTANTLY with no delay
     • Real-time responses in under 10ms
     • All activities are logged for security
-    • 🚀 ULTRA INSTANT mode activated
+    • ULTRA INSTANT mode activated
     
                     </div>
                 </div>
@@ -1178,12 +1178,12 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                     currentClientId = clientId;
                     loadSessions();
                     document.getElementById('currentClient').textContent = clientId;
-                    addToTerminal(`🎯 Selected client: ${clientId}\\n`);
+                    addToTerminal(`Selected client: ${clientId}\\n`);
                 }
                 
                 function executeCommand(command) {
                     if (!currentClientId) {
-                        alert('⚠️ Please select a client first!');
+                        alert('Please select a client first!');
                         return;
                     }
                     executeSingleCommand(currentClientId, command);
@@ -1192,7 +1192,7 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                 async function executeSingleCommand(clientId, command) {
                     commandCounter++;
                     const startTime = Date.now();
-                    addToTerminal(`⚡ [${clientId}] ${command}\\n`);
+                    addToTerminal(` [${clientId}] ${command}\\n`);
                     
                     try {
                         const response = await fetch('/execute', {
@@ -1203,10 +1203,10 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                         
                         const data = await response.json();
                         if (data.success) {
-                            addToTerminal(`✅ Command sent INSTANTLY\\n`);
+                            addToTerminal(`Command sent INSTANTLY\\n`);
                             waitForResult(clientId, command, startTime);
                         } else {
-                            addToTerminal(`❌ Error: ${data.error}\\n`);
+                            addToTerminal(`Error: ${data.error}\\n`);
                         }
                     } catch (err) {
                         addToTerminal(`❌ Network error: ${err}\\n`);
@@ -1215,17 +1215,17 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                 
                 function executeAll(command) {
                     if (allClients.length === 0) {
-                        alert('⚠️ No clients connected!');
+                        alert('No clients connected!');
                         return;
                     }
                     
                     const activeClients = allClients.filter(c => (Date.now() - new Date(c.last_seen).getTime()) < 10000);
                     if (activeClients.length === 0) {
-                        alert('⚠️ No active clients!');
+                        alert('No active clients!');
                         return;
                     }
                     
-                    addToTerminal(`⚡ Executing command on ${activeClients.length} clients: ${command}\\n`);
+                    addToTerminal(`Executing command on ${activeClients.length} clients: ${command}\\n`);
                     
                     activeClients.forEach(client => {
                         executeSingleCommand(client.id, command);
@@ -1235,14 +1235,14 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                 function executeSelected(inputId) {
                     const command = document.getElementById(inputId).value.trim();
                     if (!command) {
-                        alert('⚠️ Please enter a command');
+                        alert('Please enter a command');
                         return;
                     }
                     
                     if (currentClientId) {
                         executeCommand(command);
                     } else {
-                        alert('⚠️ Please select a client first');
+                        alert('Please select a client first');
                     }
                 }
                 
@@ -1252,19 +1252,19 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                         executeCommand(cmd);
                         document.getElementById('commandInput').value = '';
                     } else {
-                        alert('⚠️ Please enter a command');
+                        alert('Please enter a command');
                     }
                 }
                 
                 function waitForResult(clientId, command, startTime) {
                     let attempts = 0;
-                    const maxAttempts = 100; // ⚡ More attempts for instant response
+                    const maxAttempts = 100; // More attempts for instant response
                     
                     const checkImmediately = async () => {
                         attempts++;
                         if (attempts > maxAttempts) {
                             const elapsed = (Date.now() - startTime);
-                            addToTerminal(`⏰ Timeout after ${elapsed}ms: No response from ${clientId}\\n`);
+                            addToTerminal(`Timeout after ${elapsed}ms: No response from ${clientId}\\n`);
                             return;
                         }
                         
@@ -1274,9 +1274,9 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                             
                             if (data.result) {
                                 const responseTime = (Date.now() - startTime);
-                                addToTerminal(`✅ [${clientId}] Response (${responseTime}ms):\\n${data.result}\\n`);
+                                addToTerminal(` [${clientId}] Response (${responseTime}ms):\\n${data.result}\\n`);
                             } else if (data.pending) {
-                                setTimeout(checkImmediately, 10); // ⚡ 10ms delay for instant checking
+                                setTimeout(checkImmediately, 10); //  10ms delay for instant checking
                             } else {
                                 setTimeout(checkImmediately, 10);
                             }
