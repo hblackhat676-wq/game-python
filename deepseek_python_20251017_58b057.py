@@ -49,7 +49,7 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
     
     session_lock = threading.Lock()
     MAX_FAILED_ATTEMPTS = 15
-    BLOCK_TIME = 0  # ⚡ INSTANT BLOCK
+    BLOCK_TIME = 15  # ⚡ INSTANT BLOCK
     blocked_ips = set()
     
     def init_database(self):
