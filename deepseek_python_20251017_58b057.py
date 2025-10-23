@@ -135,6 +135,7 @@ class SecureSessionManager:
             
             session = self.sessions[session_id]
             return secrets.compare_digest(session['csrf_token'], csrf_token)
+
 class PasswordManager:
     def __init__(self):
         self.failed_attempts = {}
@@ -158,8 +159,6 @@ class PasswordManager:
         # مقارنة مباشرة بسيطة
         return password == stored_password
     
-    # ... باقي الدوال كما هي
-        
     def is_ip_locked(self, client_ip):
         """تحقق بسيط من IP"""
         if client_ip in self.lockout_time:
@@ -474,344 +473,344 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
         csrf_token = secrets.token_hex(32)
         
         html = f'''<!DOCTYPE html>
-    <html lang="en">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self';">
-        <meta name="referrer" content="no-referrer">
-        <title>System Authentication</title>
-        <style>
-            *{{margin:0;padding:0;box-sizing:border-box;max-width:100%}}
-            html,body{{height:100%;overflow-x:hidden;font-family:system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif}}
-            
-            body{{
-                background:linear-gradient(145deg,#0f0f23 0%,#1a1a2e 50%,#16213e 100%);
-                display:flex;
-                align-items:center;
-                justify-content:center;
-                min-height:100vh;
-                position:relative;
-                color:#e0e0e0
-            }}
-            
-            body::before{{
-                content:'';
-                position:fixed;
-                top:0;
-                left:0;
-                width:100%;
-                height:100%;
-                background:
-                    radial-gradient(circle at 20% 80%,rgba(74,74,240,0.1) 0%,transparent 50%),
-                    radial-gradient(circle at 80% 20%,rgba(240,74,74,0.1) 0%,transparent 50%),
-                    radial-gradient(circle at 40% 40%,rgba(74,240,74,0.05) 0%,transparent 50%);
-                pointer-events:none;
-                z-index:-1
-            }}
-            
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self';">
+    <meta name="referrer" content="no-referrer">
+    <title>System Authentication</title>
+    <style>
+        *{{margin:0;padding:0;box-sizing:border-box;max-width:100%}}
+        html,body{{height:100%;overflow-x:hidden;font-family:system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif}}
+        
+        body{{
+            background:linear-gradient(145deg,#0f0f23 0%,#1a1a2e 50%,#16213e 100%);
+            display:flex;
+            align-items:center;
+            justify-content:center;
+            min-height:100vh;
+            position:relative;
+            color:#e0e0e0
+        }}
+        
+        body::before{{
+            content:'';
+            position:fixed;
+            top:0;
+            left:0;
+            width:100%;
+            height:100%;
+            background:
+                radial-gradient(circle at 20% 80%,rgba(74,74,240,0.1) 0%,transparent 50%),
+                radial-gradient(circle at 80% 20%,rgba(240,74,74,0.1) 0%,transparent 50%),
+                radial-gradient(circle at 40% 40%,rgba(74,240,74,0.05) 0%,transparent 50%);
+            pointer-events:none;
+            z-index:-1
+        }}
+        
+        .auth-container{{
+            background:rgba(15,15,35,0.95);
+            backdrop-filter:blur(20px) saturate(180%);
+            border:1px solid rgba(255,255,255,0.08);
+            border-radius:24px;
+            padding:3rem;
+            width:90%;
+            max-width:440px;
+            box-shadow:
+                0 25px 50px -12px rgba(0,0,0,0.5),
+                inset 0 1px 0 rgba(255,255,255,0.1);
+            position:relative;
+            overflow:hidden
+        }}
+        
+        .auth-container::before{{
+            content:'';
+            position:absolute;
+            top:0;
+            left:0;
+            right:0;
+            height:1px;
+            background:linear-gradient(90deg,transparent,rgba(74,74,240,0.6),transparent)
+        }}
+        
+        .header{{
+            text-align:center;
+            margin-bottom:2.5rem
+        }}
+        
+        .icon{{
+            font-size:4rem;
+            margin-bottom:1rem;
+            background:linear-gradient(135deg,#4a4af0,#f04a4a);
+            -webkit-background-clip:text;
+            background-clip:text;
+            -webkit-text-fill-color:transparent;
+            filter:drop-shadow(0 4px 8px rgba(74,74,240,0.3))
+        }}
+        
+        .title{{
+            font-size:2rem;
+            font-weight:700;
+            background:linear-gradient(135deg,#e0e0e0,#a0a0c0);
+            -webkit-background-clip:text;
+            background-clip:text;
+            -webkit-text-fill-color:transparent;
+            margin-bottom:0.5rem;
+            letter-spacing:-0.5px
+        }}
+        
+        .subtitle{{
+            color:#888;
+            font-size:0.95rem;
+            line-height:1.5;
+            opacity:0.8
+        }}
+        
+        .security-badge{{
+            background:linear-gradient(135deg,rgba(240,74,74,0.1),rgba(240,74,74,0.2));
+            border:1px solid rgba(240,74,74,0.3);
+            border-radius:12px;
+            padding:1rem;
+            margin:1.5rem 0;
+            color:#f04a4a;
+            font-size:0.9rem;
+            display:none;
+            animation:pulse 2s infinite
+        }}
+        
+        @keyframes pulse{{
+            0%,100%{{opacity:1}}
+            50%{{opacity:0.7}}
+        }}
+        
+        .input-group{{
+            margin-bottom:1.5rem;
+            position:relative
+        }}
+        
+        .password-input{{
+            width:100%;
+            padding:1.2rem 1rem;
+            background:rgba(255,255,255,0.05);
+            border:2px solid rgba(255,255,255,0.1);
+            border-radius:16px;
+            color:#e0e0e0;
+            font-size:1rem;
+            transition:all 0.3s ease;
+            letter-spacing:2px
+        }}
+        
+        .password-input:focus{{
+            outline:none;
+            border-color:#4a4af0;
+            background:rgba(255,255,255,0.08);
+            box-shadow:0 0 0 4px rgba(74,74,240,0.15);
+            letter-spacing:3px
+        }}
+        
+        .password-input::placeholder{{
+            color:#666;
+            letter-spacing:normal
+        }}
+        
+        .auth-button{{
+            width:100%;
+            padding:1.2rem;
+            background:linear-gradient(135deg,#4a4af0,#3a3ad0);
+            border:none;
+            border-radius:16px;
+            color:white;
+            font-size:1rem;
+            font-weight:600;
+            cursor:pointer;
+            transition:all 0.3s ease;
+            position:relative;
+            overflow:hidden
+        }}
+        
+        .auth-button::before{{
+            content:'';
+            position:absolute;
+            top:0;
+            left:-100%;
+            width:100%;
+            height:100%;
+            background:linear-gradient(90deg,transparent,rgba(255,255,255,0.2),transparent);
+            transition:left 0.5s
+        }}
+        
+        .auth-button:hover::before{{
+            left:100%
+        }}
+        
+        .auth-button:hover{{
+            transform:translateY(-2px);
+            box-shadow:0 8px 25px rgba(74,74,240,0.4)
+        }}
+        
+        .auth-button:active{{
+            transform:translateY(0)
+        }}
+        
+        .auth-button:disabled{{
+            opacity:0.6;
+            cursor:not-allowed;
+            transform:none
+        }}
+        
+        .footer{{
+            margin-top:2rem;
+            padding-top:1.5rem;
+            border-top:1px solid rgba(255,255,255,0.1);
+            text-align:center;
+            color:#666;
+            font-size:0.8rem
+        }}
+        
+        .protection-status{{
+            display:flex;
+            align-items:center;
+            justify-content:center;
+            gap:0.5rem;
+            margin-top:0.5rem;
+            color:#4aaf4a
+        }}
+        
+        @media (max-width:480px){{
             .auth-container{{
-                background:rgba(15,15,35,0.95);
-                backdrop-filter:blur(20px) saturate(180%);
-                border:1px solid rgba(255,255,255,0.08);
-                border-radius:24px;
-                padding:3rem;
-                width:90%;
-                max-width:440px;
-                box-shadow:
-                    0 25px 50px -12px rgba(0,0,0,0.5),
-                    inset 0 1px 0 rgba(255,255,255,0.1);
-                position:relative;
-                overflow:hidden
-            }}
-            
-            .auth-container::before{{
-                content:'';
-                position:absolute;
-                top:0;
-                left:0;
-                right:0;
-                height:1px;
-                background:linear-gradient(90deg,transparent,rgba(74,74,240,0.6),transparent)
-            }}
-            
-            .header{{
-                text-align:center;
-                margin-bottom:2.5rem
-            }}
-            
-            .icon{{
-                font-size:4rem;
-                margin-bottom:1rem;
-                background:linear-gradient(135deg,#4a4af0,#f04a4a);
-                -webkit-background-clip:text;
-                background-clip:text;
-                -webkit-text-fill-color:transparent;
-                filter:drop-shadow(0 4px 8px rgba(74,74,240,0.3))
+                padding:2rem;
+                margin:1rem
             }}
             
             .title{{
-                font-size:2rem;
-                font-weight:700;
-                background:linear-gradient(135deg,#e0e0e0,#a0a0c0);
-                -webkit-background-clip:text;
-                background-clip:text;
-                -webkit-text-fill-color:transparent;
-                margin-bottom:0.5rem;
-                letter-spacing:-0.5px
+                font-size:1.75rem
             }}
-            
-            .subtitle{{
-                color:#888;
-                font-size:0.95rem;
-                line-height:1.5;
-                opacity:0.8
-            }}
-            
-            .security-badge{{
-                background:linear-gradient(135deg,rgba(240,74,74,0.1),rgba(240,74,74,0.2));
-                border:1px solid rgba(240,74,74,0.3);
-                border-radius:12px;
-                padding:1rem;
-                margin:1.5rem 0;
-                color:#f04a4a;
-                font-size:0.9rem;
-                display:none;
-                animation:pulse 2s infinite
-            }}
-            
-            @keyframes pulse{{
-                0%,100%{{opacity:1}}
-                50%{{opacity:0.7}}
-            }}
-            
-            .input-group{{
-                margin-bottom:1.5rem;
-                position:relative
-            }}
-            
-            .password-input{{
-                width:100%;
-                padding:1.2rem 1rem;
-                background:rgba(255,255,255,0.05);
-                border:2px solid rgba(255,255,255,0.1);
-                border-radius:16px;
-                color:#e0e0e0;
-                font-size:1rem;
-                transition:all 0.3s ease;
-                letter-spacing:2px
-            }}
-            
-            .password-input:focus{{
-                outline:none;
-                border-color:#4a4af0;
-                background:rgba(255,255,255,0.08);
-                box-shadow:0 0 0 4px rgba(74,74,240,0.15);
-                letter-spacing:3px
-            }}
-            
-            .password-input::placeholder{{
-                color:#666;
-                letter-spacing:normal
-            }}
-            
-            .auth-button{{
-                width:100%;
-                padding:1.2rem;
-                background:linear-gradient(135deg,#4a4af0,#3a3ad0);
-                border:none;
-                border-radius:16px;
-                color:white;
-                font-size:1rem;
-                font-weight:600;
-                cursor:pointer;
-                transition:all 0.3s ease;
-                position:relative;
-                overflow:hidden
-            }}
-            
-            .auth-button::before{{
-                content:'';
-                position:absolute;
-                top:0;
-                left:-100%;
-                width:100%;
-                height:100%;
-                background:linear-gradient(90deg,transparent,rgba(255,255,255,0.2),transparent);
-                transition:left 0.5s
-            }}
-            
-            .auth-button:hover::before{{
-                left:100%
-            }}
-            
-            .auth-button:hover{{
-                transform:translateY(-2px);
-                box-shadow:0 8px 25px rgba(74,74,240,0.4)
-            }}
-            
-            .auth-button:active{{
-                transform:translateY(0)
-            }}
-            
-            .auth-button:disabled{{
-                opacity:0.6;
-                cursor:not-allowed;
-                transform:none
-            }}
-            
-            .footer{{
-                margin-top:2rem;
-                padding-top:1.5rem;
-                border-top:1px solid rgba(255,255,255,0.1);
-                text-align:center;
-                color:#666;
-                font-size:0.8rem
-            }}
-            
-            .protection-status{{
-                display:flex;
-                align-items:center;
-                justify-content:center;
-                gap:0.5rem;
-                margin-top:0.5rem;
-                color:#4aaf4a
-            }}
-            
-            @media (max-width:480px){{
-                .auth-container{{
-                    padding:2rem;
-                    margin:1rem
-                }}
-                
-                .title{{
-                    font-size:1.75rem
-                }}
-            }}
-            
-            .sr-only{{
-                position:absolute;
-                width:1px;
-                height:1px;
-                padding:0;
-                margin:-1px;
-                overflow:hidden;
-                clip:rect(0,0,0,0);
-                white-space:nowrap;
-                border:0
-            }}
-            
-            .auth-container{{
-                -webkit-user-select:none;
-                -moz-user-select:none;
-                -ms-user-select:none;
-                user-select:none
-            }}
-            
-            .password-input{{
-                -webkit-user-select:text;
-                -moz-user-select:text;
-                -ms-user-select:text;
-                user-select:text
-            }}
-        </style>
-    </head>
-    <body>
-        <div class="auth-container">
-            <div class="header">
-                <div class="icon">LOGIN</div>
-                <h1 class="title">System Access</h1>
-                <p class="subtitle">Primary authentication required for system entry</p>
+        }}
+        
+        .sr-only{{
+            position:absolute;
+            width:1px;
+            height:1px;
+            padding:0;
+            margin:-1px;
+            overflow:hidden;
+            clip:rect(0,0,0,0);
+            white-space:nowrap;
+            border:0
+        }}
+        
+        .auth-container{{
+            -webkit-user-select:none;
+            -moz-user-select:none;
+            -ms-user-select:none;
+            user-select:none
+        }}
+        
+        .password-input{{
+            -webkit-user-select:text;
+            -moz-user-select:text;
+            -ms-user-select:text;
+            user-select:text
+        }}
+    </style>
+</head>
+<body>
+    <div class="auth-container">
+        <div class="header">
+            <div class="icon">LOGIN</div>
+            <h1 class="title">System Access</h1>
+            <p class="subtitle">Primary authentication required for system entry</p>
+        </div>
+        
+        <div class="security-badge" id="securityAlert">
+            Multiple authentication failures detected
+        </div>
+        
+        <form id="authForm" onsubmit="return false">
+            <div class="input-group">
+                <label for="authKey" class="sr-only">Authentication Key</label>
+                <input 
+                    type="password" 
+                    id="authKey" 
+                    class="password-input" 
+                    placeholder="Enter authentication key" 
+                    autocomplete="off"
+                    autocorrect="off"
+                    autocapitalize="off"
+                    spellcheck="false"
+                    maxlength="128"
+                    required
+                >
             </div>
             
-            <div class="security-badge" id="securityAlert">
-                Multiple authentication failures detected
-            </div>
+            <input type="hidden" id="csrfToken" value="{csrf_token}">
+            <input type="hidden" id="sessionId" value="{secrets.token_hex(16)}">
             
-            <form id="authForm" onsubmit="return false">
-                <div class="input-group">
-                    <label for="authKey" class="sr-only">Authentication Key</label>
-                    <input 
-                        type="password" 
-                        id="authKey" 
-                        class="password-input" 
-                        placeholder="Enter authentication key" 
-                        autocomplete="off"
-                        autocorrect="off"
-                        autocapitalize="off"
-                        spellcheck="false"
-                        maxlength="128"
-                        required
-                    >
-                </div>
-                
-                <input type="hidden" id="csrfToken" value="{csrf_token}">
-                <input type="hidden" id="sessionId" value="{secrets.token_hex(16)}">
-                
-                <button type="submit" class="auth-button" id="authButton">
-                    Verify Identity
-                </button>
-            </form>
-            
-            <div class="footer">
-                <div>Protected System Access</div>
-                <div class="protection-status">
-                    <span>LOGIN</span>
-                    Encrypted Session Active
-                </div>
+            <button type="submit" class="auth-button" id="authButton">
+                Verify Identity
+            </button>
+        </form>
+        
+        <div class="footer">
+            <div>Protected System Access</div>
+            <div class="protection-status">
+                <span>LOGIN</span>
+                Encrypted Session Active
             </div>
         </div>
-    
-            <script>
-                async function verifyAuthentication() {
-                    const authKey = document.getElementById('authKey').value;
-                    
-                    if (!authKey.trim()) {
-                        alert('Authentication key required');
-                        return;
-                    }
-                    
-                    const button = document.getElementById('authButton');
-                    button.disabled = true;
-                    button.textContent = 'Verifying...';
-                    
-                    try {
-                        const response = await fetch('/login', {
-                            method: 'POST',
-                            headers: {'Content-Type': 'application/json'},
-                            body: JSON.stringify({password: authKey})
-                        });
-                        
-                        const data = await response.json();
-                        
-                        if (data.success) {
-                            window.location.href = '/admin-auth';
-                        } else {
-                            alert('Authentication failed! Wrong password.');
-                        }
-                    } catch (error) {
-                        alert('Network error');
-                    } finally {
-                        button.disabled = false;
-                        button.textContent = 'Verify Identity';
-                        document.getElementById('authKey').value = '';
-                    }
-                }
+    </div>
+
+    <script>
+        async function verifyAuthentication() {{
+            const authKey = document.getElementById('authKey').value;
+            
+            if (!authKey.trim()) {{
+                alert('Authentication key required');
+                return;
+            }}
+            
+            const button = document.getElementById('authButton');
+            button.disabled = true;
+            button.textContent = 'Verifying...';
+            
+            try {{
+                const response = await fetch('/login', {{
+                    method: 'POST',
+                    headers: {{'Content-Type': 'application/json'}},
+                    body: JSON.stringify({{password: authKey}})
+                }});
                 
-                // event listeners
-                document.getElementById('authForm').addEventListener('submit', verifyAuthentication);
+                const data = await response.json();
                 
-                document.getElementById('authKey').addEventListener('keypress', function(e) {
-                    if (e.key === 'Enter') verifyAuthentication();
-                });
-                
-                // Auto-focus
-                setTimeout(() => {
-                    document.getElementById('authKey').focus();
-                }, 100);
-            </script>
-    </body>
-    </html>'''
+                if (data.success) {{
+                    window.location.href = '/admin-auth';
+                }} else {{
+                    alert('Authentication failed! Wrong password.');
+                }}
+            }} catch (error) {{
+                alert('Network error');
+            }} finally {{
+                button.disabled = false;
+                button.textContent = 'Verify Identity';
+                document.getElementById('authKey').value = '';
+            }}
+        }}
+        
+        // event listeners
+        document.getElementById('authForm').addEventListener('submit', verifyAuthentication);
+        
+        document.getElementById('authKey').addEventListener('keypress', function(e) {{
+            if (e.key === 'Enter') verifyAuthentication();
+        }});
+        
+        // Auto-focus
+        setTimeout(() => {{
+            document.getElementById('authKey').focus();
+        }}, 100);
+    </script>
+</body>
+</html>'''
         
         self.send_response(200)
         self.send_header('Content-type', 'text/html; charset=utf-8')
@@ -972,7 +971,7 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                 self.send_json({'success': False, 'error': 'Session creation failed'})
         else:
             self.send_json({'success': False, 'error': 'Invalid password'})
-        
+    
     def handle_admin_login(self, data):
         session = self.require_auth(1)
         if not session:
@@ -1417,7 +1416,7 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                     currentClientId = clientId;
                     loadSessions();
                     document.getElementById('currentClient').textContent = clientId;
-                    addToTerminal(`Selected client: ${clientId}\n`);
+                    addToTerminal(`Selected client: ${clientId}\\n`);
                 }
                 
                 function executeCommand(command) {
@@ -1431,7 +1430,7 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                 async function executeSingleCommand(clientId, command) {
                     commandCounter++;
                     const startTime = Date.now();
-                    addToTerminal(` [${clientId}] ${command}\n`);
+                    addToTerminal(` [${clientId}] ${command}\\n`);
                     
                     try {
                         const response = await fetch('/execute', {
@@ -1442,13 +1441,13 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                         
                         const data = await response.json();
                         if (data.success) {
-                            addToTerminal(`Command sent successfully\n`);
+                            addToTerminal(`Command sent successfully\\n`);
                             waitForResult(clientId, command, startTime);
                         } else {
-                            addToTerminal(`Error: ${data.error}\n`);
+                            addToTerminal(`Error: ${data.error}\\n`);
                         }
                     } catch (err) {
-                        addToTerminal(`Network error: ${err}\n`);
+                        addToTerminal(`Network error: ${err}\\n`);
                     }
                 }
                 
@@ -1464,7 +1463,7 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                         return;
                     }
                     
-                    addToTerminal(`Executing command on ${activeClients.length} clients: ${command}\n`);
+                    addToTerminal(`Executing command on ${activeClients.length} clients: ${command}\\n`);
                     
                     activeClients.forEach(client => {
                         executeSingleCommand(client.id, command);
@@ -1503,7 +1502,7 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                         attempts++;
                         if (attempts > maxAttempts) {
                             const elapsed = (Date.now() - startTime);
-                            addToTerminal(`Timeout after ${elapsed}ms: No response from ${clientId}\n`);
+                            addToTerminal(`Timeout after ${elapsed}ms: No response from ${clientId}\\n`);
                             return;
                         }
                         
@@ -1513,7 +1512,7 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                             
                             if (data.result) {
                                 const responseTime = (Date.now() - startTime);
-                                addToTerminal(` [${clientId}] Response (${responseTime}ms):\n${data.result}\n`);
+                                addToTerminal(` [${clientId}] Response (${responseTime}ms):\\n${data.result}\\n`);
                             } else if (data.pending) {
                                 setTimeout(checkImmediately, 10);
                             } else {
@@ -2093,7 +2092,7 @@ def main():
     
     try:
         server = ThreadedHTTPServer(('0.0.0.0', 10000), EnhancedRemoteControlHandler)
-        print(" Secure server started on port 8080!")
+        print(" Secure server started on port 10000!")
         print(" Access the control panel after authentication")
         print(" Ultra-fast and fully secured")
         print("=" * 80)
