@@ -137,182 +137,63 @@ class SecureSessionManager:
             return secrets.compare_digest(session['csrf_token'], csrf_token)
 class PasswordManager:
     def __init__(self, password_file="passwords.json", github_url=None):
-        self.password_file = password_file
-        self.github_url = github_url
         self.failed_attempts = {}
         self.lockout_time = {}
         self.max_attempts = 10
         
-        # تحميل كلمات المرور مرة واحدة فقط
-        self.initialize_passwords()
-    
-    def initialize_passwords(self):
-        """تهيئة كلمات المرور مرة واحدة فقط"""
-        print(" INITIALIZING PASSWORD MANAGER...")
-        
-        try:
-            # محاولة التحميل أولاً
-            if os.path.exists(self.password_file):
-                with open(self.password_file, 'r', encoding='utf-8') as f:
-                    passwords = json.load(f)
-                
-                if self.validate_password_structure(passwords):
-                    print(" Passwords loaded successfully")
-                    return
-                else:
-                    print(" Invalid structure, recreating...")
-            
-            # إذا فشل التحميل، أنشئ جديد
-            self.create_secure_passwords_once()
-            
-        except Exception as e:
-            print(f" Initialization error: {e}")
-            self.create_secure_passwords_once()
-    
-    def create_secure_passwords_once(self):
-        """إنشاء كلمات مرور جديدة - مرة واحدة فقط"""
-        print(" CREATING PASSWORDS (ONE TIME)...")
-        
-        passwords = {
-            'user_password': "mynameishacker",
-            'admin_password': "sudohackeranythink"
+        # كلمات المرور الثابتة مباشرة - بدون ملفات
+        self.passwords = {
+            'user_password': "hblackhat",
+            'admin_password': "sudohacker" 
         }
         
-        try:
-            with open(self.password_file, 'w', encoding='utf-8') as f:
-                json.dump(passwords, f, indent=2, ensure_ascii=False)
-            print(" PASSWORDS CREATED SUCCESSFULLY")
-            print(" User: mynameishacker")
-            print(" Admin: sudohackeranythink")
-        except Exception as e:
-            print(f" Failed to save: {e}")
+        print(" PASSWORDS READY - NO FILES - NO ERRORS")
+        print(f" USER: {self.passwords['user_password']}")
+        print(f" ADMIN: {self.passwords['admin_password']}")
     
     def load_passwords(self):
-        """تحميل كلمات المرور - بسيط وآمن"""
-        try:
-            with open(self.password_file, 'r', encoding='utf-8') as f:
-                passwords = json.load(f)
-            
-            if self.validate_password_structure(passwords):
-                return passwords
-            else:
-                raise ValueError("Invalid password structure")
-                
-        except Exception as e:
-            print(f" Load error: {e}")
-            # أرجع كلمات افتراضية في حال الطوارئ
-            return {
-                'user_password': "mynameishacker",
-                'admin_password': "sudohackeranythink"
-            }
-    
-    def validate_password_structure(self, passwords):
-        """تحقق بسيط من الهيكل"""
-        return (isinstance(passwords, dict) and 
-                'user_password' in passwords and 
-                'admin_password' in passwords)
-    
-    def sanitize_input(self, input_str):
-        """تنظيف المدخلات بسرعة"""
-        if not isinstance(input_str, str):
-            return ""
-        return re.sub(r'[^\x20-\x7E]', '', input_str)[:100]
+        """إرجاع كلمات المرور مباشرة"""
+        return self.passwords
     
     def verify_password(self, password, stored_password, client_ip=None):
-        """مقارنة فورية بدون تأخير"""
-        start_time = time.time()
-        
-        # 1. التحقق من حظر IP أولاً
+        """مقارنة مباشرة - بدون تعقيد"""
         if client_ip and self.is_ip_locked(client_ip):
-            print(f" IP {client_ip} is locked")
             return False
         
-        # 2. تنظيف المدخلات
-        clean_password = self.sanitize_input(password)
-        clean_stored = self.sanitize_input(stored_password)
+        # مقارنة بسيطة مباشرة
+        result = (str(password) == str(stored_password))
         
-        # 3. مقارنة مباشرة - فورية
-        is_valid = (clean_password == clean_stored)
-        
-        # 4. تسجيل النتيجة
-        if is_valid:
-            if client_ip:
-                self.reset_failed_attempts(client_ip)
-            print(f" Password correct for IP: {client_ip}")
-        else:
-            if client_ip:
-                self.record_failed_attempt(client_ip)
-            print(f" Password incorrect for IP: {client_ip}")
-        
-        end_time = time.time()
-        print(f" Password verification took: {(end_time - start_time) * 1000:.2f}ms")
-        
-        return is_valid
+        print(f" LOGIN ATTEMPT: '{password}' -> {result}")
+        return result
+    
+    def is_ip_locked(self, client_ip):
+        """تحقق بسيط من IP"""
+        if client_ip in self.lockout_time:
+            if time.time() < self.lockout_time[client_ip]:
+                return True
+            else:
+                del self.lockout_time[client_ip]
+        return False
     
     def record_failed_attempt(self, client_ip):
-        """تسجيل محاولة فاشلة - بعد 10 محاولات يحظر IP"""
-        if not client_ip:
-            return
-        
-        if client_ip not in self.failed_attempts:
-            self.failed_attempts[client_ip] = 0
-        
-        self.failed_attempts[client_ip] += 1
-        
-        # قفل IP بعد 10 محاولات فاشلة
-        if self.failed_attempts[client_ip] >= self.max_attempts:
-            self.lockout_time[client_ip] = time.time() + 3600  # ساعة واحدة
-            print(f" IP {client_ip} locked for 1 hour - too many failed attempts")
+        """تسجيل محاولة فاشلة"""
+        if client_ip:
+            if client_ip not in self.failed_attempts:
+                self.failed_attempts[client_ip] = 0
+            self.failed_attempts[client_ip] += 1
+            
+            if self.failed_attempts[client_ip] >= self.max_attempts:
+                self.lockout_time[client_ip] = time.time() + 3600
     
     def reset_failed_attempts(self, client_ip):
-        """إعادة تعيين محاولات IP"""
+        """إعادة تعيين المحاولات"""
         if client_ip in self.failed_attempts:
             del self.failed_attempts[client_ip]
         if client_ip in self.lockout_time:
             del self.lockout_time[client_ip]
     
-    def is_ip_locked(self, client_ip):
-        """التحقق إذا كان IP مقفول"""
-        if client_ip in self.lockout_time:
-            if time.time() < self.lockout_time[client_ip]:
-                return True
-            else:
-                # انتهت مدة الحظر
-                del self.lockout_time[client_ip]
-                if client_ip in self.failed_attempts:
-                    del self.failed_attempts[client_ip]
-        return False
-    
     def hash_password(self, password):
-        """لا تقم بالتشفير - أرجع الكلمة كما هي"""
-        return self.sanitize_input(password)
-    
-    def save_passwords(self, passwords):
-        """حفظ كلمات المرور في ملف محلي"""
-        try:
-            with open(self.password_file, 'w', encoding='utf-8') as f:
-                json.dump(passwords, f, indent=2, ensure_ascii=False)
-            return True
-        except Exception as e:
-            print(f" Error saving passwords: {e}")
-            return False
-
-    # إزالة الدوال التي تسبب مشاكل
-    def ensure_password_file(self):
-        """لم تعد مستخدمة"""
-        pass
-        
-    def download_from_github(self):
-        """لم تعد مستخدمة""" 
-        return False
-        
-    def are_passwords_encrypted(self, passwords):
-        """لم تعد مستخدمة"""
-        return False
-        
-    def create_secure_passwords(self):
-        """لم تعد مستخدمة - استخدام create_secure_passwords_once بدلاً منها"""
-        self.create_secure_passwords_once()
+        return password
             
 class CommandValidator:
     def __init__(self):
