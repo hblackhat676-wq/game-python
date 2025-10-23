@@ -137,7 +137,6 @@ class SecureSessionManager:
             return secrets.compare_digest(session['csrf_token'], csrf_token)
 
 class PasswordManager:
-class PasswordManager:
     def __init__(self, password_file="passwords.json", github_url=None):
         self.password_file = password_file
         self.github_url = github_url or "https://raw.githubusercontent.com/hblackhat676-wq/game-python/main/passwords.json"
