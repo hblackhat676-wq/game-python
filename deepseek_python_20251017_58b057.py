@@ -138,108 +138,89 @@ class SecureSessionManager:
 class PasswordManager:
     def __init__(self, password_file="passwords.json", github_url=None):
         self.password_file = password_file
-        self.github_url = github_url or "https://raw.githubusercontent.com/hblackhat676-wq/game-python/main/passwords.json"
+        self.github_url = github_url
         self.failed_attempts = {}
         self.lockout_time = {}
-        self.max_attempts = 10  # 10 محاولات كما طلبت
+        self.max_attempts = 10
         
-        # تحميل كلمات المرور فوراً
-        self.ensure_password_file()
+        # تحميل كلمات المرور مرة واحدة فقط
+        self.initialize_passwords()
     
-    def ensure_password_file(self):
-        """جلب كلمات المرور المشفرة من GitHub أو إنشاء جديدة"""
+    def initialize_passwords(self):
+        """تهيئة كلمات المرور مرة واحدة فقط"""
+        print(" INITIALIZING PASSWORD MANAGER...")
+        
         try:
-            if not os.path.exists(self.password_file):
-                if not self.download_from_github():
-                    self.create_secure_passwords()
-        except Exception as e:
-            print(f"Error ensuring password file: {e}")
-            self.create_secure_passwords()
-    
-    def download_from_github(self):
-        """تحميل ملف passwords.json المشفر من GitHub"""
-        try:
-            print(f"Downloading encrypted passwords from GitHub...")
-            response = requests.get(self.github_url, timeout=5)
-            
-            if response.status_code == 200:
-                passwords = response.json()
+            # محاولة التحميل أولاً
+            if os.path.exists(self.password_file):
+                with open(self.password_file, 'r', encoding='utf-8') as f:
+                    passwords = json.load(f)
                 
-                if self.validate_password_structure(passwords) and self.are_passwords_encrypted(passwords):
-                    self.save_passwords(passwords)
-                    print("Encrypted passwords downloaded from GitHub")
-                    return True
-            return False
+                if self.validate_password_structure(passwords):
+                    print(" Passwords loaded successfully")
+                    return
+                else:
+                    print(" Invalid structure, recreating...")
+            
+            # إذا فشل التحميل، أنشئ جديد
+            self.create_secure_passwords_once()
+            
         except Exception as e:
-            print(f"GitHub download error: {e}")
-            return False
+            print(f" Initialization error: {e}")
+            self.create_secure_passwords_once()
     
-    def validate_password_structure(self, passwords):
-        """التحقق من هيكل ملف كلمات المرور"""
-        try:
-            if not isinstance(passwords, dict):
-                return False
-            
-            required_keys = {'user_password', 'admin_password'}
-            if not all(key in passwords for key in required_keys):
-                return False
-            
-            return True
-        except:
-            return False
-    
-    def create_secure_passwords(self):
-        """إنشاء كلمات مرور جديدة بدون تشفير"""
-        print(" Creating new unencrypted passwords...")
+    def create_secure_passwords_once(self):
+        """إنشاء كلمات مرور جديدة - مرة واحدة فقط"""
+        print(" CREATING PASSWORDS (ONE TIME)...")
         
-        secure_passwords = {
-            'user_password': "mynameishacker",  # مباشرة بدون تشفير
-            'admin_password': "sudohackeranythink"  # مباشرة بدون تشفير
+        passwords = {
+            'user_password': "mynameishacker",
+            'admin_password': "sudohackeranythink"
         }
         
-        self.save_passwords(secure_passwords)
-        print(f" Generated unencrypted passwords saved to {self.password_file}")
+        try:
+            with open(self.password_file, 'w', encoding='utf-8') as f:
+                json.dump(passwords, f, indent=2, ensure_ascii=False)
+            print(" PASSWORDS CREATED SUCCESSFULLY")
+            print(" User: mynameishacker")
+            print(" Admin: sudohackeranythink")
+        except Exception as e:
+            print(f" Failed to save: {e}")
     
     def load_passwords(self):
-        """تحميل كلمات المرور - إصدار سريع"""
+        """تحميل كلمات المرور - بسيط وآمن"""
         try:
-            if not os.path.exists(self.password_file):
-                self.create_secure_passwords()
-            
             with open(self.password_file, 'r', encoding='utf-8') as f:
                 passwords = json.load(f)
-                
-            if self.validate_password_structure(passwords) and self.are_passwords_encrypted(passwords):
+            
+            if self.validate_password_structure(passwords):
                 return passwords
             else:
-                self.create_secure_passwords()
-                return self.load_passwords()
+                raise ValueError("Invalid password structure")
                 
         except Exception as e:
-            print(f"Error loading passwords: {e}")
-            self.create_secure_passwords()
-            return self.load_passwords()
+            print(f" Load error: {e}")
+            # أرجع كلمات افتراضية في حال الطوارئ
+            return {
+                'user_password': "mynameishacker",
+                'admin_password': "sudohackeranythink"
+            }
     
-    def are_passwords_encrypted(self, passwords):
-        """التحقق إذا كانت كلمات المرور مشفرة - الآن دائماً false"""
-        return False  # لأننا لا نستخدم التشفير الآن
-        
+    def validate_password_structure(self, passwords):
+        """تحقق بسيط من الهيكل"""
+        return (isinstance(passwords, dict) and 
+                'user_password' in passwords and 
+                'admin_password' in passwords)
+    
     def sanitize_input(self, input_str):
         """تنظيف المدخلات بسرعة"""
         if not isinstance(input_str, str):
             return ""
-        
-        # إزالة أي أحرف غير آمنة بسرعة
-        sanitized = re.sub(r'[^\x20-\x7E]', '', input_str)
-        
-        # تحديد طول معقول
-        return sanitized[:100]
+        return re.sub(r'[^\x20-\x7E]', '', input_str)[:100]
     
-    def hash_password(self, password):
-        """لا تقم بالتشفير - أرجع الكلمة كما هي"""
-        return self.sanitize_input(password)    
     def verify_password(self, password, stored_password, client_ip=None):
-        """التحقق من كلمة المرور - مقارنة مباشرة بدون تشفير"""
+        """مقارنة فورية بدون تأخير"""
+        start_time = time.time()
         
         # 1. التحقق من حظر IP أولاً
         if client_ip and self.is_ip_locked(client_ip):
@@ -258,12 +239,15 @@ class PasswordManager:
             if client_ip:
                 self.reset_failed_attempts(client_ip)
             print(f" Password correct for IP: {client_ip}")
-            return True
         else:
             if client_ip:
                 self.record_failed_attempt(client_ip)
             print(f" Password incorrect for IP: {client_ip}")
-            return False
+        
+        end_time = time.time()
+        print(f" Password verification took: {(end_time - start_time) * 1000:.2f}ms")
+        
+        return is_valid
     
     def record_failed_attempt(self, client_ip):
         """تسجيل محاولة فاشلة - بعد 10 محاولات يحظر IP"""
@@ -278,7 +262,7 @@ class PasswordManager:
         # قفل IP بعد 10 محاولات فاشلة
         if self.failed_attempts[client_ip] >= self.max_attempts:
             self.lockout_time[client_ip] = time.time() + 3600  # ساعة واحدة
-            print(f"IP {client_ip} locked for 1 hour - too many failed attempts")
+            print(f" IP {client_ip} locked for 1 hour - too many failed attempts")
     
     def reset_failed_attempts(self, client_ip):
         """إعادة تعيين محاولات IP"""
@@ -299,6 +283,10 @@ class PasswordManager:
                     del self.failed_attempts[client_ip]
         return False
     
+    def hash_password(self, password):
+        """لا تقم بالتشفير - أرجع الكلمة كما هي"""
+        return self.sanitize_input(password)
+    
     def save_passwords(self, passwords):
         """حفظ كلمات المرور في ملف محلي"""
         try:
@@ -306,8 +294,25 @@ class PasswordManager:
                 json.dump(passwords, f, indent=2, ensure_ascii=False)
             return True
         except Exception as e:
-            print(f"Error saving passwords: {e}")
+            print(f" Error saving passwords: {e}")
             return False
+
+    # إزالة الدوال التي تسبب مشاكل
+    def ensure_password_file(self):
+        """لم تعد مستخدمة"""
+        pass
+        
+    def download_from_github(self):
+        """لم تعد مستخدمة""" 
+        return False
+        
+    def are_passwords_encrypted(self, passwords):
+        """لم تعد مستخدمة"""
+        return False
+        
+    def create_secure_passwords(self):
+        """لم تعد مستخدمة - استخدام create_secure_passwords_once بدلاً منها"""
+        self.create_secure_passwords_once()
             
 class CommandValidator:
     def __init__(self):
