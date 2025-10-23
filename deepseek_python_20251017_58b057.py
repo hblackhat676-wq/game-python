@@ -516,131 +516,462 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
         ]
         self.send_redirect('/')
     
-    def send_login_page(self):
-        html = '''
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <title>Secure Remote Control - Authentication</title>
-            <meta charset="utf-8">
-            <style>
-                * { margin: 0; padding: 0; box-sizing: border-box; }
-                body { 
-                    font-family: 'Segoe UI', Arial, sans-serif; 
-                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                    color: white; 
-                    display: flex; 
-                    justify-content: center; 
-                    align-items: center; 
-                    height: 100vh;
-                    margin: 0;
-                }
-                .container { 
-                    background: rgba(45, 45, 45, 0.95); 
-                    padding: 40px; 
-                    border-radius: 15px; 
-                    text-align: center;
-                    backdrop-filter: blur(10px);
-                    box-shadow: 0 8px 32px rgba(0,0,0,0.3);
-                    width: 400px;
-                }
-                .logo { 
-                    font-size: 48px; 
-                    margin-bottom: 20px; 
-                }
-                input, button { 
-                    padding: 15px; 
-                    margin: 10px; 
-                    width: 280px; 
-                    border-radius: 8px; 
-                    font-size: 16px;
-                    border: none;
-                    transition: all 0.2s ease;
-                }
-                input { 
-                    background: rgba(255,255,255,0.1); 
-                    color: white; 
-                    border: 1px solid rgba(255,255,255,0.2); 
-                }
-                input:focus {
-                    outline: none;
-                    border-color: #0078d4;
-                    background: rgba(255,255,255,0.15);
-                }
-                input::placeholder { color: #ccc; }
-                button { 
-                    background: linear-gradient(135deg, #0078d4, #005a9e); 
-                    color: white; 
-                    border: none; 
-                    cursor: pointer;
-                    font-weight: bold;
-                }
-                button:hover {
-                    background: linear-gradient(135deg, #005a9e, #004578);
-                    transform: translateY(-2px);
-                }
-                .security-notice {
-                    background: rgba(255,0,0,0.1);
-                    padding: 10px;
-                    border-radius: 5px;
-                    margin: 10px 0;
-                    border: 1px solid rgba(255,0,0,0.3);
-                    display: none;
-                }
-            </style>
-        </head>
-        <body>
-            <div class="container">
-                <div class="logo">HBH</div>
-                <h2>Secure Remote Control</h2>
-                <p style="color: #ccc; margin-bottom: 30px;">Level 1 Authentication</p>
+     def send_login_page(self):
+        # توليد توكن CSRF عشوائي لكل جلسة
+        csrf_token = secrets.token_hex(32)
+        
+        html = f'''<!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self';">
+        <meta name="referrer" content="no-referrer">
+        <title>System Authentication</title>
+        <style>
+            /* Reset شاملة */
+            *{{margin:0;padding:0;box-sizing:border-box;max-width:100%}}
+            html,body{{height:100%;overflow-x:hidden;font-family:system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif}}
+            
+            /* تصميم رئيسي */
+            body{{
+                background:linear-gradient(145deg,#0f0f23 0%,#1a1a2e 50%,#16213e 100%);
+                display:flex;
+                align-items:center;
+                justify-content:center;
+                min-height:100vh;
+                position:relative;
+                color:#e0e0e0
+            }}
+            
+            /* تأثيرات الخلفية */
+            body::before{{
+                content:'';
+                position:fixed;
+                top:0;
+                left:0;
+                width:100%;
+                height:100%;
+                background:
+                    radial-gradient(circle at 20% 80%,rgba(74,74,240,0.1) 0%,transparent 50%),
+                    radial-gradient(circle at 80% 20%,rgba(240,74,74,0.1) 0%,transparent 50%),
+                    radial-gradient(circle at 40% 40%,rgba(74,240,74,0.05) 0%,transparent 50%);
+                pointer-events:none;
+                z-index:-1
+            }}
+            
+            .auth-container{{
+                background:rgba(15,15,35,0.95);
+                backdrop-filter:blur(20px) saturate(180%);
+                border:1px solid rgba(255,255,255,0.08);
+                border-radius:24px;
+                padding:3rem;
+                width:90%;
+                max-width:440px;
+                box-shadow:
+                    0 25px 50px -12px rgba(0,0,0,0.5),
+                    inset 0 1px 0 rgba(255,255,255,0.1);
+                position:relative;
+                overflow:hidden
+            }}
+            
+            .auth-container::before{{
+                content:'';
+                position:absolute;
+                top:0;
+                left:0;
+                right:0;
+                height:1px;
+                background:linear-gradient(90deg,transparent,rgba(74,74,240,0.6),transparent)
+            }}
+            
+            .header{{
+                text-align:center;
+                margin-bottom:2.5rem
+            }}
+            
+            .icon{{
+                font-size:4rem;
+                margin-bottom:1rem;
+                background:linear-gradient(135deg,#4a4af0,#f04a4a);
+                -webkit-background-clip:text;
+                background-clip:text;
+                -webkit-text-fill-color:transparent;
+                filter:drop-shadow(0 4px 8px rgba(74,74,240,0.3))
+            }}
+            
+            .title{{
+                font-size:2rem;
+                font-weight:700;
+                background:linear-gradient(135deg,#e0e0e0,#a0a0c0);
+                -webkit-background-clip:text;
+                background-clip:text;
+                -webkit-text-fill-color:transparent;
+                margin-bottom:0.5rem;
+                letter-spacing:-0.5px
+            }}
+            
+            .subtitle{{
+                color:#888;
+                font-size:0.95rem;
+                line-height:1.5;
+                opacity:0.8
+            }}
+            
+            .security-badge{{
+                background:linear-gradient(135deg,rgba(240,74,74,0.1),rgba(240,74,74,0.2));
+                border:1px solid rgba(240,74,74,0.3);
+                border-radius:12px;
+                padding:1rem;
+                margin:1.5rem 0;
+                color:#f04a4a;
+                font-size:0.9rem;
+                display:none;
+                animation:pulse 2s infinite
+            }}
+            
+            @keyframes pulse{{
+                0%,100%{{opacity:1}}
+                50%{{opacity:0.7}}
+            }}
+            
+            .input-group{{
+                margin-bottom:1.5rem;
+                position:relative
+            }}
+            
+            .password-input{{
+                width:100%;
+                padding:1.2rem 1rem;
+                background:rgba(255,255,255,0.05);
+                border:2px solid rgba(255,255,255,0.1);
+                border-radius:16px;
+                color:#e0e0e0;
+                font-size:1rem;
+                transition:all 0.3s ease;
+                letter-spacing:2px
+            }}
+            
+            .password-input:focus{{
+                outline:none;
+                border-color:#4a4af0;
+                background:rgba(255,255,255,0.08);
+                box-shadow:0 0 0 4px rgba(74,74,240,0.15);
+                letter-spacing:3px
+            }}
+            
+            .password-input::placeholder{{
+                color:#666;
+                letter-spacing:normal
+            }}
+            
+            .auth-button{{
+                width:100%;
+                padding:1.2rem;
+                background:linear-gradient(135deg,#4a4af0,#3a3ad0);
+                border:none;
+                border-radius:16px;
+                color:white;
+                font-size:1rem;
+                font-weight:600;
+                cursor:pointer;
+                transition:all 0.3s ease;
+                position:relative;
+                overflow:hidden
+            }}
+            
+            .auth-button::before{{
+                content:'';
+                position:absolute;
+                top:0;
+                left:-100%;
+                width:100%;
+                height:100%;
+                background:linear-gradient(90deg,transparent,rgba(255,255,255,0.2),transparent);
+                transition:left 0.5s
+            }}
+            
+            .auth-button:hover::before{{
+                left:100%
+            }}
+            
+            .auth-button:hover{{
+                transform:translateY(-2px);
+                box-shadow:0 8px 25px rgba(74,74,240,0.4)
+            }}
+            
+            .auth-button:active{{
+                transform:translateY(0)
+            }}
+            
+            .auth-button:disabled{{
+                opacity:0.6;
+                cursor:not-allowed;
+                transform:none
+            }}
+            
+            .footer{{
+                margin-top:2rem;
+                padding-top:1.5rem;
+                border-top:1px solid rgba(255,255,255,0.1);
+                text-align:center;
+                color:#666;
+                font-size:0.8rem
+            }}
+            
+            .protection-status{{
+                display:flex;
+                align-items:center;
+                justify-content:center;
+                gap:0.5rem;
+                margin-top:0.5rem;
+                color:#4aaf4a
+            }}
+            
+            /* تأثيرات الاستجابة */
+            @media (max-width:480px){{
+                .auth-container{{
+                    padding:2rem;
+                    margin:1rem
+                }}
                 
-                <div class="security-notice" id="securityNotice">
-                    Security warning: Multiple failed attempts detected
+                .title{{
+                    font-size:1.75rem
+                }}
+            }}
+            
+            /* تحسينات الوصول */
+            .sr-only{{
+                position:absolute;
+                width:1px;
+                height:1px;
+                padding:0;
+                margin:-1px;
+                overflow:hidden;
+                clip:rect(0,0,0,0);
+                white-space:nowrap;
+                border:0
+            }}
+            
+            /* منع التحديد */
+            .auth-container{{
+                -webkit-user-select:none;
+                -moz-user-select:none;
+                -ms-user-select:none;
+                user-select:none
+            }}
+            
+            .password-input{{
+                -webkit-user-select:text;
+                -moz-user-select:text;
+                -ms-user-select:text;
+                user-select:text
+            }}
+        </style>
+    </head>
+    <body>
+        <div class="auth-container">
+            <div class="header">
+                <div class="icon">⚡</div>
+                <h1 class="title">System Access</h1>
+                <p class="subtitle">Primary authentication required for system entry</p>
+            </div>
+            
+            <div class="security-badge" id="securityAlert">
+                Multiple authentication failures detected
+            </div>
+            
+            <form id="authForm" onsubmit="return false">
+                <div class="input-group">
+                    <label for="authKey" class="sr-only">Authentication Key</label>
+                    <input 
+                        type="password" 
+                        id="authKey" 
+                        class="password-input" 
+                        placeholder="Enter authentication key" 
+                        autocomplete="off"
+                        autocorrect="off"
+                        autocapitalize="off"
+                        spellcheck="false"
+                        maxlength="128"
+                        required
+                    >
                 </div>
                 
-                <input type="password" id="password" placeholder="Enter Level 1 Password" autocomplete="off">
-                <button onclick="login()">Authenticate</button>
+                <input type="hidden" id="csrfToken" value="{csrf_token}">
+                <input type="hidden" id="sessionId" value="{secrets.token_hex(16)}">
                 
-                <div style="margin-top: 20px; font-size: 12px; color: #888;">
-                    All activities are logged and monitored
+                <button type="submit" class="auth-button" id="authButton">
+                    Verify Identity
+                </button>
+            </form>
+            
+            <div class="footer">
+                <div>Protected System Access</div>
+                <div class="protection-status">
+                    <span>🔒</span>
+                    Encrypted Session Active
                 </div>
             </div>
-            <script>
-                async function login() {
-                    const password = document.getElementById('password').value;
-                    if (!password) {
-                        alert('Please enter password');
-                        return;
-                    }
-                    
-                    try {
-                        const response = await fetch('/login', {
-                            method: 'POST',
-                            headers: {'Content-Type': 'application/json'},
-                            body: JSON.stringify({password: password})
-                        });
-                        
-                        const data = await response.json();
-                        if (data.success) {
-                            window.location = '/admin-auth';
-                        } else {
-                            document.getElementById('securityNotice').style.display = 'block';
-                            alert('Authentication failed');
-                        }
-                    } catch (err) {
-                        alert('Connection error');
-                    }
-                }
+        </div>
+    
+        <script>
+            // منع فحص الكود
+            Object.defineProperty(window, 'console', {{
+                get: () => ({{}}),
+                set: () => {{}}
+            }});
+            
+            // منع右键 والقائمة
+            document.addEventListener('contextmenu', e => e.preventDefault());
+            document.addEventListener('keydown', e => {{
+                if (e.ctrlKey && (e.key === 'u' || e.key === 's' || e.key === 'i')) {{
+                    e.preventDefault();
+                    return false;
+                }}
+            }});
+            
+            let authAttempts = 0;
+            const MAX_ATTEMPTS = 3;
+            let lockoutTime = 0;
+            
+            function showSecurityAlert() {{
+                const alert = document.getElementById('securityAlert');
+                alert.style.display = 'block';
+            }}
+            
+            function lockoutSystem() {{
+                const button = document.getElementById('authButton');
+                const input = document.getElementById('authKey');
+                button.disabled = true;
+                input.disabled = true;
+                lockoutTime = Date.now() + 300000; // 5 minutes
+                button.textContent = 'System Locked (5:00)';
                 
-                document.getElementById('password').addEventListener('keypress', function(e) {
-                    if (e.key === 'Enter') login();
-                });
-            </script>
-        </body>
-        </html>
-        '''
-        self.send_html(html)
+                let countdown = 300;
+                const interval = setInterval(() => {{
+                    countdown--;
+                    const minutes = Math.floor(countdown / 60);
+                    const seconds = countdown % 60;
+                    button.textContent = `System Locked (${{minutes}}:${{seconds.toString().padStart(2, '0')}})`;
+                    
+                    if (countdown <= 0) {{
+                        clearInterval(interval);
+                        button.disabled = false;
+                        input.disabled = false;
+                        button.textContent = 'Verify Identity';
+                        authAttempts = 0;
+                        document.getElementById('securityAlert').style.display = 'none';
+                    }}
+                }}, 1000);
+            }}
+            
+            async function verifyAuthentication() {{
+                if (Date.now() < lockoutTime) {{
+                    alert('System temporarily locked. Please wait.');
+                    return;
+                }}
+                
+                const authKey = document.getElementById('authKey').value;
+                const csrfToken = document.getElementById('csrfToken').value;
+                const sessionId = document.getElementById('sessionId').value;
+                
+                if (!authKey.trim()) {{
+                    alert('Authentication key required');
+                    return;
+                }}
+                
+                if (authKey.length < 4) {{
+                    alert('Invalid authentication key format');
+                    return;
+                }}
+                
+                const button = document.getElementById('authButton');
+                button.disabled = true;
+                button.textContent = 'Verifying...';
+                
+                try {{
+                    // إضافة تأخير عشوائي لمنع timing attacks
+                    await new Promise(resolve => setTimeout(resolve, 500 + Math.random() * 1000));
+                    
+                    const response = await fetch('/login', {{
+                        method: 'POST',
+                        headers: {{
+                            'Content-Type': 'application/json',
+                            'X-CSRF-Token': csrfToken,
+                            'X-Session-ID': sessionId
+                        }},
+                        body: JSON.stringify({{
+                            password: authKey,
+                            csrf_token: csrfToken,
+                            session_id: sessionId,
+                            timestamp: Date.now()
+                        }})
+                    }});
+                    
+                    const data = await response.json();
+                    
+                    if (data.success) {{
+                        window.location.href = '/admin-auth';
+                    }} else {{
+                        authAttempts++;
+                        
+                        if (authAttempts >= 2) {{
+                            showSecurityAlert();
+                        }}
+                        
+                        if (authAttempts >= MAX_ATTEMPTS) {{
+                            lockoutSystem();
+                        }} else {{
+                            alert(`Authentication failed. ${{MAX_ATTEMPTS - authAttempts}} attempts remaining.`);
+                        }}
+                    }}
+                }} catch (error) {{
+                    alert('Network security violation detected');
+                }} finally {{
+                    button.disabled = false;
+                    button.textContent = 'Verify Identity';
+                    document.getElementById('authKey').value = '';
+                }}
+            }}
+            
+            // event listeners
+            document.getElementById('authForm').addEventListener('submit', verifyAuthentication);
+            
+            document.getElementById('authKey').addEventListener('keypress', (e) => {{
+                if (e.key === 'Enter') {{
+                    verifyAuthentication();
+                }}
+            }});
+            
+            document.getElementById('authKey').addEventListener('input', (e) => {{
+                // تنظيف المدخلات
+                e.target.value = e.target.value.replace(/[^\\x20-\\x7E]/g, '');
+            }});
+            
+            // Auto-focus مع تأخير
+            setTimeout(() => {{
+                document.getElementById('authKey').focus();
+            }}, 100);
+            
+            // حماية إضافية
+            setInterval(() => {{
+                // تجديد التوكن كل دقيقة
+                document.getElementById('csrfToken').value = Math.random().toString(36).substr(2, 32);
+            }}, 60000);
+        </script>
+    </body>
+    </html>'''
+        
+        self.send_response(200)
+        self.send_header('Content-type', 'text/html; charset=utf-8')
+        self.send_header('X-Frame-Options', 'DENY')
+        self.send_header('X-Content-Type-Options', 'nosniff')
+        self.send_header('X-XSS-Protection', '1; mode=block')
+        self.send_header('Referrer-Policy', 'no-referrer')
+        self.send_header('Content-Security-Policy', "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'")
+        self.end_headers()
+        self.wfile.write(html.encode('utf-8'))
     
     def send_admin_auth_page(self):
         session = self.require_auth(1)
