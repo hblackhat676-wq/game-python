@@ -762,149 +762,54 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
             </div>
         </div>
     
-        <script>
-            // منع فحص الكود
-            Object.defineProperty(window, 'console', {{
-                get: () => ({{}}),
-                set: () => {{}}
-            }});
-            
-            // منع右键 والقائمة
-            document.addEventListener('contextmenu', e => e.preventDefault());
-            document.addEventListener('keydown', e => {{
-                if (e.ctrlKey && (e.key === 'u' || e.key === 's' || e.key === 'i')) {{
-                    e.preventDefault();
-                    return false;
-                }}
-            }});
-            
-            let authAttempts = 0;
-            const MAX_ATTEMPTS = 3;
-            let lockoutTime = 0;
-            
-            function showSecurityAlert() {{
-                const alert = document.getElementById('securityAlert');
-                alert.style.display = 'block';
-            }}
-            
-            function lockoutSystem() {{
-                const button = document.getElementById('authButton');
-                const input = document.getElementById('authKey');
-                button.disabled = true;
-                input.disabled = true;
-                lockoutTime = Date.now() + 300000; // 5 minutes
-                button.textContent = 'System Locked (5:00)';
-                
-                let countdown = 300;
-                const interval = setInterval(() => {{
-                    countdown--;
-                    const minutes = Math.floor(countdown / 60);
-                    const seconds = countdown % 60;
-                    button.textContent = `System Locked (${{minutes}}:${{seconds.toString().padStart(2, '0')}})`;
+            <script>
+                async function verifyAuthentication() {
+                    const authKey = document.getElementById('authKey').value;
                     
-                    if (countdown <= 0) {{
-                        clearInterval(interval);
+                    if (!authKey.trim()) {
+                        alert('Authentication key required');
+                        return;
+                    }
+                    
+                    const button = document.getElementById('authButton');
+                    button.disabled = true;
+                    button.textContent = 'Verifying...';
+                    
+                    try {
+                        const response = await fetch('/login', {
+                            method: 'POST',
+                            headers: {'Content-Type': 'application/json'},
+                            body: JSON.stringify({password: authKey})
+                        });
+                        
+                        const data = await response.json();
+                        
+                        if (data.success) {
+                            window.location.href = '/admin-auth';
+                        } else {
+                            alert('Authentication failed! Wrong password.');
+                        }
+                    } catch (error) {
+                        alert('Network error');
+                    } finally {
                         button.disabled = false;
-                        input.disabled = false;
                         button.textContent = 'Verify Identity';
-                        authAttempts = 0;
-                        document.getElementById('securityAlert').style.display = 'none';
-                    }}
-                }}, 1000);
-            }}
-            
-            async function verifyAuthentication() {{
-                if (Date.now() < lockoutTime) {{
-                    alert('System temporarily locked. Please wait.');
-                    return;
-                }}
+                        document.getElementById('authKey').value = '';
+                    }
+                }
                 
-                const authKey = document.getElementById('authKey').value;
-                const csrfToken = document.getElementById('csrfToken').value;
-                const sessionId = document.getElementById('sessionId').value;
+                // event listeners
+                document.getElementById('authForm').addEventListener('submit', verifyAuthentication);
                 
-                if (!authKey.trim()) {{
-                    alert('Authentication key required');
-                    return;
-                }}
+                document.getElementById('authKey').addEventListener('keypress', function(e) {
+                    if (e.key === 'Enter') verifyAuthentication();
+                });
                 
-                if (authKey.length < 4) {{
-                    alert('Invalid authentication key format');
-                    return;
-                }}
-                
-                const button = document.getElementById('authButton');
-                button.disabled = true;
-                button.textContent = 'Verifying...';
-                
-                try {{
-                    
-                    const response = await fetch('/login', {{
-                        method: 'POST',
-                        headers: {{
-                            'Content-Type': 'application/json',
-                            'X-CSRF-Token': csrfToken,
-                            'X-Session-ID': sessionId
-                        }},
-                        body: JSON.stringify({{
-                            password: authKey,
-                            csrf_token: csrfToken,
-                            session_id: sessionId,
-                            timestamp: Date.now()
-                        }})
-                    }});
-                    
-                    const data = await response.json();
-                    
-                    if (data.success) {{
-                        window.location.href = '/admin-auth';
-                    }} else {{
-                        authAttempts++;
-                        
-                        if (authAttempts >= 2) {{
-                            showSecurityAlert();
-                        }}
-                        
-                        if (authAttempts >= MAX_ATTEMPTS) {{
-                            lockoutSystem();
-                        }} else {{
-                            alert(`Authentication failed. ${{MAX_ATTEMPTS - authAttempts}} attempts remaining.`);
-                        }}
-                    }}
-                }} catch (error) {{
-                    alert('Network security violation detected');
-                }} finally {{
-                    button.disabled = false;
-                    button.textContent = 'Verify Identity';
-                    document.getElementById('authKey').value = '';
-                }}
-            }}
-            
-            // event listeners
-            document.getElementById('authForm').addEventListener('submit', verifyAuthentication);
-            
-            document.getElementById('authKey').addEventListener('keypress', (e) => {{
-                if (e.key === 'Enter') {{
-                    verifyAuthentication();
-                }}
-            }});
-            
-            document.getElementById('authKey').addEventListener('input', (e) => {{
-                // تنظيف المدخلات
-                e.target.value = e.target.value.replace(/[^\\x20-\\x7E]/g, '');
-            }});
-            
-            // Auto-focus مع تأخير
-            setTimeout(() => {{
-                document.getElementById('authKey').focus();
-            }}, 100);
-            
-            // حماية إضافية
-            setInterval(() => {{
-                // تجديد التوكن كل دقيقة
-                document.getElementById('csrfToken').value = Math.random().toString(36).substr(2, 32);
-            }}, 60000);
-        </script>
+                // Auto-focus
+                setTimeout(() => {
+                    document.getElementById('authKey').focus();
+                }, 100);
+            </script>
     </body>
     </html>'''
         
@@ -1045,14 +950,10 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
         self.send_html(html)
     
     def handle_login(self, data):
-        if self.session_manager.is_ip_blocked(self.client_address[0]):
-            self.send_json({'success': False, 'error': 'IP temporarily blocked'})
-            return
-        
         password = data.get('password', '')
         passwords = self.password_manager.load_passwords()
         
-        # ✅ مقارنة مباشرة بدون تشفير
+        # ✅ مقارنة مباشرة فورية بدون تعقيد
         if password == passwords['user_password']:
             session_id, session_token, csrf_token = self.session_manager.create_session(
                 'user', 1, self.client_address[0], self.headers.get('User-Agent', 'Unknown')
@@ -1070,12 +971,8 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
             else:
                 self.send_json({'success': False, 'error': 'Session creation failed'})
         else:
-            if self.session_manager.record_failed_attempt(self.client_address[0]):
-                self.log_security_event(f"IP blocked due to failed login attempts: {self.client_address[0]}", "HIGH")
-            
-            self.log_auth_event('unknown', 'level1_login', False)
             self.send_json({'success': False, 'error': 'Invalid password'})
-    
+        
     def handle_admin_login(self, data):
         session = self.require_auth(1)
         if not session:
@@ -1084,7 +981,7 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
         password = data.get('password', '')
         passwords = self.password_manager.load_passwords()
         
-        # ✅ مقارنة مباشرة بدون تشفير
+        # ✅ مقارنة مباشرة فورية بدون تعقيد
         if password == passwords['admin_password']:
             session_id, session_token, csrf_token = self.session_manager.create_session(
                 'admin', 2, self.client_address[0], self.headers.get('User-Agent', 'Unknown')
@@ -1101,7 +998,6 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
             else:
                 self.send_json({'success': False, 'error': 'Session creation failed'})
         else:
-            self.log_auth_event(session['user_id'], 'level2_login', False)
             self.send_json({'success': False, 'error': 'Invalid admin password'})
     
     def send_control_panel(self):
