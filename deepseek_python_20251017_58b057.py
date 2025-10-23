@@ -147,7 +147,7 @@ class PasswordManager:
         """جلب كلمات المرور المشفرة من GitHub"""
         if not os.path.exists(self.password_file):
             if self.download_from_github():
-                print("✅ Encrypted passwords downloaded from GitHub")
+                print("Encrypted passwords downloaded from GitHub")
                 return
             
             # إذا فشل التحميل، إنشاء كلمات مرور مشفرة جديدة
@@ -156,7 +156,7 @@ class PasswordManager:
     def download_from_github(self):
         """تحميل ملف passwords.json المشفر من GitHub"""
         try:
-            print(f"🌐 Downloading encrypted passwords from GitHub...")
+            print(f"Downloading encrypted passwords from GitHub...")
             response = requests.get(self.github_url, timeout=10)
             
             if response.status_code == 200:
@@ -169,23 +169,23 @@ class PasswordManager:
                 if user_pwd.startswith('$2b$') and admin_pwd.startswith('$2b$'):
                     # حفظ الملف المشفر محلياً
                     self.save_passwords(passwords)
-                    print("🔒 Successfully loaded encrypted passwords")
+                    print("Successfully loaded encrypted passwords")
                     return True
                 else:
-                    print("❌ Passwords in GitHub are not encrypted!")
-                    print("⚠️  Please update passwords.json with bcrypt hashes")
+                    print("Passwords in GitHub are not encrypted!")
+                    print("Please update passwords.json with bcrypt hashes")
                     return False
             else:
-                print(f"❌ Failed to download from GitHub: {response.status_code}")
+                print(f"Failed to download from GitHub: {response.status_code}")
                 return False
                 
         except Exception as e:
-            print(f"❌ GitHub download error: {e}")
+            print(f"GitHub download error: {e}")
             return False
     
     def create_secure_passwords(self):
         """إنشاء كلمات مرور مشفرة جديدة احتياطية"""
-        print("🔐 Creating new encrypted passwords as fallback...")
+        print("Creating new encrypted passwords as fallback...")
         
         # كلمات مرور افتراضية (يجب تغييرها لاحقاً من الإعدادات)
         secure_passwords = {
@@ -194,7 +194,7 @@ class PasswordManager:
         }
         
         self.save_passwords(secure_passwords)
-        print("⚠️  Using fallback encrypted passwords - CHANGE THEM IN SETTINGS!")
+        print("Using fallback encrypted passwords - CHANGE THEM IN SETTINGS!")
     
     def load_passwords(self):
         """تحميل كلمات المرور مع التأكد من أنها مشفرة"""
@@ -206,7 +206,7 @@ class PasswordManager:
             if self.are_passwords_encrypted(passwords):
                 return passwords
             else:
-                print("⚠️  Passwords are not encrypted, hashing them now...")
+                print("Passwords are not encrypted, hashing them now...")
                 # إذا كانت نصاً واضحاً، تشفيرها
                 encrypted_passwords = {
                     'user_password': self.hash_password(passwords.get('user_password', '')),
@@ -216,7 +216,7 @@ class PasswordManager:
                 return encrypted_passwords
                 
         except Exception as e:
-            print(f"❌ Error loading passwords: {e}")
+            print(f"Error loading passwords: {e}")
             return self.create_secure_passwords()
     
     def are_passwords_encrypted(self, passwords):
@@ -234,7 +234,7 @@ class PasswordManager:
         try:
             return bcrypt.checkpw(password.encode(), hashed.encode())
         except Exception as e:
-            print(f"❌ Password verification error: {e}")
+            print(f"Password verification error: {e}")
             return False
     
     def save_passwords(self, passwords):
@@ -244,7 +244,7 @@ class PasswordManager:
                 json.dump(passwords, f, indent=2)
             return True
         except Exception as e:
-            print(f"❌ Error saving passwords: {e}")
+            print(f"Error saving passwords: {e}")
             return False
 
 class CommandValidator:
@@ -592,7 +592,7 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
         </head>
         <body>
             <div class="container">
-                <div class="logo">🔒</div>
+                <div class="logo">HBH</div>
                 <h2>Secure Remote Control</h2>
                 <p style="color: #ccc; margin-bottom: 30px;">Level 1 Authentication</p>
                 
@@ -719,7 +719,7 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
         </head>
         <body>
             <div class="container">
-                <div class="logo">⚡</div>
+                <div class="logo">HBH</div>
                 <h2>Admin Authentication</h2>
                 <p style="color: #ccc; margin-bottom: 30px;">Level 2 Security - Administrative Access</p>
                 
@@ -1899,9 +1899,9 @@ def main():
     threading.Thread(target=cleanup_sessions, daemon=True).start()
     
     print("=" * 80)
-    print("🛡️  SECURE REMOTE CONTROL SERVER - ENHANCED SECURITY MODE")
+    print("  SECURE REMOTE CONTROL SERVER - ENHANCED SECURITY MODE")
     print("=" * 80)
-    print("🔒 Security Features:")
+    print(" Security Features:")
     print("  • Secure Session Management")
     print("  • BCrypt Password Hashing")
     print("  • Rate Limiting & IP Blocking")
@@ -1911,7 +1911,7 @@ def main():
     print("  • Comprehensive Logging")
     print("  • Multi-Platform Support")
     print("=" * 80)
-    print("⚡ Performance Features:")
+    print(" Performance Features:")
     print("  • Ultra-Fast Communication")
     print("  • Multi-Threaded Server")
     print("  • Real-Time Updates")
@@ -1920,9 +1920,9 @@ def main():
     
     try:
         server = ThreadedHTTPServer(('0.0.0.0', 8080), EnhancedRemoteControlHandler)
-        print("🚀 Secure server started on port 8080!")
-        print("📊 Access the control panel after authentication")
-        print("⚡ Ultra-fast and fully secured")
+        print(" Secure server started on port 8080!")
+        print(" Access the control panel after authentication")
+        print(" Ultra-fast and fully secured")
         print("=" * 80)
         server.serve_forever()
     except KeyboardInterrupt:
