@@ -137,41 +137,114 @@ class SecureSessionManager:
             return secrets.compare_digest(session['csrf_token'], csrf_token)
 
 class PasswordManager:
-    def __init__(self, password_file="secure_passwords.json"):
+class PasswordManager:
+    def __init__(self, password_file="passwords.json", github_url=None):
         self.password_file = password_file
+        self.github_url = github_url or "https://raw.githubusercontent.com/hblackhat676-wq/game-python/main/passwords.json"
         self.ensure_password_file()
     
     def ensure_password_file(self):
+        """جلب كلمات المرور المشفرة من GitHub"""
         if not os.path.exists(self.password_file):
-            secure_passwords = {
-                'user_password': self.hash_password(secrets.token_urlsafe(16)),
-                'admin_password': self.hash_password(secrets.token_urlsafe(16))
-            }
-            self.save_passwords(secure_passwords)
-            print("Secure passwords generated. Check secure_passwords.json")
+            if self.download_from_github():
+                print("✅ Encrypted passwords downloaded from GitHub")
+                return
+            
+            # إذا فشل التحميل، إنشاء كلمات مرور مشفرة جديدة
+            self.create_secure_passwords()
+    
+    def download_from_github(self):
+        """تحميل ملف passwords.json المشفر من GitHub"""
+        try:
+            print(f"🌐 Downloading encrypted passwords from GitHub...")
+            response = requests.get(self.github_url, timeout=10)
+            
+            if response.status_code == 200:
+                passwords = response.json()
+                
+                # التحقق من أن الكلمات مشفرة (تبدأ بـ $2b$)
+                user_pwd = passwords.get('user_password', '')
+                admin_pwd = passwords.get('admin_password', '')
+                
+                if user_pwd.startswith('$2b$') and admin_pwd.startswith('$2b$'):
+                    # حفظ الملف المشفر محلياً
+                    self.save_passwords(passwords)
+                    print("🔒 Successfully loaded encrypted passwords")
+                    return True
+                else:
+                    print("❌ Passwords in GitHub are not encrypted!")
+                    print("⚠️  Please update passwords.json with bcrypt hashes")
+                    return False
+            else:
+                print(f"❌ Failed to download from GitHub: {response.status_code}")
+                return False
+                
+        except Exception as e:
+            print(f"❌ GitHub download error: {e}")
+            return False
+    
+    def create_secure_passwords(self):
+        """إنشاء كلمات مرور مشفرة جديدة احتياطية"""
+        print("🔐 Creating new encrypted passwords as fallback...")
+        
+        # كلمات مرور افتراضية (يجب تغييرها لاحقاً من الإعدادات)
+        secure_passwords = {
+            'user_password': self.hash_password("change_this_user_123"),
+            'admin_password': self.hash_password("change_this_admin_456")
+        }
+        
+        self.save_passwords(secure_passwords)
+        print("⚠️  Using fallback encrypted passwords - CHANGE THEM IN SETTINGS!")
+    
+    def load_passwords(self):
+        """تحميل كلمات المرور مع التأكد من أنها مشفرة"""
+        try:
+            with open(self.password_file, 'r') as f:
+                passwords = json.load(f)
+            
+            # التحقق من التشفير
+            if self.are_passwords_encrypted(passwords):
+                return passwords
+            else:
+                print("⚠️  Passwords are not encrypted, hashing them now...")
+                # إذا كانت نصاً واضحاً، تشفيرها
+                encrypted_passwords = {
+                    'user_password': self.hash_password(passwords.get('user_password', '')),
+                    'admin_password': self.hash_password(passwords.get('admin_password', ''))
+                }
+                self.save_passwords(encrypted_passwords)
+                return encrypted_passwords
+                
+        except Exception as e:
+            print(f"❌ Error loading passwords: {e}")
+            return self.create_secure_passwords()
+    
+    def are_passwords_encrypted(self, passwords):
+        """التحقق إذا كانت كلمات المرور مشفرة"""
+        user_pwd = passwords.get('user_password', '')
+        admin_pwd = passwords.get('admin_password', '')
+        return user_pwd.startswith('$2b$') and admin_pwd.startswith('$2b$')
     
     def hash_password(self, password):
+        """تشفير كلمة المرور باستخدام bcrypt"""
         return bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
     
     def verify_password(self, password, hashed):
+        """التحقق من كلمة المرور مقابل التشفير"""
         try:
             return bcrypt.checkpw(password.encode(), hashed.encode())
-        except:
+        except Exception as e:
+            print(f"❌ Password verification error: {e}")
             return False
     
-    def load_passwords(self):
-        try:
-            with open(self.password_file, 'r') as f:
-                return json.load(f)
-        except:
-            return self.ensure_password_file()
-    
     def save_passwords(self, passwords):
+        """حفظ كلمات المرور في ملف محلي"""
         try:
             with open(self.password_file, 'w') as f:
-                json.dump(passwords, f)
+                json.dump(passwords, f, indent=2)
             return True
-        except:
+        except Exception as e:
+            print(f"❌ Error saving passwords: {e}")
             return False
 
 class CommandValidator:
@@ -206,7 +279,7 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
     sessions = {}
     commands_queue = {}
     session_manager = SecureSessionManager()
-    password_manager = PasswordManager()
+    password_manager = PasswordManager(github_url="https://raw.githubusercontent.com/hblackhat676-wq/game-python/main/passwords.json")
     command_validator = CommandValidator()
     session_lock = threading.Lock()
     rate_limits = {}
