@@ -135,53 +135,41 @@ class SecureSessionManager:
             
             session = self.sessions[session_id]
             return secrets.compare_digest(session['csrf_token'], csrf_token)
-
 class PasswordManager:
     def __init__(self, password_file="passwords.json", github_url=None):
         self.password_file = password_file
         self.github_url = github_url or "https://raw.githubusercontent.com/hblackhat676-wq/game-python/main/passwords.json"
-        self.ensure_password_file()
         self.failed_attempts = {}
         self.lockout_time = {}
+        self.max_attempts = 10  # 10 محاولات كما طلبت
+        
+        # تحميل كلمات المرور فوراً
+        self.ensure_password_file()
     
     def ensure_password_file(self):
-        """جلب كلمات المرور المشفرة من GitHub"""
-        if not os.path.exists(self.password_file):
-            if self.download_from_github():
-                print("Encrypted passwords downloaded from GitHub")
-                return
+        """جلب كلمات المرور المشفرة من GitHub أو إنشاء جديدة"""
+        try:
+            if not os.path.exists(self.password_file):
+                if not self.download_from_github():
+                    self.create_secure_passwords()
+        except Exception as e:
+            print(f"Error ensuring password file: {e}")
             self.create_secure_passwords()
     
     def download_from_github(self):
         """تحميل ملف passwords.json المشفر من GitHub"""
         try:
             print(f"Downloading encrypted passwords from GitHub...")
-            response = requests.get(self.github_url, timeout=10)
+            response = requests.get(self.github_url, timeout=5)
             
             if response.status_code == 200:
-                # التحقق من حجم الاستجابة
-                if len(response.content) > 10000:
-                    print("Response too large - potential attack")
-                    return False
-                
                 passwords = response.json()
                 
-                # التحقق من الهيكل
-                if not self.validate_password_structure(passwords):
-                    return False
-                
-                # التحقق من التشفير
-                if self.are_passwords_encrypted(passwords):
+                if self.validate_password_structure(passwords) and self.are_passwords_encrypted(passwords):
                     self.save_passwords(passwords)
-                    print("Successfully loaded encrypted passwords")
+                    print("✅ Encrypted passwords downloaded from GitHub")
                     return True
-                else:
-                    print("Passwords in GitHub are not encrypted!")
-                    return False
-            else:
-                print(f"Failed to download from GitHub: {response.status_code}")
-                return False
-                
+            return False
         except Exception as e:
             print(f"GitHub download error: {e}")
             return False
@@ -196,99 +184,41 @@ class PasswordManager:
             if not all(key in passwords for key in required_keys):
                 return False
             
-            # التحقق من نوع البيانات
-            if not all(isinstance(passwords[key], str) for key in required_keys):
-                return False
-            
-            # التحقق من الطول المعقول
-            if any(len(passwords[key]) > 200 for key in required_keys):
-                return False
-            
             return True
         except:
             return False
     
     def create_secure_passwords(self):
         """إنشاء كلمات مرور مشفرة جديدة احتياطية"""
-        print("Creating new encrypted passwords as fallback...")
+        print("🔐 Creating new encrypted passwords...")
         
-        # استخدام كلمات مرور عشوائية قوية
         secure_passwords = {
-            'user_password': self.hash_password(secrets.token_urlsafe(32)),
-            'admin_password': self.hash_password(secrets.token_urlsafe(32))
+            'user_password': self.hash_password("user123"),  # غير هذه
+            'admin_password': self.hash_password("admin123") # غير هذه
         }
         
         self.save_passwords(secure_passwords)
-        print("Using fallback encrypted passwords - CHANGE THEM IN SETTINGS!")
-        print(f"Generated passwords saved to {self.password_file}")
+        print(f"✅ Generated passwords saved to {self.password_file}")
     
     def load_passwords(self):
-        """تحميل كلمات المرور مع حماية كاملة"""
+        """تحميل كلمات المرور - إصدار سريع"""
         try:
-            # التحقق من وجود الملف أولاً
             if not os.path.exists(self.password_file):
-                return self.create_secure_passwords()
-            
-            # التحقق من صلاحيات الملف
-            if not self.is_file_secure(self.password_file):
-                print("Password file security check failed")
-                return self.create_secure_passwords()
+                self.create_secure_passwords()
             
             with open(self.password_file, 'r', encoding='utf-8') as f:
-                content = f.read().strip()
+                passwords = json.load(f)
                 
-                # التحقق من أن الملف ليس فارغاً
-                if not content:
-                    print("Password file is empty")
-                    return self.create_secure_passwords()
-                
-                # التحقق من JSON صالح
-                try:
-                    passwords = json.loads(content)
-                except json.JSONDecodeError:
-                    print("Invalid JSON in password file")
-                    return self.create_secure_passwords()
-            
-            # التحقق من الهيكل
-            if not self.validate_password_structure(passwords):
-                print("Invalid password file structure")
-                return self.create_secure_passwords()
-            
-            # التحقق من التشفير
-            if self.are_passwords_encrypted(passwords):
+            if self.validate_password_structure(passwords) and self.are_passwords_encrypted(passwords):
                 return passwords
             else:
-                print("Passwords are not encrypted, hashing them now...")
-                encrypted_passwords = {
-                    'user_password': self.hash_password(self.sanitize_input(passwords.get('user_password', ''))),
-                    'admin_password': self.hash_password(self.sanitize_input(passwords.get('admin_password', '')))
-                }
-                self.save_passwords(encrypted_passwords)
-                return encrypted_passwords
+                self.create_secure_passwords()
+                return self.load_passwords()
                 
         except Exception as e:
             print(f"Error loading passwords: {e}")
-            return self.create_secure_passwords()
-    
-    def is_file_secure(self, filepath):
-        """التحقق من أمان الملف"""
-        try:
-            # التحقق من أن الملف ملف حقيقي وليس symbolic link
-            if not os.path.isfile(filepath):
-                return False
-            
-            # التحقق من صلاحيات الملف (يجب أن تكون مقروءة فقط)
-            stat_info = os.stat(filepath)
-            if stat_info.st_mode & 0o777 != 0o600:  # rw-------
-                # محاولة تصحيح الصلاحيات
-                try:
-                    os.chmod(filepath, 0o600)
-                except:
-                    return False
-            
-            return True
-        except:
-            return False
+            self.create_secure_passwords()
+            return self.load_passwords()
     
     def are_passwords_encrypted(self, passwords):
         """التحقق إذا كانت كلمات المرور مشفرة"""
@@ -296,64 +226,55 @@ class PasswordManager:
             user_pwd = passwords.get('user_password', '')
             admin_pwd = passwords.get('admin_password', '')
             
-            # التحقق من تنسيق bcrypt
-            if not (user_pwd.startswith('$2b$') and admin_pwd.startswith('$2b$')):
-                return False
-            
-            # التحقق من طول الهاش (bcrypt الهاش يكون 60 حرف)
-            if not (len(user_pwd) == 60 and len(admin_pwd) == 60):
-                return False
-            
-            return True
+            return (user_pwd.startswith('$2b$') and admin_pwd.startswith('$2b$') and
+                    len(user_pwd) == 60 and len(admin_pwd) == 60)
         except:
             return False
     
     def sanitize_input(self, input_str):
-        """تنظيف المدخلات من أي محاولات حقن"""
+        """تنظيف المدخلات بسرعة"""
         if not isinstance(input_str, str):
             return ""
         
-        # إزالة أي أحرف غير آمنة
+        # إزالة أي أحرف غير آمنة بسرعة
         sanitized = re.sub(r'[^\x20-\x7E]', '', input_str)
         
         # تحديد طول معقول
-        if len(sanitized) > 100:
-            sanitized = sanitized[:100]
-        
-        return sanitized
+        return sanitized[:100]
     
     def hash_password(self, password):
-        """تشفير كلمة المرور باستخدام bcrypt مع salt فريد"""
-        # تنظيف المدخل أولاً
+        """تشفير كلمة المرور - إصدار سريع"""
         clean_password = self.sanitize_input(password)
-        
-        # استخدام cost عالي للأمان
-        return bcrypt.hashpw(clean_password.encode('utf-8'), bcrypt.gensalt(rounds=14)).decode('utf-8')
+        # استخدام rounds=12 للسرعة مع الحفاظ على الأمان
+        return bcrypt.hashpw(clean_password.encode('utf-8'), bcrypt.gensalt(rounds=12)).decode('utf-8')
     
     def verify_password(self, password, hashed, client_ip=None):
-        """التحقق من كلمة المرور - نسخة سريعة"""
+        """التحقق من كلمة المرور - فوري وآمن مثل WPA2"""
+        
+        # 1. التحقق من حظر IP أولاً (سريع)
+        if client_ip and self.is_ip_locked(client_ip):
+            print(f"🚫 IP {client_ip} is locked")
+            return False
+        
+        # 2. تنظيف المدخلات بسرعة
+        clean_password = self.sanitize_input(password)
+        clean_hashed = self.sanitize_input(hashed)
+        
+        # 3. تحقق سريع من الطول والتنسيق
+        if len(clean_password) > 100 or len(clean_hashed) != 60:
+            self.record_failed_attempt(client_ip)
+            return False
+        
+        if not clean_hashed.startswith('$2b$'):
+            self.record_failed_attempt(client_ip)
+            return False
+        
+        # 4. المقارنة المباشرة - مثل WPA2 (هذه تأخذ وقت BCrypt الطبيعي فقط)
         try:
-            # حماية من rate limiting
-            if client_ip and self.is_ip_locked(client_ip):
-                print(f"IP {client_ip} is temporarily locked")
-                return False
-            
-            # تنظيف المدخلات
-            clean_password = self.sanitize_input(password)
-            clean_hashed = self.sanitize_input(hashed)
-            
-            # التحقق من الطول المعقول
-            if len(clean_password) > 100 or len(clean_hashed) != 60:
-                self.record_failed_attempt(client_ip)
-                return False
-            
-            # التحقق من تنسيق bcrypt
-            if not clean_hashed.startswith('$2b$'):
-                self.record_failed_attempt(client_ip)
-                return False
-            
-            # المقارنة بدون تأخير إضافي
-            is_valid = bcrypt.checkpw(clean_password.encode('utf-8'), clean_hashed.encode('utf-8'))
+            is_valid = bcrypt.checkpw(
+                clean_password.encode('utf-8'), 
+                clean_hashed.encode('utf-8')
+            )
             
             if is_valid:
                 if client_ip:
@@ -368,23 +289,22 @@ class PasswordManager:
             print(f"Password verification error: {e}")
             if client_ip:
                 self.record_failed_attempt(client_ip)
-            return False   
-            
+            return False
+    
     def record_failed_attempt(self, client_ip):
-        """تسجيل محاولة فاشلة"""
+        """تسجيل محاولة فاشلة - بعد 10 محاولات يحظر IP"""
         if not client_ip:
             return
         
         if client_ip not in self.failed_attempts:
-            self.failed_attempts[client_ip] = {'count': 0, 'first_attempt': time.time()}
+            self.failed_attempts[client_ip] = 0
         
-        self.failed_attempts[client_ip]['count'] += 1
-        self.failed_attempts[client_ip]['last_attempt'] = time.time()
+        self.failed_attempts[client_ip] += 1
         
-        # قفل IP بعد 5 محاولات فاشلة
-        if self.failed_attempts[client_ip]['count'] >= 5:
-            self.lockout_time[client_ip] = time.time() + 1800  # 30 دقيقة
-            print(f"IP {client_ip} locked for 30 minutes due to failed attempts")
+        # قفل IP بعد 10 محاولات فاشلة
+        if self.failed_attempts[client_ip] >= self.max_attempts:
+            self.lockout_time[client_ip] = time.time() + 3600  # ساعة واحدة
+            print(f"🚫 IP {client_ip} locked for 1 hour - too many failed attempts")
     
     def reset_failed_attempts(self, client_ip):
         """إعادة تعيين محاولات IP"""
@@ -399,55 +319,21 @@ class PasswordManager:
             if time.time() < self.lockout_time[client_ip]:
                 return True
             else:
+                # انتهت مدة الحظر
                 del self.lockout_time[client_ip]
+                if client_ip in self.failed_attempts:
+                    del self.failed_attempts[client_ip]
         return False
     
     def save_passwords(self, passwords):
-        """حفظ كلمات المرور في ملف محلي بأمان"""
+        """حفظ كلمات المرور في ملف محلي"""
         try:
-            # التحقق من الهيكل أولاً
-            if not self.validate_password_structure(passwords):
-                return False
-            
-            # كتابة الملف بصلاحيات آمنة
             with open(self.password_file, 'w', encoding='utf-8') as f:
                 json.dump(passwords, f, indent=2, ensure_ascii=False)
-            
-            # تعيين صلاحيات آمنة للملف
-            os.chmod(self.password_file, 0o600)
-            
             return True
         except Exception as e:
             print(f"Error saving passwords: {e}")
             return False
-
-class CommandValidator:
-    def __init__(self):
-        self.allowed_commands = {
-            'sysinfo', 'status', 'ping', 'whoami', 'echo',
-            'uname -a', 'ls -la', 'dir', 'pwd', 'date'
-        }
-        
-        self.dangerous_patterns = [
-            r'rm\s+-rf', r'mkfs', r'dd\s+if=', r'>\s+/dev/', 
-            r'chmod\s+777', r'chown\s+root', r'passwd',
-            r'ssh-keygen', r'format\s+', r'fdisk'
-        ]
-    
-    def is_command_safe(self, command):
-        command_lower = command.lower().strip()
-        
-        if command_lower in self.allowed_commands:
-            return True
-        
-        for pattern in self.dangerous_patterns:
-            if re.search(pattern, command_lower):
-                return False
-        
-        if len(command) > 1000:
-            return False
-            
-        return True
 
 class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
     sessions = {}
@@ -1060,8 +946,6 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                 button.textContent = 'Verifying...';
                 
                 try {{
-                    // إضافة تأخير عشوائي لمنع timing attacks
-                    await new Promise(resolve => setTimeout(resolve, 500 + Math.random() * 1000));
                     
                     const response = await fetch('/login', {{
                         method: 'POST',
