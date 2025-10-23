@@ -189,16 +189,16 @@ class PasswordManager:
             return False
     
     def create_secure_passwords(self):
-        """إنشاء كلمات مرور مشفرة جديدة احتياطية"""
-        print("Creating new encrypted passwords...")
+        """إنشاء كلمات مرور جديدة بدون تشفير"""
+        print(" Creating new unencrypted passwords...")
         
         secure_passwords = {
-            'user_password': self.hash_password("user123"),  # غير هذه
-            'admin_password': self.hash_password("admin123") # غير هذه
+            'user_password': "mynameishacker",  # مباشرة بدون تشفير
+            'admin_password': "sudohackeranythink"  # مباشرة بدون تشفير
         }
         
         self.save_passwords(secure_passwords)
-        print(f"Generated passwords saved to {self.password_file}")
+        print(f" Generated unencrypted passwords saved to {self.password_file}")
     
     def load_passwords(self):
         """تحميل كلمات المرور - إصدار سريع"""
@@ -221,16 +221,9 @@ class PasswordManager:
             return self.load_passwords()
     
     def are_passwords_encrypted(self, passwords):
-        """التحقق إذا كانت كلمات المرور مشفرة"""
-        try:
-            user_pwd = passwords.get('user_password', '')
-            admin_pwd = passwords.get('admin_password', '')
-            
-            return (user_pwd.startswith('$2b$') and admin_pwd.startswith('$2b$') and
-                    len(user_pwd) == 60 and len(admin_pwd) == 60)
-        except:
-            return False
-    
+        """التحقق إذا كانت كلمات المرور مشفرة - الآن دائماً false"""
+        return False  # لأننا لا نستخدم التشفير الآن
+        
     def sanitize_input(self, input_str):
         """تنظيف المدخلات بسرعة"""
         if not isinstance(input_str, str):
@@ -243,52 +236,33 @@ class PasswordManager:
         return sanitized[:100]
     
     def hash_password(self, password):
-        """تشفير كلمة المرور - إصدار سريع"""
-        clean_password = self.sanitize_input(password)
-        # استخدام rounds=12 للسرعة مع الحفاظ على الأمان
-        return bcrypt.hashpw(clean_password.encode('utf-8'), bcrypt.gensalt(rounds=12)).decode('utf-8')
-    
-    def verify_password(self, password, hashed, client_ip=None):
-        """التحقق من كلمة المرور - فوري وآمن مثل WPA2"""
+        """لا تقم بالتشفير - أرجع الكلمة كما هي"""
+        return self.sanitize_input(password)    
+    def verify_password(self, password, stored_password, client_ip=None):
+        """التحقق من كلمة المرور - مقارنة مباشرة بدون تشفير"""
         
-        # 1. التحقق من حظر IP أولاً (سريع)
+        # 1. التحقق من حظر IP أولاً
         if client_ip and self.is_ip_locked(client_ip):
-            print(f"🚫 IP {client_ip} is locked")
+            print(f" IP {client_ip} is locked")
             return False
         
-        # 2. تنظيف المدخلات بسرعة
+        # 2. تنظيف المدخلات
         clean_password = self.sanitize_input(password)
-        clean_hashed = self.sanitize_input(hashed)
+        clean_stored = self.sanitize_input(stored_password)
         
-        # 3. تحقق سريع من الطول والتنسيق
-        if len(clean_password) > 100 or len(clean_hashed) != 60:
-            self.record_failed_attempt(client_ip)
-            return False
+        # 3. مقارنة مباشرة - فورية
+        is_valid = (clean_password == clean_stored)
         
-        if not clean_hashed.startswith('$2b$'):
-            self.record_failed_attempt(client_ip)
-            return False
-        
-        # 4. المقارنة المباشرة - مثل WPA2 (هذه تأخذ وقت BCrypt الطبيعي فقط)
-        try:
-            is_valid = bcrypt.checkpw(
-                clean_password.encode('utf-8'), 
-                clean_hashed.encode('utf-8')
-            )
-            
-            if is_valid:
-                if client_ip:
-                    self.reset_failed_attempts(client_ip)
-                return True
-            else:
-                if client_ip:
-                    self.record_failed_attempt(client_ip)
-                return False
-                
-        except Exception as e:
-            print(f"Password verification error: {e}")
+        # 4. تسجيل النتيجة
+        if is_valid:
+            if client_ip:
+                self.reset_failed_attempts(client_ip)
+            print(f" Password correct for IP: {client_ip}")
+            return True
+        else:
             if client_ip:
                 self.record_failed_attempt(client_ip)
+            print(f" Password incorrect for IP: {client_ip}")
             return False
     
     def record_failed_attempt(self, client_ip):
