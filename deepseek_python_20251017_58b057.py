@@ -2091,8 +2091,8 @@ def main():
     print("=" * 80)
     
     try:
-        server = ThreadedHTTPServer(('0.0.0.0', 8080), EnhancedRemoteControlHandler)
-        print(" Secure server started on port 8080!")
+        server = ThreadedHTTPServer(('0.0.0.0', 8082), EnhancedRemoteControlHandler)
+        print(" Secure server started on port 8082!")
         print(" Access the control panel after authentication")
         print(" Ultra-fast and fully secured")
         print("=" * 80)
