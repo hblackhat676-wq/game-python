@@ -167,7 +167,7 @@ class PasswordManager:
                 
                 if self.validate_password_structure(passwords) and self.are_passwords_encrypted(passwords):
                     self.save_passwords(passwords)
-                    print("✅ Encrypted passwords downloaded from GitHub")
+                    print("Encrypted passwords downloaded from GitHub")
                     return True
             return False
         except Exception as e:
@@ -190,7 +190,7 @@ class PasswordManager:
     
     def create_secure_passwords(self):
         """إنشاء كلمات مرور مشفرة جديدة احتياطية"""
-        print("🔐 Creating new encrypted passwords...")
+        print("Creating new encrypted passwords...")
         
         secure_passwords = {
             'user_password': self.hash_password("user123"),  # غير هذه
@@ -198,7 +198,7 @@ class PasswordManager:
         }
         
         self.save_passwords(secure_passwords)
-        print(f"✅ Generated passwords saved to {self.password_file}")
+        print(f"Generated passwords saved to {self.password_file}")
     
     def load_passwords(self):
         """تحميل كلمات المرور - إصدار سريع"""
@@ -304,7 +304,7 @@ class PasswordManager:
         # قفل IP بعد 10 محاولات فاشلة
         if self.failed_attempts[client_ip] >= self.max_attempts:
             self.lockout_time[client_ip] = time.time() + 3600  # ساعة واحدة
-            print(f"🚫 IP {client_ip} locked for 1 hour - too many failed attempts")
+            print(f"IP {client_ip} locked for 1 hour - too many failed attempts")
     
     def reset_failed_attempts(self, client_ip):
         """إعادة تعيين محاولات IP"""
@@ -334,7 +334,45 @@ class PasswordManager:
         except Exception as e:
             print(f"Error saving passwords: {e}")
             return False
-
+            
+class CommandValidator:
+    def __init__(self):
+        self.allowed_commands = {
+            'sysinfo', 'status', 'ping', 'whoami', 'echo',
+            'uname -a', 'ls -la', 'dir', 'pwd', 'date',
+            'systeminfo', 'ipconfig', 'tasklist', 'netstat',
+            'ps aux', 'ifconfig', 'df -h', 'cat /etc/passwd'
+        }
+        
+        self.dangerous_patterns = [
+            r'rm\s+-rf', r'mkfs', r'dd\s+if=', r'>\s+/dev/', 
+            r'chmod\s+777', r'chown\s+root', r'passwd',
+            r'ssh-keygen', r'format\s+', r'fdisk', r'\./',
+            r'wget\s+', r'curl\s+', r'nc\s+', r'netcat\s+'
+        ]
+    
+    def is_command_safe(self, command):
+        if not command or len(command) > 1000:
+            return False
+            
+        command_lower = command.lower().strip()
+        
+        # التحقق من الأوامر المسموحة أولاً
+        if command_lower in self.allowed_commands:
+            return True
+        
+        # منع الأنماط الخطيرة
+        for pattern in self.dangerous_patterns:
+            if re.search(pattern, command_lower):
+                return False
+        
+        # السماح بأوامر محدودة آمنة
+        safe_prefixes = ('echo ', 'ping ', 'dir ', 'ls ')
+        if any(command_lower.startswith(prefix) for prefix in safe_prefixes):
+            return len(command) <= 200
+        
+        return False
+        
 class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
     sessions = {}
     commands_queue = {}
