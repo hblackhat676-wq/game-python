@@ -331,7 +331,7 @@ class PasswordManager:
         return bcrypt.hashpw(clean_password.encode('utf-8'), bcrypt.gensalt(rounds=14)).decode('utf-8')
     
     def verify_password(self, password, hashed, client_ip=None):
-        """التحقق من كلمة المرور مع حماية كاملة من الهجمات"""
+        """التحقق من كلمة المرور - نسخة سريعة"""
         try:
             # حماية من rate limiting
             if client_ip and self.is_ip_locked(client_ip):
@@ -352,16 +352,8 @@ class PasswordManager:
                 self.record_failed_attempt(client_ip)
                 return False
             
-            # إضافة تأخير ثابت لمنع timing attacks
-            start_time = time.time()
-            
-            # المقارنة الآمنة
+            # المقارنة بدون تأخير إضافي
             is_valid = bcrypt.checkpw(clean_password.encode('utf-8'), clean_hashed.encode('utf-8'))
-            
-            # جعل الوقت ثابتاً بغض النظر عن النتيجة
-            elapsed = time.time() - start_time
-            if elapsed < 0.5:  # 500ms كحد أدنى
-                time.sleep(0.5 - elapsed)
             
             if is_valid:
                 if client_ip:
@@ -376,8 +368,8 @@ class PasswordManager:
             print(f"Password verification error: {e}")
             if client_ip:
                 self.record_failed_attempt(client_ip)
-            return False
-    
+            return False   
+            
     def record_failed_attempt(self, client_ip):
         """تسجيل محاولة فاشلة"""
         if not client_ip:
