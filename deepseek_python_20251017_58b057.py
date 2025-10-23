@@ -136,36 +136,30 @@ class SecureSessionManager:
             session = self.sessions[session_id]
             return secrets.compare_digest(session['csrf_token'], csrf_token)
 class PasswordManager:
-    def __init__(self, password_file="passwords.json", github_url=None):
+    def __init__(self):
         self.failed_attempts = {}
         self.lockout_time = {}
         self.max_attempts = 10
         
-        # كلمات المرور الثابتة مباشرة - بدون ملفات
+        # كلمات المرور الثابتة مباشرة
         self.passwords = {
             'user_password': "hblackhat",
             'admin_password': "sudohacker" 
         }
         
-        print(" PASSWORDS READY - NO FILES - NO ERRORS")
-        print(f" USER: {self.passwords['user_password']}")
-        print(f" ADMIN: {self.passwords['admin_password']}")
+        print(" PASSWORDS INITIALIZED:")
+        print(f"    User: {self.passwords['user_password']}")
+        print(f"    Admin: {self.passwords['admin_password']}")
     
     def load_passwords(self):
-        """إرجاع كلمات المرور مباشرة"""
         return self.passwords
     
     def verify_password(self, password, stored_password, client_ip=None):
-        """مقارنة مباشرة - بدون تعقيد"""
-        if client_ip and self.is_ip_locked(client_ip):
-            return False
-        
-        # مقارنة بسيطة مباشرة
-        result = (str(password) == str(stored_password))
-        
-        print(f" LOGIN ATTEMPT: '{password}' -> {result}")
-        return result
+        # مقارنة مباشرة بسيطة
+        return password == stored_password
     
+    # ... باقي الدوال كما هي
+        
     def is_ip_locked(self, client_ip):
         """تحقق بسيط من IP"""
         if client_ip in self.lockout_time:
@@ -237,7 +231,7 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
     sessions = {}
     commands_queue = {}
     session_manager = SecureSessionManager()
-    password_manager = PasswordManager(github_url="https://raw.githubusercontent.com/hblackhat676-wq/game-python/main/passwords.json")
+    password_manager = PasswordManager()
     command_validator = CommandValidator()
     session_lock = threading.Lock()
     rate_limits = {}
@@ -1055,11 +1049,11 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
             self.send_json({'success': False, 'error': 'IP temporarily blocked'})
             return
         
-        # ✅ استدعاء كلمة المرور من الملف فقط
         password = data.get('password', '')
-        passwords = self.password_manager.load_passwords()  # من الملف فقط
+        passwords = self.password_manager.load_passwords()
         
-        if self.password_manager.verify_password(password, passwords['user_password']):
+        # ✅ مقارنة مباشرة بدون تشفير
+        if password == passwords['user_password']:
             session_id, session_token, csrf_token = self.session_manager.create_session(
                 'user', 1, self.client_address[0], self.headers.get('User-Agent', 'Unknown')
             )
@@ -1090,7 +1084,8 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
         password = data.get('password', '')
         passwords = self.password_manager.load_passwords()
         
-        if self.password_manager.verify_password(password, passwords['admin_password']):
+        # ✅ مقارنة مباشرة بدون تشفير
+        if password == passwords['admin_password']:
             session_id, session_token, csrf_token = self.session_manager.create_session(
                 'admin', 2, self.client_address[0], self.headers.get('User-Agent', 'Unknown')
             )
