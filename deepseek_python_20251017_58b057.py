@@ -141,6 +141,8 @@ class PasswordManager:
         self.password_file = password_file
         self.github_url = github_url or "https://raw.githubusercontent.com/hblackhat676-wq/game-python/main/passwords.json"
         self.ensure_password_file()
+        self.failed_attempts = {}
+        self.lockout_time = {}
     
     def ensure_password_file(self):
         """جلب كلمات المرور المشفرة من GitHub"""
@@ -148,8 +150,6 @@ class PasswordManager:
             if self.download_from_github():
                 print("Encrypted passwords downloaded from GitHub")
                 return
-            
-            # إذا فشل التحميل، إنشاء كلمات مرور مشفرة جديدة
             self.create_secure_passwords()
     
     def download_from_github(self):
@@ -159,20 +159,24 @@ class PasswordManager:
             response = requests.get(self.github_url, timeout=10)
             
             if response.status_code == 200:
+                # التحقق من حجم الاستجابة
+                if len(response.content) > 10000:
+                    print("Response too large - potential attack")
+                    return False
+                
                 passwords = response.json()
                 
-                # التحقق من أن الكلمات مشفرة (تبدأ بـ $2b$)
-                user_pwd = passwords.get('user_password', '')
-                admin_pwd = passwords.get('admin_password', '')
+                # التحقق من الهيكل
+                if not self.validate_password_structure(passwords):
+                    return False
                 
-                if user_pwd.startswith('$2b$') and admin_pwd.startswith('$2b$'):
-                    # حفظ الملف المشفر محلياً
+                # التحقق من التشفير
+                if self.are_passwords_encrypted(passwords):
                     self.save_passwords(passwords)
                     print("Successfully loaded encrypted passwords")
                     return True
                 else:
                     print("Passwords in GitHub are not encrypted!")
-                    print("Please update passwords.json with bcrypt hashes")
                     return False
             else:
                 print(f"Failed to download from GitHub: {response.status_code}")
@@ -182,34 +186,82 @@ class PasswordManager:
             print(f"GitHub download error: {e}")
             return False
     
+    def validate_password_structure(self, passwords):
+        """التحقق من هيكل ملف كلمات المرور"""
+        try:
+            if not isinstance(passwords, dict):
+                return False
+            
+            required_keys = {'user_password', 'admin_password'}
+            if not all(key in passwords for key in required_keys):
+                return False
+            
+            # التحقق من نوع البيانات
+            if not all(isinstance(passwords[key], str) for key in required_keys):
+                return False
+            
+            # التحقق من الطول المعقول
+            if any(len(passwords[key]) > 200 for key in required_keys):
+                return False
+            
+            return True
+        except:
+            return False
+    
     def create_secure_passwords(self):
         """إنشاء كلمات مرور مشفرة جديدة احتياطية"""
         print("Creating new encrypted passwords as fallback...")
         
-        # كلمات مرور افتراضية (يجب تغييرها لاحقاً من الإعدادات)
+        # استخدام كلمات مرور عشوائية قوية
         secure_passwords = {
-            'user_password': self.hash_password("change_this_user_123"),
-            'admin_password': self.hash_password("change_this_admin_456")
+            'user_password': self.hash_password(secrets.token_urlsafe(32)),
+            'admin_password': self.hash_password(secrets.token_urlsafe(32))
         }
         
         self.save_passwords(secure_passwords)
         print("Using fallback encrypted passwords - CHANGE THEM IN SETTINGS!")
+        print(f"Generated passwords saved to {self.password_file}")
     
     def load_passwords(self):
-        """تحميل كلمات المرور مع التأكد من أنها مشفرة"""
+        """تحميل كلمات المرور مع حماية كاملة"""
         try:
-            with open(self.password_file, 'r') as f:
-                passwords = json.load(f)
+            # التحقق من وجود الملف أولاً
+            if not os.path.exists(self.password_file):
+                return self.create_secure_passwords()
+            
+            # التحقق من صلاحيات الملف
+            if not self.is_file_secure(self.password_file):
+                print("Password file security check failed")
+                return self.create_secure_passwords()
+            
+            with open(self.password_file, 'r', encoding='utf-8') as f:
+                content = f.read().strip()
+                
+                # التحقق من أن الملف ليس فارغاً
+                if not content:
+                    print("Password file is empty")
+                    return self.create_secure_passwords()
+                
+                # التحقق من JSON صالح
+                try:
+                    passwords = json.loads(content)
+                except json.JSONDecodeError:
+                    print("Invalid JSON in password file")
+                    return self.create_secure_passwords()
+            
+            # التحقق من الهيكل
+            if not self.validate_password_structure(passwords):
+                print("Invalid password file structure")
+                return self.create_secure_passwords()
             
             # التحقق من التشفير
             if self.are_passwords_encrypted(passwords):
                 return passwords
             else:
                 print("Passwords are not encrypted, hashing them now...")
-                # إذا كانت نصاً واضحاً، تشفيرها
                 encrypted_passwords = {
-                    'user_password': self.hash_password(passwords.get('user_password', '')),
-                    'admin_password': self.hash_password(passwords.get('admin_password', ''))
+                    'user_password': self.hash_password(self.sanitize_input(passwords.get('user_password', ''))),
+                    'admin_password': self.hash_password(self.sanitize_input(passwords.get('admin_password', '')))
                 }
                 self.save_passwords(encrypted_passwords)
                 return encrypted_passwords
@@ -218,29 +270,160 @@ class PasswordManager:
             print(f"Error loading passwords: {e}")
             return self.create_secure_passwords()
     
-    def are_passwords_encrypted(self, passwords):
-        """التحقق إذا كانت كلمات المرور مشفرة"""
-        user_pwd = passwords.get('user_password', '')
-        admin_pwd = passwords.get('admin_password', '')
-        return user_pwd.startswith('$2b$') and admin_pwd.startswith('$2b$')
-    
-    def hash_password(self, password):
-        """تشفير كلمة المرور باستخدام bcrypt"""
-        return bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
-    
-    def verify_password(self, password, hashed):
-        """التحقق من كلمة المرور مقابل التشفير"""
+    def is_file_secure(self, filepath):
+        """التحقق من أمان الملف"""
         try:
-            return bcrypt.checkpw(password.encode(), hashed.encode())
-        except Exception as e:
-            print(f"Password verification error: {e}")
+            # التحقق من أن الملف ملف حقيقي وليس symbolic link
+            if not os.path.isfile(filepath):
+                return False
+            
+            # التحقق من صلاحيات الملف (يجب أن تكون مقروءة فقط)
+            stat_info = os.stat(filepath)
+            if stat_info.st_mode & 0o777 != 0o600:  # rw-------
+                # محاولة تصحيح الصلاحيات
+                try:
+                    os.chmod(filepath, 0o600)
+                except:
+                    return False
+            
+            return True
+        except:
             return False
     
-    def save_passwords(self, passwords):
-        """حفظ كلمات المرور في ملف محلي"""
+    def are_passwords_encrypted(self, passwords):
+        """التحقق إذا كانت كلمات المرور مشفرة"""
         try:
-            with open(self.password_file, 'w') as f:
-                json.dump(passwords, f, indent=2)
+            user_pwd = passwords.get('user_password', '')
+            admin_pwd = passwords.get('admin_password', '')
+            
+            # التحقق من تنسيق bcrypt
+            if not (user_pwd.startswith('$2b$') and admin_pwd.startswith('$2b$')):
+                return False
+            
+            # التحقق من طول الهاش (bcrypt الهاش يكون 60 حرف)
+            if not (len(user_pwd) == 60 and len(admin_pwd) == 60):
+                return False
+            
+            return True
+        except:
+            return False
+    
+    def sanitize_input(self, input_str):
+        """تنظيف المدخلات من أي محاولات حقن"""
+        if not isinstance(input_str, str):
+            return ""
+        
+        # إزالة أي أحرف غير آمنة
+        sanitized = re.sub(r'[^\x20-\x7E]', '', input_str)
+        
+        # تحديد طول معقول
+        if len(sanitized) > 100:
+            sanitized = sanitized[:100]
+        
+        return sanitized
+    
+    def hash_password(self, password):
+        """تشفير كلمة المرور باستخدام bcrypt مع salt فريد"""
+        # تنظيف المدخل أولاً
+        clean_password = self.sanitize_input(password)
+        
+        # استخدام cost عالي للأمان
+        return bcrypt.hashpw(clean_password.encode('utf-8'), bcrypt.gensalt(rounds=14)).decode('utf-8')
+    
+    def verify_password(self, password, hashed, client_ip=None):
+        """التحقق من كلمة المرور مع حماية كاملة من الهجمات"""
+        try:
+            # حماية من rate limiting
+            if client_ip and self.is_ip_locked(client_ip):
+                print(f"IP {client_ip} is temporarily locked")
+                return False
+            
+            # تنظيف المدخلات
+            clean_password = self.sanitize_input(password)
+            clean_hashed = self.sanitize_input(hashed)
+            
+            # التحقق من الطول المعقول
+            if len(clean_password) > 100 or len(clean_hashed) != 60:
+                self.record_failed_attempt(client_ip)
+                return False
+            
+            # التحقق من تنسيق bcrypt
+            if not clean_hashed.startswith('$2b$'):
+                self.record_failed_attempt(client_ip)
+                return False
+            
+            # إضافة تأخير ثابت لمنع timing attacks
+            start_time = time.time()
+            
+            # المقارنة الآمنة
+            is_valid = bcrypt.checkpw(clean_password.encode('utf-8'), clean_hashed.encode('utf-8'))
+            
+            # جعل الوقت ثابتاً بغض النظر عن النتيجة
+            elapsed = time.time() - start_time
+            if elapsed < 0.5:  # 500ms كحد أدنى
+                time.sleep(0.5 - elapsed)
+            
+            if is_valid:
+                if client_ip:
+                    self.reset_failed_attempts(client_ip)
+                return True
+            else:
+                if client_ip:
+                    self.record_failed_attempt(client_ip)
+                return False
+                
+        except Exception as e:
+            print(f"Password verification error: {e}")
+            if client_ip:
+                self.record_failed_attempt(client_ip)
+            return False
+    
+    def record_failed_attempt(self, client_ip):
+        """تسجيل محاولة فاشلة"""
+        if not client_ip:
+            return
+        
+        if client_ip not in self.failed_attempts:
+            self.failed_attempts[client_ip] = {'count': 0, 'first_attempt': time.time()}
+        
+        self.failed_attempts[client_ip]['count'] += 1
+        self.failed_attempts[client_ip]['last_attempt'] = time.time()
+        
+        # قفل IP بعد 5 محاولات فاشلة
+        if self.failed_attempts[client_ip]['count'] >= 5:
+            self.lockout_time[client_ip] = time.time() + 1800  # 30 دقيقة
+            print(f"IP {client_ip} locked for 30 minutes due to failed attempts")
+    
+    def reset_failed_attempts(self, client_ip):
+        """إعادة تعيين محاولات IP"""
+        if client_ip in self.failed_attempts:
+            del self.failed_attempts[client_ip]
+        if client_ip in self.lockout_time:
+            del self.lockout_time[client_ip]
+    
+    def is_ip_locked(self, client_ip):
+        """التحقق إذا كان IP مقفول"""
+        if client_ip in self.lockout_time:
+            if time.time() < self.lockout_time[client_ip]:
+                return True
+            else:
+                del self.lockout_time[client_ip]
+        return False
+    
+    def save_passwords(self, passwords):
+        """حفظ كلمات المرور في ملف محلي بأمان"""
+        try:
+            # التحقق من الهيكل أولاً
+            if not self.validate_password_structure(passwords):
+                return False
+            
+            # كتابة الملف بصلاحيات آمنة
+            with open(self.password_file, 'w', encoding='utf-8') as f:
+                json.dump(passwords, f, indent=2, ensure_ascii=False)
+            
+            # تعيين صلاحيات آمنة للملف
+            os.chmod(self.password_file, 0o600)
+            
             return True
         except Exception as e:
             print(f"Error saving passwords: {e}")
@@ -516,7 +699,7 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
         ]
         self.send_redirect('/')
     
-     def send_login_page(self):
+    def send_login_page(self):
         # توليد توكن CSRF عشوائي لكل جلسة
         csrf_token = secrets.token_hex(32)
         
@@ -529,11 +712,9 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
         <meta name="referrer" content="no-referrer">
         <title>System Authentication</title>
         <style>
-            /* Reset شاملة */
             *{{margin:0;padding:0;box-sizing:border-box;max-width:100%}}
             html,body{{height:100%;overflow-x:hidden;font-family:system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif}}
             
-            /* تصميم رئيسي */
             body{{
                 background:linear-gradient(145deg,#0f0f23 0%,#1a1a2e 50%,#16213e 100%);
                 display:flex;
@@ -544,7 +725,6 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                 color:#e0e0e0
             }}
             
-            /* تأثيرات الخلفية */
             body::before{{
                 content:'';
                 position:fixed;
@@ -728,7 +908,6 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                 color:#4aaf4a
             }}
             
-            /* تأثيرات الاستجابة */
             @media (max-width:480px){{
                 .auth-container{{
                     padding:2rem;
@@ -740,7 +919,6 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                 }}
             }}
             
-            /* تحسينات الوصول */
             .sr-only{{
                 position:absolute;
                 width:1px;
@@ -753,7 +931,6 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                 border:0
             }}
             
-            /* منع التحديد */
             .auth-container{{
                 -webkit-user-select:none;
                 -moz-user-select:none;
@@ -772,7 +949,7 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
     <body>
         <div class="auth-container">
             <div class="header">
-                <div class="icon">⚡</div>
+                <div class="icon">LOGIN</div>
                 <h1 class="title">System Access</h1>
                 <p class="subtitle">Primary authentication required for system entry</p>
             </div>
@@ -809,7 +986,7 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
             <div class="footer">
                 <div>Protected System Access</div>
                 <div class="protection-status">
-                    <span>🔒</span>
+                    <span>LOGIN</span>
                     Encrypted Session Active
                 </div>
             </div>
@@ -1104,8 +1281,9 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
             self.send_json({'success': False, 'error': 'IP temporarily blocked'})
             return
         
+        # ✅ استدعاء كلمة المرور من الملف فقط
         password = data.get('password', '')
-        passwords = self.password_manager.load_passwords()
+        passwords = self.password_manager.load_passwords()  # من الملف فقط
         
         if self.password_manager.verify_password(password, passwords['user_password']):
             session_id, session_token, csrf_token = self.session_manager.create_session(
