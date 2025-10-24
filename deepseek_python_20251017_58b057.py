@@ -21,7 +21,7 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
     commands_queue = {}
     failed_attempts = {}
     
-    # ⚡ INSTANT PASSWORD SYSTEM
+    #  INSTANT PASSWORD SYSTEM
     PASSWORD_FILE = "passwords.json"
     DEFAULT_PASSWORDS = {
         "user_password": "hblackhat",
