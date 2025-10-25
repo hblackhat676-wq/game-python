@@ -10,7 +10,9 @@ import sqlite3
 import os
 from datetime import datetime
 import socketserver
-
+class ThreadedHTTPServer(socketserver.ThreadingMixIn, HTTPServer):
+    daemon_threads = True
+    allow_reuse_address = True
 class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
     sessions = {}
     commands_queue = {}
@@ -1816,8 +1818,8 @@ def main():
     print("Control Panel:     https://game-python-1.onrender.com")
     print("Python Client:     https://game-python-1.onrender.com/download-python-client")
     print("Security Settings: https://game-python-1.onrender.com/settings")
-    print("Level 1 Password: hblackhat")
-    print("Level 2 Password: sudohacker")
+    print("Level 1 Password: _____")
+    print("Level 2 Password: _____")
     print("Database:         remote_control.db")
     print("=" * 80)
     print(" INSTANT MODE ACTIVATED - 0ms RESPONSE TIME")
@@ -1826,6 +1828,7 @@ def main():
     print("=" * 80)
     
     try:
+        # 🔥 استخدم ThreadedHTTPServer الجديد
         server = ThreadedHTTPServer(('0.0.0.0', 8080), EnhancedRemoteControlHandler)
         print(" Server started INSTANTLY on port 8080! Press Ctrl+C to stop.")
         print(" Features: Instant Execution, 0ms Delay, Real-time Responses")
