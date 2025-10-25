@@ -1285,8 +1285,8 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                                         <small>User: ${client.user || 'Unknown'}</small><br>
                                         <small>OS: ${client.os || 'Unknown'}</small><br>
                                         <small>IP: ${client.ip || 'Unknown'}</small><br>
-                                        <small>Status: 🟢 CONNECTED</small>
-                                        <small style="color: ${statusColor}; font-weight: bold;"> • ${statusText}</small>
+                                        <small>Status:  CONNECTED</small>
+                                        <small style="color: ${statusColor}; font-weight: bold;"> ${statusText}</small>
                                     </div>
                                 `;
                             } catch (error) {
@@ -1295,7 +1295,7 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                                         <div class="online-status" title="ONLINE"></div>
                                         <strong style="color: #28a745">${client.id}</strong><br>
                                         <small>User: ${client.user || 'Unknown'}</small><br>
-                                        <small>Status: 🟢 CONNECTED</small>
+                                        <small>Status:  CONNECTED</small>
                                     </div>
                                 `;
                             }
