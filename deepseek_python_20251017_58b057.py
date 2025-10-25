@@ -803,25 +803,17 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
     def handle_login(self, data):
         client_ip = self.client_address[0]
         
-        if client_ip in self.failed_attempts:
-            if self.failed_attempts[client_ip]['count'] >= self.MAX_FAILED_ATTEMPTS:
-                time_diff = time.time() - self.failed_attempts[client_ip]['last_attempt']
-                if time_diff < self.BLOCK_TIME:
-                    self.send_json({'success': False, 'error': 'Too many failed attempts. Try again later.'})
-                    return
-                else:
-                    del self.failed_attempts[client_ip]
-        
+        # 🔥 أعد تفعيل التحقق من كلمة المرور
         password = data.get('password', '')
         expected_hash = self.get_password_hash("user_password")
         
         if hashlib.sha256(password.encode()).hexdigest() == expected_hash:
+            # 🔒 إنشاء جلسة
             session_id = self.create_session("user")
-            self.set_session_cookie(session_id)
-            self.failed_attempts[client_ip] = {'count': 0, 'last_attempt': time.time()}
-            self.log_security_event("Level 1 authentication successful")
             self.send_json({'success': True, 'instant': True})
+            self.set_session_cookie(session_id)  # 🔥 تأكد من إضافة هذا السطر
         else:
+            # كود الخطأ الحالي
             if client_ip not in self.failed_attempts:
                 self.failed_attempts[client_ip] = {'count': 0, 'last_attempt': time.time()}
             
@@ -841,10 +833,10 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
         expected_hash = self.get_password_hash("admin_password")
         
         if hashlib.sha256(password.encode()).hexdigest() == expected_hash:
-            session_id = self.create_session("admin") 
-            self.set_session_cookie(session_id)
-            self.log_security_event("Admin authentication successful")
+            # 🔒 إنشاء جلسة أدمن
+            session_id = self.create_session("admin")
             self.send_json({'success': True, 'instant': True})
+            self.set_session_cookie(session_id)  # 🔥 تأكد من إضافة هذا السطر
         else:
             self.log_security_event("Failed admin authentication")
             self.block_ip(client_ip)
