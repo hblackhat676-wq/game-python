@@ -1306,7 +1306,7 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                                         <small>OS: ${client.os || 'Unknown'}</small><br>
                                         <small>IP: ${client.ip}</small><br>
                                         <small>Last: ${timeDiff.toFixed(0)}s ago</small>
-                                        <small style="color: ${statusColor}; font-weight: bold;"> • ${statusText}</small>
+                                        <small style="color: ${statusColor}; font-weight: bold;"> ${statusText}</small>
                                     </div>
                                 `;
                             } catch (error) {
