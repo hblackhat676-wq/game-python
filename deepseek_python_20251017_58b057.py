@@ -1575,8 +1575,8 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                 last_seen = datetime.fromisoformat(client_data['last_seen'])
                 time_diff = (current_time - last_seen).total_seconds()
             
-                if time_diff < 30:  # 0.5 minutes
-                    client_data['is_online'] = time_diff < 5  # ⚡ 5 seconds for online
+                if time_diff < 300:  # 5 minutes
+                    client_data['is_online'] = time_diff < 30  # ⚡ 5 seconds for online
                     client_data['last_seen_seconds'] = time_diff
                     active_clients.append(client_data)
                 else:
@@ -1686,7 +1686,7 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
             status = {
                 'uptime': 'Running - INSTANT MODE',
                 'connected_clients': len([c for c in self.sessions.values() 
-                                        if (datetime.now() - datetime.fromisoformat(c['last_seen'])).total_seconds() < 30]),
+                                        if (datetime.now() - datetime.fromisoformat(c['last_seen'])).total_seconds() < 300]),
                 'total_commands': 0,
                 'server_time': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
                 'mode': 'INSTANT',
