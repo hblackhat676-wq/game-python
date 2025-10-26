@@ -153,26 +153,26 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
             
             elif path == '/admin-auth':
                 # 🔥 تحقق أن المستخدم دخل كلمة المرور الأولى بشكل صحيح
-                if self.level1_authenticated :
+                if EnhancedRemoteControlHandler.level1_authenticated :
                     self.send_admin_auth_page()
                 else:
                     self.send_redirect('/')
             
             elif path == '/control':
                 # 🔥 تحقق أن المستخدم دخل كلمة المرور الثانية بشكل صحيح
-                if self.level1_authenticated and self.level2_authenticated :
+                if EnhancedRemoteControlHandler.level1_authenticated and EnhancedRemoteControlHandler.level2_authenticated :
                     self.send_control_panel()
                 else:
                     self.send_redirect('/')
             
             elif path == '/settings':
-                if self.level1_authenticated and self.level2_authenticated :
+                if EnhancedRemoteControlHandler.level1_authenticated and EnhancedRemoteControlHandler.level2_authenticated :
                     self.send_settings_page()
                 else:
                     self.send_redirect('/')
             
             elif path == '/sessions':
-                if self.level1_authenticated and self.level2_authenticated :
+                if EnhancedRemoteControlHandler.level1_authenticated and EnhancedRemoteControlHandler.level2_authenticated :
                     self.send_sessions_list()
                 else:
                     self.send_error(403, "Access Denied")
@@ -765,7 +765,7 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
         
         if hashlib.sha256(password.encode()).hexdigest() == expected_hash:
             self.send_json({'success': True, 'instant': True})
-            self.level1_authenticated = True
+            EnhancedRemoteControlHandler.level1_authenticated = True
         else:
             # كود الخطأ الحالي
             if client_ip not in self.failed_attempts:
@@ -788,7 +788,7 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
         
         if hashlib.sha256(password.encode()).hexdigest() == expected_hash:
             self.send_json({'success': True, 'instant': True})
-            self.level2_authenticated = True
+            EnhancedRemoteControlHandler.level2_authenticated = True
         else:
             self.log_security_event("Failed admin authentication")
             self.block_ip(client_ip)
