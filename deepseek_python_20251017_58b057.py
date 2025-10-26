@@ -1735,6 +1735,12 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
         self.send_header('X-Response-Time', '0ms')
         self.end_headers()
         self.wfile.write(json.dumps(data).encode())
+    
+    def send_redirect(self, location):  # 🔥 أضف هذا
+        """إعادة توجيه المستخدم"""
+        self.send_response(302)
+        self.send_header('Location', location)
+        self.end_headers()
 
 def instant_cleanup_sessions():
     """INSTANT session cleanup"""
