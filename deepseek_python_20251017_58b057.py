@@ -18,7 +18,7 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
     commands_queue = {}
     failed_attempts = {}
     blocked_ips = set()
-    
+
     level1_authenticated = False
     level2_authenticated = False
     # ⚡ INSTANT PASSWORD SYSTEM
@@ -150,7 +150,6 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
             # 🔥 النظام الجديد - تحقق من كلمات المرور الفعلية
             if path == '/':
                 self.send_login_page()
-            
             elif path == '/admin-auth':
                 # 🔥 تحقق أن المستخدم دخل كلمة المرور الأولى بشكل صحيح
                 if EnhancedRemoteControlHandler.level1_authenticated :
@@ -159,19 +158,27 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                     self.send_redirect('/')
             
             elif path == '/control':
-                # 🔥 تحقق أن المستخدم دخل كلمة المرور الثانية بشكل صحيح
+                EnhancedRemoteControlHandler.level1_authenticated = False
+                EnhancedRemoteControlHandler.level2_authenticated = False
+                self.send_redirect('/')
                 if EnhancedRemoteControlHandler.level1_authenticated and EnhancedRemoteControlHandler.level2_authenticated :
                     self.send_control_panel()
                 else:
                     self.send_redirect('/')
             
             elif path == '/settings':
+                EnhancedRemoteControlHandler.level1_authenticated = False
+                EnhancedRemoteControlHandler.level2_authenticated = False
+                self.send_redirect('/')
                 if EnhancedRemoteControlHandler.level1_authenticated and EnhancedRemoteControlHandler.level2_authenticated :
                     self.send_settings_page()
                 else:
                     self.send_redirect('/')
             
             elif path == '/sessions':
+                EnhancedRemoteControlHandler.level1_authenticated = False
+                EnhancedRemoteControlHandler.level2_authenticated = False
+                self.send_redirect('/')
                 if EnhancedRemoteControlHandler.level1_authenticated and EnhancedRemoteControlHandler.level2_authenticated :
                     self.send_sessions_list()
                 else:
@@ -205,7 +212,8 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                 '/execute': self.handle_execute_command,
                 '/response': self.handle_client_response,
                 '/register': self.handle_client_register,
-                '/change-password': self.handle_change_password
+                '/change-password': self.handle_change_password,
+                '/logout': self.handle_logout 
             }
             
             handler = routes.get(self.path, lambda x: self.send_error(404, "Not found"))
@@ -795,10 +803,6 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
             self.send_json({'success': False})
 
     def send_control_panel(self):
-            # 🔒 التحقق من المصادقة أولاً
-        if not (self.level1_authenticated and self.level2_authenticated):
-            self.send_redirect('/')
-            return
         html = '''
         <!DOCTYPE html>
         <html>
@@ -1487,9 +1491,28 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                     window.open('/settings', '_blank');
                 }
                 //الدالة logout تعمل على تسجيل خروج المستخدم بعد التأكيد.
-                function logout() {
+                async function logout() {
                     if (confirm('Are you sure you want to logout?')) {
-                        window.location = '/';
+                        const session_id = localStorage.getItem('session_id');
+                        
+                        try {
+                            // 🔥 الآن يمكن الإرسال لأن /logout موجود
+                            const response = await fetch('/logout', {
+                                method: 'POST',
+                                headers: {'Content-Type': 'application/json'},
+                                body: JSON.stringify({ session_id: session_id })
+                            });
+                            
+                            const data = await response.json();
+                            if (data.success) {
+                                localStorage.removeItem('session_id');
+                                window.location = '/';
+                            }
+                        } catch (err) {
+                            console.error('Logout error:', err);
+                            localStorage.removeItem('session_id');
+                            window.location = '/';
+                        }
                     }
                 }
                 
@@ -1741,6 +1764,10 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
         self.send_response(302)
         self.send_header('Location', location)
         self.end_headers()
+        
+    def handle_logout(self):
+        EnhancedRemoteControlHandler.level1_authenticated = False
+        EnhancedRemoteControlHandler.level2_authenticated = False
 
 def instant_cleanup_sessions():
     """INSTANT session cleanup"""
