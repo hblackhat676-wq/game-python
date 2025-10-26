@@ -199,34 +199,95 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
         pass
     
     def do_GET(self):
-        """INSTANT GET request handling"""
         if not self.check_security():
             return
             
         try:
-            parsed_path = urllib.parse.urlparse(self.path)
-            path = parsed_path.path
+            path = urllib.parse.urlparse(self.path).path
             
-            # ⚡ INSTANT ROUTING - إزالة المسارات المتعلقة بالويب
-            routes = {
-                '/': self.send_login_page,
-                '/admin-auth': self.send_admin_auth_page,
-                '/control': self.send_control_panel,
-                '/sessions': self.send_sessions_list,
-                '/commands': self.handle_get_commands,
-                '/result': self.handle_get_result,
-                '/download-client': self.download_python_client,
-                '/download-python-client': self.download_python_client,
-                '/history': self.send_command_history,
-                '/status': self.send_system_status,
-                '/settings': self.send_settings_page
-            }
+            # 🔥 النظام الجديد - تحقق من كلمات المرور الفعلية
+            if path == '/':
+                self.send_login_page()
             
-            handler = routes.get(path, self.send_404_page)
-            handler()
+            elif path == '/admin-auth':
+                # 🔥 تحقق أن المستخدم دخل كلمة المرور الأولى بشكل صحيح
+                if self.verify_level1_password():
+                    self.send_admin_auth_page()
+                else:
+                    self.send_redirect('/')
+            
+            elif path == '/control':
+                # 🔥 تحقق أن المستخدم دخل كلمة المرور الثانية بشكل صحيح
+                if self.verify_level2_password():
+                    self.send_control_panel()
+                else:
+                    self.send_redirect('/admin-auth')
+            
+            elif path == '/settings':
+                if self.verify_level2_password():
+                    self.send_settings_page()
+                else:
+                    self.send_redirect('/admin-auth')
+            
+            elif path == '/sessions':
+                if self.verify_level2_password():
+                    self.send_sessions_list()
+                else:
+                    self.send_error(403, "Access Denied")
+            
+            else:
+                self.send_404_page()
                 
         except Exception as e:
             self.send_error(500, str(e))
+    
+    def verify_level1_password(self):
+        """🔒 تحقق أن المستخدم دخل كلمة المرور الأولى الصحيحة"""
+        try:
+            # 🔥 احصل على كلمة المرور من الطلب
+            content_length = int(self.headers.get('Content-Length', 0))
+            if content_length > 0:
+                post_data = self.rfile.read(content_length).decode('utf-8')
+                data = json.loads(post_data) if post_data else {}
+                password = data.get('password', '')
+                
+                # 🔥 تحقق من كلمة المرور الفعلية
+                expected_hash = self.get_password_hash("user_password")
+                return hashlib.sha256(password.encode()).hexdigest() == expected_hash
+            
+            # 🔥 أو تحقق من الجلسة إذا كانت موجودة
+            session_id = self.get_session_id()
+            if session_id and session_id in self.user_sessions:
+                session = self.user_sessions[session_id]
+                return session.get('user_type') == "user"
+                
+            return False
+        except:
+            return False
+    
+    def verify_level2_password(self):
+        """🔒 تحقق أن المستخدم دخل كلمة المرور الثانية الصحيحة"""
+        try:
+            # 🔥 احصل على كلمة المرور من الطلب
+            content_length = int(self.headers.get('Content-Length', 0))
+            if content_length > 0:
+                post_data = self.rfile.read(content_length).decode('utf-8')
+                data = json.loads(post_data) if post_data else {}
+                password = data.get('password', '')
+                
+                # 🔥 تحقق من كلمة المرور الفعلية
+                expected_hash = self.get_password_hash("admin_password")
+                return hashlib.sha256(password.encode()).hexdigest() == expected_hash
+            
+            # 🔥 أو تحقق من الجلسة إذا كانت موجودة
+            session_id = self.get_session_id()
+            if session_id and session_id in self.user_sessions:
+                session = self.user_sessions[session_id]
+                return session.get('user_type') == "admin"
+                
+            return False
+        except:
+            return False
     
     def do_POST(self):
         """INSTANT POST request handling"""
@@ -810,6 +871,8 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
         if hashlib.sha256(password.encode()).hexdigest() == expected_hash:
             # 🔒 إنشاء جلسة
             session_id = self.create_session("user")
+            self.user_sessions[session_id]['password_verified'] = True  # 🔥 علامة التحقق
+            self.user_sessions[session_id]['level1_passed'] = True      # 🔥 علامة المستوى الأول
             self.send_json({'success': True, 'instant': True})
             self.set_session_cookie(session_id)  # 🔥 تأكد من إضافة هذا السطر
         else:
@@ -835,6 +898,8 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
         if hashlib.sha256(password.encode()).hexdigest() == expected_hash:
             # 🔒 إنشاء جلسة أدمن
             session_id = self.create_session("admin")
+            self.user_sessions[session_id]['password_verified'] = True  # 🔥 علامة التحقق
+            self.user_sessions[session_id]['level2_passed'] = True # 🔥 علامة المستوى الثاني
             self.send_json({'success': True, 'instant': True})
             self.set_session_cookie(session_id)  # 🔥 تأكد من إضافة هذا السطر
         else:
