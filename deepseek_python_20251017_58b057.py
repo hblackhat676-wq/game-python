@@ -19,9 +19,6 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
     failed_attempts = {}
     blocked_ips = set()
     
-    # 🔒 🔥 نظام الجلسات الجديد - ضعه هنا
-    user_sessions = {}
-    session_timeout = 3600  # ساعة واحدة
     level1_authenticated = False
     level2_authenticated = False
     # ⚡ INSTANT PASSWORD SYSTEM
@@ -30,62 +27,6 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
         "user_password": "hblackhat", 
         "admin_password": "sudohacker"
     }
-    
-    # 🔒 دوال نظام الجلسات
-    def create_session(self, user_type):
-        """إنشاء جلسة جديدة"""
-        session_id = str(uuid.uuid4())
-        self.user_sessions[session_id] = {
-            'user_type': user_type,
-            'created_at': time.time(),
-            'last_activity': time.time(),
-            'ip': self.client_address[0]
-        }
-        return session_id
-    
-    def validate_session(self, session_id):
-        """التحقق من صحة الجلسة"""
-        if session_id in self.user_sessions:
-            session = self.user_sessions[session_id]
-            if (time.time() - session['last_activity'] < self.session_timeout and 
-                session['ip'] == self.client_address[0]):
-                session['last_activity'] = time.time()
-                return session
-            else:
-                del self.user_sessions[session_id]
-        return None
-    
-    def require_auth(self, required_level="user"):
-        """🔒 التحقق من المصادقة"""
-        session_id = self.get_session_id()
-        if not session_id:
-            return False
-        session = self.validate_session(session_id)
-        if not session:
-            return False
-        if required_level == "admin" and session['user_type'] != "admin":
-            return False
-        return True
-    
-    def get_session_id(self):
-        """الحصول على معرف الجلسة من الكوكيز"""
-        cookie_header = self.headers.get('Cookie', '')
-        cookies = {}
-        for cookie in cookie_header.split(';'):
-            if '=' in cookie:
-                key, value = cookie.strip().split('=', 1)
-                cookies[key] = value
-        return cookies.get('session_id')
-    
-    def set_session_cookie(self, session_id):
-        """تعيين كوكي الجلسة"""
-        self.send_header('Set-Cookie', f'session_id={session_id}; HttpOnly; Path=/; Max-Age=3600')
-        
-    def send_redirect(self, location):
-        """إعادة توجيه المستخدم"""
-        self.send_response(302)
-        self.send_header('Location', location)
-        self.end_headers()
     
     def load_passwords(self):
         """INSTANT password loading"""
@@ -823,10 +764,7 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
         expected_hash = self.get_password_hash("user_password")
         
         if hashlib.sha256(password.encode()).hexdigest() == expected_hash:
-            # 🔒 إنشاء جلسة
-            session_id = self.create_session("user")
             self.send_json({'success': True, 'instant': True})
-            self.set_session_cookie(session_id)  # 🔥 تأكد من إضافة هذا السطر
             self.level1_authenticated = True
         else:
             # كود الخطأ الحالي
@@ -849,10 +787,7 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
         expected_hash = self.get_password_hash("admin_password")
         
         if hashlib.sha256(password.encode()).hexdigest() == expected_hash:
-            # 🔒 إنشاء جلسة أدمن
-            session_id = self.create_session("admin")
             self.send_json({'success': True, 'instant': True})
-            self.set_session_cookie(session_id)  # 🔥 تأكد من إضافة هذا السطر
             self.level2_authenticated = True
         else:
             self.log_security_event("Failed admin authentication")
@@ -861,7 +796,7 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
 
     def send_control_panel(self):
             # 🔒 التحقق من المصادقة أولاً
-        if not self.require_auth("admin"):
+        if not (self.level1_authenticated and self.level2_authenticated):
             self.send_redirect('/')
             return
         html = '''
