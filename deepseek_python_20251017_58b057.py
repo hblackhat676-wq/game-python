@@ -18,7 +18,6 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
     commands_queue = {}
     failed_attempts = {}
     blocked_ips = set()
-
     level1_authenticated = False
     level2_authenticated = False
     # ⚡ INSTANT PASSWORD SYSTEM
@@ -158,27 +157,18 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                     self.send_redirect('/')
             
             elif path == '/control':
-                EnhancedRemoteControlHandler.level1_authenticated = False
-                EnhancedRemoteControlHandler.level2_authenticated = False
-                self.send_redirect('/')
                 if EnhancedRemoteControlHandler.level1_authenticated and EnhancedRemoteControlHandler.level2_authenticated :
                     self.send_control_panel()
                 else:
                     self.send_redirect('/')
             
             elif path == '/settings':
-                EnhancedRemoteControlHandler.level1_authenticated = False
-                EnhancedRemoteControlHandler.level2_authenticated = False
-                self.send_redirect('/')
                 if EnhancedRemoteControlHandler.level1_authenticated and EnhancedRemoteControlHandler.level2_authenticated :
                     self.send_settings_page()
                 else:
                     self.send_redirect('/')
             
             elif path == '/sessions':
-                EnhancedRemoteControlHandler.level1_authenticated = False
-                EnhancedRemoteControlHandler.level2_authenticated = False
-                self.send_redirect('/')
                 if EnhancedRemoteControlHandler.level1_authenticated and EnhancedRemoteControlHandler.level2_authenticated :
                     self.send_sessions_list()
                 else:
