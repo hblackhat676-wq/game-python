@@ -1,4 +1,4 @@
-# server.py - Enhanced Version for Render.com
+# server.py - Ultra Secure Remote Control System
 from http.server import HTTPServer, BaseHTTPRequestHandler
 import json
 import time
@@ -10,6 +10,7 @@ import sqlite3
 import os
 from datetime import datetime
 import socketserver
+import secrets
 
 class ThreadedHTTPServer(socketserver.ThreadingMixIn, HTTPServer):
     daemon_threads = True
@@ -21,12 +22,12 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
     failed_attempts = {}
     blocked_ips = set()
     
-    # 🔐 نظام الجلسات الآمن
+    # 🔐 نظام الجلسات الآمن المتقدم
     user_sessions = {}
-    level1_authenticated = False
-    level2_authenticated = False
+    SESSION_TIMEOUT = 1800  # 30 دقيقة
+    MAX_SESSIONS_PER_IP = 3
     
-    # ⚡ INSTANT PASSWORD SYSTEM
+    # 🔑 نظام كلمات المرور
     PASSWORD_FILE = "passwords.json"
     DEFAULT_PASSWORDS = {
         "user_password": "hblackhat", 
@@ -34,9 +35,12 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
     }
     
     session_lock = threading.Lock()
-    MAX_FAILED_ATTEMPTS = 5
-    BLOCK_TIME = 900  # 15 دقيقة
+    MAX_FAILED_ATTEMPTS = 3  # قللنا المحاولات لزيادة الأمان
+    BLOCK_TIME = 1800  # 30 دقيقة للحظر
     
+    # 🔒 مفتاح تشفير للجلسات
+    SECRET_KEY = secrets.token_hex(32)
+
     def load_passwords(self):
         """تحميل كلمات المرور"""
         try:
@@ -48,10 +52,11 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
         return self.DEFAULT_PASSWORDS.copy()
     
     def get_password_hash(self, password_type):
-        """إنشاء هاش كلمة المرور"""
+        """إنشاء هاش كلمة المرور مع salt"""
         passwords = self.load_passwords()
         password = passwords.get(password_type, "")
-        return hashlib.sha256(password.encode()).hexdigest()
+        salt = "ULTRA_SECURE_SALT_2024"
+        return hashlib.sha256((password + salt + self.SECRET_KEY).encode()).hexdigest()
     
     def init_database(self):
         """تهيئة قاعدة البيانات"""
@@ -88,6 +93,13 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                     changed_by TEXT,
                     password_type TEXT,
                     timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+                )''',
+                '''CREATE TABLE IF NOT EXISTS login_attempts (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    ip TEXT,
+                    username TEXT,
+                    success BOOLEAN,
+                    timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
                 )'''
             ]
             
@@ -112,18 +124,109 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
         except:
             pass
     
+    def log_login_attempt(self, ip, success):
+        """تسجيل محاولات الدخول"""
+        try:
+            if hasattr(self, 'cursor'):
+                self.cursor.execute(
+                    'INSERT INTO login_attempts (ip, success) VALUES (?, ?)',
+                    (ip, success)
+                )
+                self.conn.commit()
+        except:
+            pass
+    
+    # 🔐 نظام الجلسات الآمن
+    def create_session(self, client_ip):
+        """إنشاء جلسة آمنة جديدة"""
+        session_id = str(uuid.uuid4()) + secrets.token_hex(16)
+        
+        # التحقق من عدد الجلسات لنفس IP
+        sessions_count = sum(1 for s in self.user_sessions.values() if s['ip'] == client_ip)
+        if sessions_count >= self.MAX_SESSIONS_PER_IP:
+            return None
+        
+        self.user_sessions[session_id] = {
+            'level1': False,
+            'level2': False,
+            'ip': client_ip,
+            'created_at': time.time(),
+            'last_activity': time.time(),
+            'user_agent': self.headers.get('User-Agent', 'Unknown')
+        }
+        return session_id
+    
+    def get_session_id(self):
+        """استخراج معرف الجلسة من الكوكيز"""
+        cookie_header = self.headers.get('Cookie', '')
+        cookies = {}
+        for cookie in cookie_header.split(';'):
+            if '=' in cookie:
+                key, value = cookie.strip().split('=', 1)
+                cookies[key] = value
+        return cookies.get('session_id')
+    
+    def validate_session(self, session_id):
+        """التحقق من صحة الجلسة"""
+        if not session_id or session_id not in self.user_sessions:
+            return False
+        
+        session = self.user_sessions[session_id]
+        
+        # التحقق من انتهاء الصلاحية
+        if time.time() - session['last_activity'] > self.SESSION_TIMEOUT:
+            del self.user_sessions[session_id]
+            return False
+        
+        # التحقق من عنوان IP
+        if session['ip'] != self.client_address[0]:
+            del self.user_sessions[session_id]
+            return False
+        
+        # تحديث وقت النشاط
+        session['last_activity'] = time.time()
+        return True
+    
+    def get_session_level(self, session_id, level):
+        """الحصول على مستوى الصلاحية"""
+        if not self.validate_session(session_id):
+            return False
+        
+        session = self.user_sessions[session_id]
+        return session.get(level, False)
+    
+    def cleanup_expired_sessions(self):
+        """تنظيف الجلسات المنتهية"""
+        current_time = time.time()
+        expired_sessions = []
+        
+        for session_id, session_data in self.user_sessions.items():
+            if current_time - session_data['last_activity'] > self.SESSION_TIMEOUT:
+                expired_sessions.append(session_id)
+        
+        for session_id in expired_sessions:
+            del self.user_sessions[session_id]
+    
+    # 🔒 نظام الحماية
     def is_ip_blocked(self):
         """التحقق إذا كان IP محظور"""
-        return self.client_address[0] in self.blocked_ips
+        client_ip = self.client_address[0]
+        if client_ip in self.blocked_ips:
+            # التحقق إذا انتهى وقت الحظر
+            if time.time() - self.blocked_ips[client_ip] > self.BLOCK_TIME:
+                del self.blocked_ips[client_ip]
+                return False
+            return True
+        return False
     
     def block_ip(self, ip):
         """حظر IP"""
-        self.blocked_ips.add(ip)
+        self.blocked_ips[ip] = time.time()
         self.log_security_event(f"IP Blocked: {ip}")
         print(f"🔒 BLOCKED: {ip}")
     
     def check_security(self):
-        """التحقق الأمني"""
+        """التحقق الأمني المتقدم"""
         client_ip = self.client_address[0]
         
         if self.is_ip_blocked():
@@ -133,11 +236,15 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
         # ⚡ تحديد معدل الطلبات
         current_time = time.time()
         if hasattr(self, 'last_request_time'):
-            if current_time - self.last_request_time < 0.1:  # خففت من 0.01 إلى 0.1
+            if current_time - self.last_request_time < 0.1:
                 self.block_ip(client_ip)
                 return False
         
         self.last_request_time = current_time
+        
+        # تنظيف الجلسات المنتهية
+        self.cleanup_expired_sessions()
+        
         return True
     
     def log_message(self, format, *args):
@@ -150,24 +257,28 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
 
         try:
             path = urllib.parse.urlparse(self.path).path
+            session_id = self.get_session_id()
             
             if path == '/':
                 self.send_login_page()
             
             elif path == '/admin-auth':
-                if EnhancedRemoteControlHandler.level1_authenticated:
+                if self.validate_session(session_id) and self.get_session_level(session_id, 'level1'):
                     self.send_admin_auth_page()
                 else:
                     self.send_redirect('/')
             
             elif path == '/control':
-                if EnhancedRemoteControlHandler.level1_authenticated and EnhancedRemoteControlHandler.level2_authenticated:
-                    self.send_control_panel()
+                if self.validate_session(session_id) and self.get_session_level(session_id, 'level1') and self.get_session_level(session_id, 'level2'):
+                    self.send_control_panel(session_id)
                 else:
                     self.send_redirect('/')
             
-            elif path == '/sessions-data':  # 🔥 أضف هذا الـ endpoint
-                self.send_sessions_list()
+            elif path == '/sessions-data':
+                if self.validate_session(session_id) and self.get_session_level(session_id, 'level1') and self.get_session_level(session_id, 'level2'):
+                    self.send_sessions_list()
+                else:
+                    self.send_error(403, "Access Denied")
             
             else:
                 self.send_404_page()
@@ -327,6 +438,8 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                         
                         const data = await response.json();
                         if (data.success) {
+                            // حفظ الجلسة في الكوكيز
+                            document.cookie = "session_id=" + data.session_id + "; path=/";
                             window.location = '/admin-auth';
                         } else {
                             failedAttempts++;
@@ -440,10 +553,27 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                 </div>
             </div>
             <script>
+                function getSessionId() {
+                    const cookies = document.cookie.split(';');
+                    for (let cookie of cookies) {
+                        const [name, value] = cookie.trim().split('=');
+                        if (name === 'session_id') return value;
+                    }
+                    return null;
+                }
+                
                 async function adminLogin() {
                     const password = document.getElementById('adminPassword').value;
+                    const session_id = getSessionId();
+                    
                     if (!password) {
                         alert('Please enter admin password');
+                        return;
+                    }
+                    
+                    if (!session_id) {
+                        alert('Session expired. Please login again.');
+                        window.location = '/';
                         return;
                     }
                     
@@ -451,7 +581,10 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                         const response = await fetch('/admin-login', {
                             method: 'POST',
                             headers: {'Content-Type': 'application/json'},
-                            body: JSON.stringify({password: password})
+                            body: JSON.stringify({
+                                password: password,
+                                session_id: session_id
+                            })
                         });
                         
                         const data = await response.json();
@@ -477,8 +610,13 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(html.encode())
 
-    def send_control_panel(self):
+    def send_control_panel(self, session_id):
         """لوحة التحكم المتكاملة"""
+        # التحقق الأمني الإضافي
+        if not self.validate_session(session_id) or not self.get_session_level(session_id, 'level2'):
+            self.send_redirect('/')
+            return
+            
         html = '''
         <!DOCTYPE html>
         <html>
@@ -875,6 +1013,15 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                 let commandCounter = 0;
                 let allClients = [];
                 
+                function getSessionId() {
+                    const cookies = document.cookie.split(';');
+                    for (let cookie of cookies) {
+                        const [name, value] = cookie.trim().split('=');
+                        if (name === 'session_id') return value;
+                    }
+                    return null;
+                }
+                
                 function switchTab(tabName) {
                     document.querySelectorAll('.tab-content').forEach(content => {
                         content.classList.remove('active');
@@ -894,6 +1041,10 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                 async function loadSessions() {
                     try {
                         const response = await fetch('/sessions-data');
+                        if (response.status === 403) {
+                            window.location = '/';
+                            return;
+                        }
                         const sessions = await response.json();
                         allClients = sessions;
                         updateSessionStats(sessions);
@@ -940,6 +1091,10 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                 async function loadDetailedSessions() {
                     try {
                         const response = await fetch('/sessions-data');
+                        if (response.status === 403) {
+                            window.location = '/';
+                            return;
+                        }
                         const sessions = await response.json();
                         
                         const list = document.getElementById('detailedSessionsList');
@@ -1154,11 +1309,14 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                             const response = await fetch('/logout', {
                                 method: 'POST',
                                 headers: {'Content-Type': 'application/json'},
-                                body: JSON.stringify({})
+                                body: JSON.stringify({session_id: getSessionId()})
                             });
                             
+                            // مسح الكوكيز
+                            document.cookie = "session_id=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
                             window.location = '/';
                         } catch (err) {
+                            document.cookie = "session_id=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
                             window.location = '/';
                         }
                     }
@@ -1181,17 +1339,28 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
         password = data.get('password', '')
         expected_hash = self.get_password_hash("user_password")
         
-        if hashlib.sha256(password.encode()).hexdigest() == expected_hash:
-            EnhancedRemoteControlHandler.level1_authenticated = True
-            self.send_json({'success': True})
+        # التحقق من كلمة المرور
+        if hashlib.sha256((password + "ULTRA_SECURE_SALT_2024" + self.SECRET_KEY).encode()).hexdigest() == expected_hash:
+            # إنشاء جلسة جديدة
+            session_id = self.create_session(client_ip)
+            if session_id:
+                self.user_sessions[session_id]['level1'] = True
+                self.log_login_attempt(client_ip, True)
+                self.log_security_event(f"Successful level 1 login from {client_ip}")
+                self.send_json({'success': True, 'session_id': session_id})
+            else:
+                self.send_json({'success': False, 'error': 'Too many sessions from this IP'})
         else:
+            # فشل المصادقة
+            self.log_login_attempt(client_ip, False)
+            
             if client_ip not in self.failed_attempts:
                 self.failed_attempts[client_ip] = {'count': 0, 'last_attempt': time.time()}
             
             self.failed_attempts[client_ip]['count'] += 1
             self.failed_attempts[client_ip]['last_attempt'] = time.time()
             
-            self.log_security_event(f"Failed level 1 authentication - Attempt {self.failed_attempts[client_ip]['count']}")
+            self.log_security_event(f"Failed level 1 authentication - Attempt {self.failed_attempts[client_ip]['count']} from {client_ip}")
             
             if self.failed_attempts[client_ip]['count'] >= self.MAX_FAILED_ATTEMPTS:
                 self.block_ip(client_ip)
@@ -1201,12 +1370,22 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
     def handle_admin_login(self, data):
         client_ip = self.client_address[0]
         password = data.get('password', '')
+        session_id = data.get('session_id')
         expected_hash = self.get_password_hash("admin_password")
         
-        if hashlib.sha256(password.encode()).hexdigest() == expected_hash:
-            EnhancedRemoteControlHandler.level2_authenticated = True
+        # التحقق من الجلسة أولاً
+        if not self.validate_session(session_id) or not self.get_session_level(session_id, 'level1'):
+            self.send_json({'success': False, 'error': 'Invalid session'})
+            return
+        
+        # التحقق من كلمة المرور الثانية
+        if hashlib.sha256((password + "ULTRA_SECURE_SALT_2024" + self.SECRET_KEY).encode()).hexdigest() == expected_hash:
+            self.user_sessions[session_id]['level2'] = True
+            self.log_login_attempt(client_ip, True)
+            self.log_security_event(f"Successful admin login from {client_ip}")
             self.send_json({'success': True})
         else:
+            self.log_login_attempt(client_ip, False)
             self.log_security_event("Failed admin authentication")
             self.send_json({'success': False})
 
@@ -1223,8 +1402,8 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
         passwords = self.load_passwords()
         
         if level == 'level1':
-            current_hash = hashlib.sha256(current_password.encode()).hexdigest()
-            expected_hash = hashlib.sha256(passwords['user_password'].encode()).hexdigest()
+            current_hash = hashlib.sha256((current_password + "ULTRA_SECURE_SALT_2024" + self.SECRET_KEY).encode()).hexdigest()
+            expected_hash = hashlib.sha256((passwords['user_password'] + "ULTRA_SECURE_SALT_2024" + self.SECRET_KEY).encode()).hexdigest()
             
             if current_hash != expected_hash:
                 self.send_json({'success': False, 'error': 'Current Level 1 password is incorrect'})
@@ -1233,8 +1412,8 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
             passwords['user_password'] = new_password
             
         elif level == 'level2':
-            current_hash = hashlib.sha256(current_password.encode()).hexdigest()
-            expected_hash = hashlib.sha256(passwords['admin_password'].encode()).hexdigest()
+            current_hash = hashlib.sha256((current_password + "ULTRA_SECURE_SALT_2024" + self.SECRET_KEY).encode()).hexdigest()
+            expected_hash = hashlib.sha256((passwords['admin_password'] + "ULTRA_SECURE_SALT_2024" + self.SECRET_KEY).encode()).hexdigest()
             
             if current_hash != expected_hash:
                 self.send_json({'success': False, 'error': 'Current Admin password is incorrect'})
@@ -1375,9 +1554,13 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
         self.end_headers()
         
     def handle_logout(self, data):
-        """تسجيل الخروج"""
-        EnhancedRemoteControlHandler.level1_authenticated = False
-        EnhancedRemoteControlHandler.level2_authenticated = False
+        """تسجيل الخروج الآمن"""
+        session_id = data.get('session_id')
+        
+        if session_id and session_id in self.user_sessions:
+            del self.user_sessions[session_id]
+            self.log_security_event(f"User logged out - Session: {session_id}")
+        
         self.send_json({'success': True})
 
 def cleanup_sessions():
@@ -1404,16 +1587,18 @@ def main():
     port = int(os.environ.get('PORT', 8080))
     
     print("=" * 80)
-    print(" SECURE REMOTE CONTROL SERVER - RENDER.COM")
+    print(" 🔒 ULTRA SECURE REMOTE CONTROL SERVER")
     print("=" * 80)
     print(f"Control Panel:     https://game-python-1.onrender.com/control")
     print("Level 1 Password: hblackhat")
     print("Level 2 Password: sudohacker")
-    print("Database:         remote_control.db")
+    print("Security Features: Multi-layer sessions, IP blocking, Rate limiting")
+    print("Session Timeout:  30 minutes")
+    print("Max Attempts:     3 per IP")
     print("=" * 80)
-    print(" SECURE MODE ACTIVATED - ALL IN ONE PAGE")
-    print(" Multi-layer authentication system")
-    print(" Real-time client monitoring")
+    print(" 🔐 ULTRA SECURE MODE ACTIVATED")
+    print(" Each user has separate isolated session")
+    print(" No more shared authentication issues")
     print("=" * 80)
     
     try:
