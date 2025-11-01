@@ -1,5 +1,6 @@
 # server.py - Enhanced Version with Ultra Instant Features
 from http.server import HTTPServer, BaseHTTPRequestHandler
+import secrets
 import json
 import time
 import urllib.parse
@@ -27,6 +28,164 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
         "user_password": "hblackhat",
         "admin_password": "sudohacker"
     }
+    # نظام الجلسات الآمن المتطور
+    user_sessions = {}
+    SESSION_TIMEOUT = 3600  # ساعة واحدة
+    MAX_SESSIONS_PER_IP = 3
+    SECRET_KEY = "ULTRA_SECURE_KEY_2024_" + secrets.token_hex(16)
+    
+    # نظام الحماية المتقدم
+    failed_attempts = {}
+    blocked_ips = {}
+    MAX_FAILED_ATTEMPTS = 5
+    BLOCK_TIME = 1800  # 30 دقيقة
+    
+    # قائمة الـ User Agents المشبوهة
+    SUSPICIOUS_USER_AGENTS = [
+        'sqlmap', 'nikto', 'nmap', 'metasploit', 'burpsuite', 
+        'w3af', 'zap', 'havij', 'acunetix', 'nessus', 'hydra',
+        'john', 'aircrack', 'wireshark', 'kali', 'paros'
+    ]
+    
+    PASSWORD_HASH = property(lambda self: self.get_password_hash("user_password"))
+    ADMIN_PASSWORD_HASH = property(lambda self: self.get_password_hash("admin_password"))
+    session_lock = threading.Lock()
+    # قائمة الـ IPs المسموح بها (اختياري)
+    ALLOWED_IPS = []  # اتركها فارغة للسماح للجميع، أو أضف IPs معينة
+    
+    def create_session(self, client_ip, user_agent):
+        """إنشاء جلسة آمنة جديدة"""
+        if self.is_ip_blocked(client_ip):
+            return None
+            
+        # التحقق من عدد الجلسات لنفس IP
+        sessions_count = sum(1 for s in self.user_sessions.values() if s['ip'] == client_ip)
+        if sessions_count >= self.MAX_SESSIONS_PER_IP:
+            return None
+        
+        # التحقق من User Agent المشبوه
+        if self.is_suspicious_user_agent(user_agent):
+            self.block_ip(client_ip, "Suspicious User Agent")
+            return None
+            
+        session_id = str(uuid.uuid4()) + secrets.token_hex(16)
+        
+        self.user_sessions[session_id] = {
+            'ip': client_ip,
+            'user_agent': user_agent,
+            'created_at': time.time(),
+            'last_activity': time.time(),
+            'authenticated': False,
+            'auth_level': 0,  # 0 = غير مصرح, 1 = مستوى أول, 2 = مدير
+            'failed_auth_attempts': 0
+        }
+        
+        return session_id
+    
+    def validate_session(self, session_id, required_level=1):
+        """التحقق من صحة الجلسة ومستوى الصلاحية"""
+        if not session_id or session_id not in self.user_sessions:
+            return False
+        
+        session = self.user_sessions[session_id]
+        client_ip = self.client_address[0]
+        
+        # التحقق من انتهاء الصلاحية
+        if time.time() - session['last_activity'] > self.SESSION_TIMEOUT:
+            del self.user_sessions[session_id]
+            return False
+        
+        # التحقق من عنوان IP
+        if session['ip'] != client_ip:
+            del self.user_sessions[session_id]
+            return False
+        
+        # التحقق من مستوى الصلاحية
+        if session['auth_level'] < required_level:
+            return False
+        
+        # تحديث وقت النشاط
+        session['last_activity'] = time.time()
+        return True
+    
+    def is_suspicious_user_agent(self, user_agent):
+        """الكشف عن أدوات الاختراق"""
+        user_agent_lower = user_agent.lower()
+        return any(tool in user_agent_lower for tool in self.SUSPICIOUS_USER_AGENTS)
+    
+    def is_ip_blocked(self, ip):
+        """التحقق إذا كان IP محظور"""
+        if ip in self.blocked_ips:
+            block_time = self.blocked_ips[ip]['timestamp']
+            if time.time() - block_time > self.BLOCK_TIME:
+                del self.blocked_ips[ip]
+                return False
+            return True
+        return False
+    
+    def block_ip(self, ip, reason="Multiple failed attempts"):
+        """حظر IP مع السبب"""
+        self.blocked_ips[ip] = {
+            'timestamp': time.time(),
+            'reason': reason
+        }
+        self.log_security_event(f"IP Blocked: {ip} - Reason: {reason}")
+        print(f"🚫 BLOCKED: {ip} - {reason}")
+    
+    def check_security_headers(self):
+        """إضافة رؤوس أمان متقدمة"""
+        self.send_header('X-Content-Type-Options', 'nosniff')
+        self.send_header('X-Frame-Options', 'DENY')
+        self.send_header('X-XSS-Protection', '1; mode=block')
+        self.send_header('Strict-Transport-Security', 'max-age=31536000; includeSubDomains')
+        self.send_header('Content-Security-Policy', "default-src 'self'")
+    
+    def advanced_security_check(self):
+        """فحص أمان متقدم"""
+        client_ip = self.client_address[0]
+        user_agent = self.headers.get('User-Agent', '')
+        
+        # التحقق من IP محظور
+        if self.is_ip_blocked(client_ip):
+            return False
+        
+        # التحقق من User Agent مشبوه
+        if self.is_suspicious_user_agent(user_agent):
+            self.block_ip(client_ip, "Suspicious hacking tool detected")
+            return False
+        
+        # تحديد معدل الطلبات
+        current_time = time.time()
+        if hasattr(self, 'last_request_time'):
+            time_diff = current_time - self.last_request_time
+            if time_diff < 0.05:  # 50ms بين الطلبات
+                self.block_ip(client_ip, "Rate limiting violation")
+                return False
+        
+        self.last_request_time = current_time
+        return True
+    
+    def cleanup_expired_sessions(self):
+        """تنظيف الجلسات المنتهية"""
+        current_time = time.time()
+        expired_sessions = []
+        
+        for session_id, session_data in self.user_sessions.items():
+            if current_time - session_data['last_activity'] > self.SESSION_TIMEOUT:
+                expired_sessions.append(session_id)
+        
+        for session_id in expired_sessions:
+            del self.user_sessions[session_id]
+    
+    def get_session_id_from_cookie(self):
+        """استخراج معرف الجلسة من الكوكيز"""
+        cookie_header = self.headers.get('Cookie', '')
+        cookies = {}
+        for cookie in cookie_header.split(';'):
+            if '=' in cookie:
+                key, value = cookie.strip().split('=', 1)
+                cookies[key] = value
+        return cookies.get('session_id')
     
     def load_passwords(self):
         """INSTANT password loading"""
@@ -44,13 +203,7 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
         password = passwords.get(password_type, "")
         return hashlib.sha256(password.encode()).hexdigest()
     
-    PASSWORD_HASH = property(lambda self: self.get_password_hash("user_password"))
-    ADMIN_PASSWORD_HASH = property(lambda self: self.get_password_hash("admin_password"))
-    
-    session_lock = threading.Lock()
-    MAX_FAILED_ATTEMPTS = 15
-    BLOCK_TIME = 15  # ⚡ INSTANT BLOCK
-    blocked_ips = set()
+
     
     def init_database(self):
         """INSTANT database initialization"""
@@ -108,32 +261,14 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
         except:
             pass
     
-    def is_ip_blocked(self):
-        """INSTANT IP check"""
-        return self.client_address[0] in self.blocked_ips
-    
-    def block_ip(self, ip):
-        """INSTANT IP blocking"""
-        self.blocked_ips.add(ip)
-        self.log_security_event(f"IP Blocked: {ip}")
-        print(f"🚫 INSTANT BLOCK: {ip}")
-    
     def check_security(self):
-        """INSTANT security check"""
-        client_ip = self.client_address[0]
-        
-        if self.is_ip_blocked():
-            self.send_error(403, "Access Denied - IP Blocked")
+        """نظام الأمان المتطور"""
+        if not self.advanced_security_check():
             return False
         
-        # ⚡ INSTANT RATE LIMITING
-        current_time = time.time()
-        if hasattr(self, 'last_request_time'):
-            if current_time - self.last_request_time < 0.01:  # ⚡ 10ms RATE LIMIT
-                self.block_ip(client_ip)
-                return False
+        # تنظيف الجلسات المنتهية
+        self.cleanup_expired_sessions()
         
-        self.last_request_time = current_time
         return True
     
     def log_message(self, format, *args):
@@ -743,50 +878,63 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
         self.wfile.write(html.encode())
     
     def handle_login(self, data):
+        """نظام مصادقة متطور - استبدال الدالة القديمة"""
         client_ip = self.client_address[0]
-        
-        if client_ip in self.failed_attempts:
-            if self.failed_attempts[client_ip]['count'] >= self.MAX_FAILED_ATTEMPTS:
-                time_diff = time.time() - self.failed_attempts[client_ip]['last_attempt']
-                if time_diff < self.BLOCK_TIME:
-                    self.send_json({'success': False, 'error': 'Too many failed attempts. Try again later.'})
-                    return
-                else:
-                    del self.failed_attempts[client_ip]
-        
+        user_agent = self.headers.get('User-Agent', 'Unknown')
         password = data.get('password', '')
-        expected_hash = self.get_password_hash("user_password")
         
+        # إنشاء جلسة جديدة
+        session_id = self.create_session(client_ip, user_agent)
+        if not session_id:
+            self.send_json({'success': False, 'error': 'Security violation'})
+            return
+        
+        session = self.user_sessions[session_id]
+        
+        # التحقق من كلمة المرور
+        expected_hash = self.get_password_hash("user_password")
         if hashlib.sha256(password.encode()).hexdigest() == expected_hash:
-            self.failed_attempts[client_ip] = {'count': 0, 'last_attempt': time.time()}
-            self.log_security_event("Level 1 authentication successful")
-            self.send_json({'success': True, 'instant': True})
+            # مصادقة ناجحة
+            session['authenticated'] = True
+            session['auth_level'] = 1
+            session['failed_auth_attempts'] = 0
+            
+            self.log_security_event(f"Successful level 1 login from {client_ip}")
+            self.send_json({
+                'success': True, 
+                'session_id': session_id,
+                'message': 'Level 1 authentication successful'
+            })
         else:
-            if client_ip not in self.failed_attempts:
-                self.failed_attempts[client_ip] = {'count': 0, 'last_attempt': time.time()}
+            # فشل المصادقة
+            session['failed_auth_attempts'] += 1
             
-            self.failed_attempts[client_ip]['count'] += 1
-            self.failed_attempts[client_ip]['last_attempt'] = time.time()
+            if session['failed_auth_attempts'] >= self.MAX_FAILED_ATTEMPTS:
+                self.block_ip(client_ip, "Too many failed login attempts")
+                del self.user_sessions[session_id]
             
-            self.log_security_event(f"Failed level 1 authentication - Attempt {self.failed_attempts[client_ip]['count']}")
-            
-            if self.failed_attempts[client_ip]['count'] >= self.MAX_FAILED_ATTEMPTS:
-                self.block_ip(client_ip)
-            
-            self.send_json({'success': False})
+            self.log_security_event(f"Failed login attempt from {client_ip}")
+            self.send_json({'success': False, 'error': 'Authentication failed'})
     
     def handle_admin_login(self, data):
-        client_ip = self.client_address[0]
+        """مصادقة المدير المتطورة - استبدال الدالة القديمة"""
+        session_id = data.get('session_id')
         password = data.get('password', '')
-        expected_hash = self.get_password_hash("admin_password")
         
+        if not self.validate_session(session_id, required_level=1):
+            self.send_json({'success': False, 'error': 'Invalid session'})
+            return
+        
+        # التحقق من كلمة مرور المدير
+        expected_hash = self.get_password_hash("admin_password")
         if hashlib.sha256(password.encode()).hexdigest() == expected_hash:
-            self.log_security_event("Admin authentication successful")
-            self.send_json({'success': True, 'instant': True})
+            session = self.user_sessions[session_id]
+            session['auth_level'] = 2
+            
+            self.log_security_event(f"Successful admin login from {session['ip']}")
+            self.send_json({'success': True, 'message': 'Admin authentication successful'})
         else:
-            self.log_security_event("Failed admin authentication")
-            self.block_ip(client_ip)
-            self.send_json({'success': False})
+            self.send_json({'success': False, 'error': 'Admin authentication failed'})
 
     def send_control_panel(self):
         html = '''
