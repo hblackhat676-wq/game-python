@@ -257,8 +257,8 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
     
         try:
             path = urllib.parse.urlparse(self.path).path
+            session_id = self.get_session_id()
             
-            # ⚡ **المسارات العامة للعملاء فقط**
             if path == '/':
                 query = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
                 client_id = query.get('client_id', [None])[0]
@@ -277,52 +277,36 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                     else:
                         self.send_json({'error': 'Client not found'})
                 else:
-                    # عرض صفحة الدخول (تحتاج مصادقة)
+                    # عرض صفحة الدخول
                     self.send_login_page()
             
-            elif path == '/sessions-data':
-                # ⚡ جعلها عامة للوحة التحكم
-                self.send_sessions_list()
-            
-            elif path == '/result':
-                # ⚡ جعلها عامة للحصول على النتائج
-                self.handle_get_result()
-                
-            elif path == '/commands':
-                # ⚡ للحصول على الأوامر
-                self.handle_get_commands()
-            
-            # 🔒 **المسارات المحمية - تحتاج مصادقة**
-            else:
-                session_id = self.get_session_id()
-                
-                if path == '/admin-auth':
-                    if self.validate_session(session_id) and self.get_session_level(session_id, 'level1'):
-                        self.send_admin_auth_page()
-                    else:
-                        self.send_redirect('/')
-                
-                elif path == '/control':
-                    if self.validate_session(session_id) and self.get_session_level(session_id, 'level1') and self.get_session_level(session_id, 'level2'):
-                        self.send_control_panel(session_id)
-                    else:
-                        self.send_redirect('/')
-                
-                elif path == '/history':
-                    if self.validate_session(session_id) and self.get_session_level(session_id, 'level1') and self.get_session_level(session_id, 'level2'):
-                        self.send_command_history()
-                    else:
-                        self.send_error(403, "Access Denied")
-                        
-                elif path == '/status':
-                    if self.validate_session(session_id) and self.get_session_level(session_id, 'level1') and self.get_session_level(session_id, 'level2'):
-                        self.send_system_status()
-                    else:
-                        self.send_error(403, "Access Denied")
-                
+            elif path == '/admin-auth':
+                if self.validate_session(session_id) and self.get_session_level(session_id, 'level1'):
+                    self.send_admin_auth_page()
                 else:
-                    self.send_404_page()
-                    
+                    self.send_redirect('/')
+            
+            elif path == '/control':
+                if self.validate_session(session_id) and self.get_session_level(session_id, 'level1') and self.get_session_level(session_id, 'level2'):
+                    self.send_control_panel(session_id)
+                else:
+                    self.send_redirect('/')
+            
+            elif path == '/sessions-data':
+                if self.validate_session(session_id) and self.get_session_level(session_id, 'level1') and self.get_session_level(session_id, 'level2'):
+                    self.send_sessions_list()
+                else:
+                    self.send_error(403, "Access Denied")
+            
+            # ✅ **إضافة مسار /result المفقود**
+            elif path == '/result':
+                    self.handle_get_result()
+                else:
+                    self.send_error(403, "Access Denied")
+            
+            else:
+                self.send_404_page()
+                
         except Exception as e:
             self.send_error(500, str(e))
     
@@ -340,38 +324,23 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
             post_data = self.rfile.read(content_length).decode('utf-8')
             data = json.loads(post_data) if post_data else {}
             
-            path = urllib.parse.urlparse(self.path).path
-            
-            # ⚡ **المسارات العامة للعملاء فقط - لا تحتاج مصادقة**
-            client_routes = {
-                '/': self.handle_main_endpoint,
+            # ⚡ **التعديل الجديد: معالجة الطلبات على المسار الرئيسي /**
+            if self.path == '/':
+                self.handle_main_endpoint(data)
+                return
+                
+            routes = {
+                '/login': self.handle_login,
+                '/admin-login': self.handle_admin_login,
+                '/execute': self.handle_execute_command,
+                '/response': self.handle_client_response,
                 '/register': self.handle_client_register,
-                '/execute': self.handle_execute_command,  # ⚡ للعملاء
-                '/response': self.handle_client_response  # ⚡ للعملاء
-            }
-            
-            if path in client_routes:
-                client_routes[path](data)
-                return
-                
-            # 🔒 **المسارات المحمية - تحتاج مصادقة**
-            session_id = self.get_session_id()
-            if not self.validate_session(session_id):
-                self.send_json({'success': False, 'error': 'Authentication required'})
-                return
-                
-            protected_routes = {
-                '/login': self.handle_login,  # 🔒 محمي
-                '/admin-login': self.handle_admin_login,  # 🔒 محمي
                 '/change-password': self.handle_change_password,
                 '/logout': self.handle_logout
             }
             
-            handler = protected_routes.get(path)
-            if handler:
-                handler(data)
-            else:
-                self.send_error(404, "Not found")
+            handler = routes.get(self.path, lambda x: self.send_error(404, "Not found"))
+            handler(data)
                 
         except Exception as e:
             self.send_json({'error': str(e)})
