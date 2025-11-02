@@ -23,7 +23,7 @@ class UltraSecureRemoteControlHandler(BaseHTTPRequestHandler):
     failed_attempts = {}
     
     # 🔐 SECURITY SYSTEM
-    PASSWORD_FILE = "passwords.enc"
+    PASSWORD_FILE = "passwords.json"
     DEFAULT_PASSWORDS = {
         "user_password": "hblackhat",
         "admin_password": "sudohacker"
