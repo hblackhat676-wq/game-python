@@ -407,7 +407,27 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
     # ⚡ الدوال التي ترسل وتستقبل الأوامر والنتائج - تم إضافتها كما هي
 
 
+    def handle_get_commands(self):
+        """استقبال الأوامر من قبل العميل"""
+        with self.session_lock:
+            parsed = urllib.parse.urlparse(self.path)
+            query = urllib.parse.parse_qs(parsed.query)
+            client_id = query.get('client', [None])[0]
+            
+            if client_id and client_id in self.sessions:
+                self.sessions[client_id]['last_seen'] = datetime.now().isoformat()
+                pending_command = self.sessions[client_id]['pending_command']
+                
+                if pending_command:
+                    self.sessions[client_id]['pending_command'] = None
+                    self.send_json({'command': pending_command, 'instant': True})
+                else:
+                    self.send_json({'waiting': False, 'instant': True})
+            else:
+                self.send_json({'error': 'Client not found', 'instant': True})
+    
     def handle_execute_command(self, data):
+        """إرسال أمر من الخادم إلى العميل"""
         with self.session_lock:
             client_id = data.get('client_id')
             command = data.get('command')
@@ -427,7 +447,24 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                 self.send_json({'success': False, 'error': 'Client not found'})
  
 
+    def handle_get_result(self):
+        """الحصول على نتيجة الأمر من العميل"""
+        with self.session_lock:
+            parsed = urllib.parse.urlparse(self.path)
+            query = urllib.parse.parse_qs(parsed.query)
+            
+            client_id = query.get('client', [''])[0]
+            command = query.get('command', [''])[0]
+            
+            if client_id in self.sessions and self.sessions[client_id]['last_response']:
+                result = self.sessions[client_id]['last_response']
+                self.sessions[client_id]['last_response'] = None
+                self.send_json({'result': result, 'instant': True})
+            else:
+                self.send_json({'pending': True, 'instant': True})
+    
     def handle_client_response(self, data):
+        """استقبال نتيجة الأمر من العميل"""
         with self.session_lock:
             client_id = data.get('client_id')
             response = data.get('response')
@@ -1665,21 +1702,6 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
         self.send_response(302)
         self.send_header('Location', location)
         self.end_headers()
-
-    def handle_get_result(self):
-        with self.session_lock:
-            parsed = urllib.parse.urlparse(self.path)
-            query = urllib.parse.parse_qs(parsed.query)
-            
-            client_id = query.get('client', [''])[0]
-            command = query.get('command', [''])[0]
-            
-            if client_id in self.sessions and self.sessions[client_id]['last_response']:
-                result = self.sessions[client_id]['last_response']
-                self.sessions[client_id]['last_response'] = None
-                self.send_json({'result': result, 'instant': True})
-            else:
-                self.send_json({'pending': True, 'instant': True})
                 
     def handle_logout(self, data):
         """تسجيل الخروج الآمن"""
