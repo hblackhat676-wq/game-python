@@ -210,6 +210,7 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
             return False
 
     def send_settings_page(self):
+        self.send_login_page()
         """INSTANT settings page"""
         html = '''
         <!DOCTYPE html>
@@ -789,6 +790,7 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
             self.send_json({'success': False})
 
     def send_control_panel(self):
+        self.send_login_page()
         html = '''
         <!DOCTYPE html>
         <html>
