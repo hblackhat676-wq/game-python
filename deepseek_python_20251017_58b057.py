@@ -1114,11 +1114,11 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                     <div class="terminal" id="terminal">
     INSTANT REMOTE CONTROL SYSTEM READY - 0ms DELAY
     
-    • Select a client from the left panel
-    • Commands execute INSTANTLY with no delay
-    • Real-time responses in under 10ms
-    • All activities are logged for security
-    • ULTRA INSTANT mode activated
+    Select a client from the left panel
+    Commands execute INSTANTLY with no delay
+    Real-time responses in under 10ms
+    All activities are logged for security
+    ULTRA INSTANT mode activated
     
                     </div>
                 </div>
@@ -1166,7 +1166,7 @@ class EnhancedRemoteControlHandler(BaseHTTPRequestHandler):
                                     <small>OS: ${client.os || 'Unknown'}</small><br>
                                     <small>IP: ${client.ip}</small><br>
                                     <small>Last: ${timeDiff.toFixed(0)}s ago</small>
-                                    <small style="color: ${statusColor}; font-weight: bold;"> • ${statusText}</small>
+                                    <small style="color: ${statusColor}; font-weight: bold;"> ${statusText}</small>
                                 </div>
                             `;
                         }).join('');
